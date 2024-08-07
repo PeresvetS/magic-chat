@@ -1,0 +1,27 @@
+{
+  "name": "magic-chat",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "airtable": "^0.12.2",
+    "axios": "^1.7.2",
+    "body-parser": "^1.20.2",
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2",
+    "fs": "^0.0.1-security",
+    "mtproto-storage-fs": "^0.3.1",
+    "natural": "^7.1.0",
+    "node-cron": "^3.0.3",
+    "node-telegram-bot-api": "^0.66.0",
+    "qrcode": "^1.5.4",
+    "telegram-mtproto": "^1.0.5",
+    "winston": "^3.13.1",
+    "winston-daily-rotate-file": "^5.0.0"
+  }
+}
