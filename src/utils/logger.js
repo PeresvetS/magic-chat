@@ -6,6 +6,22 @@ const config = require('../config');
 
 const { combine, timestamp, printf, errors, splat } = winston.format;
 
+function logEnvironmentInfo() {
+  logger.info('Environment Information:');
+  logger.info(`Node Version: ${process.version}`);
+  logger.info(`Platform: ${process.platform}`);
+  logger.info(`Architecture: ${process.arch}`);
+  logger.info(`Process ID: ${process.pid}`);
+  logger.info(`Current Working Directory: ${process.cwd()}`);
+  logger.info('Environment Variables:');
+  Object.keys(process.env).forEach(key => {
+    if (!key.toLowerCase().includes('key') && !key.toLowerCase().includes('secret') && !key.toLowerCase().includes('password')) {
+      logger.info(`  ${key}: ${process.env[key]}`);
+    }
+  });
+}
+logEnvironmentInfo();
+
 // Создаем кастомный формат для логов
 const myFormat = printf(({ level, message, timestamp, ...metadata }) => {
   let msg = `${timestamp} [${level}] : ${message}`;
@@ -55,6 +71,8 @@ const logger = winston.createLogger({
   ],
 });
 
+
+
 // Если мы не в продакшене, то также выводим логи в консоль
 if (process.env.NODE_ENV !== 'production') {
   logger.add(new winston.transports.Console({
@@ -65,4 +83,8 @@ if (process.env.NODE_ENV !== 'production') {
   }));
 }
 
-module.exports = logger;
+
+module.exports = {
+  ...logger,
+  logEnvironmentInfo
+};

@@ -12,27 +12,35 @@ const logger = require('./utils/logger');
 
 async function main() {
   try {
+    logger.info('Main function started');
+    logger.info('Configuration:', JSON.stringify(config, null, 2));
+
     // Аутентификация
+    logger.info('Starting authentication...');
     await authenticate();
+    logger.info('Authentication completed');
 
     // Настройка обработчика сообщений
+    logger.info('Setting up message handler...');
     setupMessageHandler();
+    logger.info('Message handler setup completed');
 
     // Начало прослушивания обновлений
+    logger.info('Starting to listen for updates...');
     await getUpdates();
+    logger.info('Update listener started');
 
     // Инициализация ботов
+    logger.info('Initializing bots...');
     adminBot.startPolling();
     userBot.startPolling();
+    logger.info('Bots initialized and polling started');
 
     // Запуск Express сервера
     const port = config.PORT || 3000;
     const server = app.listen(port, () => {
       logger.info(`Server is running on port ${port}`);
     });
-
-    logger.info('Admin bot is running...');
-    logger.info('User bot is running...');
 
     // Graceful shutdown
     process.on('SIGTERM', async () => {
@@ -60,6 +68,7 @@ async function main() {
     });
 
     // Планирование ежедневного сброса статистики
+    logger.info('Scheduling daily stats reset...');
     cron.schedule('0 0 * * *', async () => {
       try {
         await resetDailyStats();
@@ -68,10 +77,11 @@ async function main() {
         logger.error('Error during daily stats reset:', error);
       }
     });
+    logger.info('Daily stats reset scheduled');
 
   } catch (error) {
     logger.error('Error in main function:', error);
-    throw error;  // Позволяем ошибке подняться выше
+    throw error;
   }
 }
 
