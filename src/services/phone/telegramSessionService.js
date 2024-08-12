@@ -13,25 +13,37 @@ class TelegramSessionService {
   }
 
   async createSession(phoneNumber) {
-    const api = {
-      layer: 57,
-      initConnection: 0x69796de9,
-      api_id: config.API_ID,
-      api_hash: config.API_HASH,
-      app_version: '1.0.0',
-      device_model: 'Desktop',
-      system_version: 'Windows 10'
-    };
+    const sessionFile = path.join(__dirname, '..', 'sessions', `${phoneNumber}.json`);
+    let stringSession = new StringSession('');
 
-    const client = MTProto({
-      api,
-      app: {
-        storage: new Storage(`./sessions/${phoneNumber}.json`)
-      }
+    // Загружаем существующую сессию, если она есть
+    if (fs.existsSync(sessionFile)) {
+      const sessionData = fs.readFileSync(sessionFile, 'utf8');
+      stringSession = new StringSession(sessionData);
+    }
+
+    const client = new TelegramClient(stringSession, config.API_ID, config.API_HASH, {
+      connectionRetries: 5,
+      deviceModel: 'Desktop',
+      systemVersion: 'Windows 10',
+      appVersion: '1.0.0',
+      langCode: 'en',
     });
+
+
+    await client.start({
+      phoneNumber: async () => phoneNumber,
+      password: async () => await this.getAuthCodeFromUser(phoneNumber),
+      onError: (err) => console.log(err),
+    });
+
+    // Сохраняем сессию
+    const sessionString = client.session.save();
+    fs.writeFileSync(sessionFile, sessionString);
 
     this.sessions.set(phoneNumber, client);
     return client;
+
   }
 
   async generateQRCode(phoneNumber, bot, chatId) {
@@ -131,12 +143,18 @@ class TelegramSessionService {
 
   async getAuthCodeFromUser(phoneNumber, bot, chatId) {
     return new Promise((resolve, reject) => {
-      bot.sendMessage(chatId, `Пожалуйста, введите код подтверждения для номера ${phoneNumber}:`);
+      const messageText = `Пожалуйста, введите код подтверждения для номера ${phoneNumber}:`;
+      bot.sendMessage(chatId, messageText);
       
       const callback = (msg) => {
         if (msg.chat.id === chatId) {
-          bot.removeListener('message', callback);
-          resolve(msg.text.trim());
+          const code = msg.text.trim();
+          if (/^\d{5}$/.test(code)) {
+            bot.removeListener('message', callback);
+            resolve(code);
+          } else {
+            bot.sendMessage(chatId, 'Неверный формат кода. Пожалуйста, введите 5-значный код.');
+          }
         }
       };
 
@@ -145,7 +163,7 @@ class TelegramSessionService {
       // Устанавливаем таймаут на 5 минут
       setTimeout(() => {
         bot.removeListener('message', callback);
-        reject(new Error('Timeout: код подтверждения не был введен'));
+        reject(new Error('Timeout: код подтверждения не был введен в течение 5 минут'));
       }, 5 * 60 * 1000);
     });
   }
@@ -171,15 +189,13 @@ class TelegramSessionService {
     });
   }
 
-  getSession(phoneNumber) {
-    return this.sessions.get(phoneNumber);
+  async getSession(phoneNumber) {
+    if (this.sessions.has(phoneNumber)) {
+      return this.sessions.get(phoneNumber);
+    }
+    return await this.createSession(phoneNumber);
   }
 
-  async getAuthCodeFromUser(phoneNumber) {
-    // Здесь должна быть реализация получения кода от пользователя
-    // Например, через ввод в консоль или через бота
-    return '12345'; // Заглушка
-  }
 }
 
 module.exports = new TelegramSessionService();
