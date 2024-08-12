@@ -1,6 +1,6 @@
 // src/bot/admin/commands/userManagementCommands.js
 
-const { banUser, unbanUser, getUserInfo } = require('../../../services/user/userManagementService');
+const { banUser, unbanUser, getUserInfo } = require('../../../services/user/userService');
 
 module.exports = {
   '/banuser ([\\w\\.]+)': async (bot, msg, match) => {

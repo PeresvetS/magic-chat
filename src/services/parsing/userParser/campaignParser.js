@@ -1,7 +1,7 @@
 // src/services/userParser/campaignParser.js
 
-const { updateCampaignStatus, updateCampaignStats, saveParsedUsers } = require('../../db');
-const logger = require('../../utils/logger');
+const { updateCampaignStatus, updateCampaignStats, saveParsedUsers } = require('../../../db');
+const logger = require('../../../utils/logger');
 
 class CampaignParser {
   constructor(userParser) {

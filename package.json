@@ -16,14 +16,13 @@
     "express": "^4.19.2",
     "fs": "^0.0.1-security",
     "input": "^1.0.1",
-    "mtproto-storage-fs": "^0.3.1",
     "natural": "^7.1.0",
     "node-cron": "^3.0.3",
     "node-telegram-bot-api": "^0.66.0",
+    "openai": "^4.55.4",
     "pg": "^8.12.0",
     "qrcode": "^1.5.4",
     "telegram": "^2.23.10",
-    "telegram-mtproto": "^1.0.5",
     "winston": "^3.13.1",
     "winston-daily-rotate-file": "^5.0.0"
   }

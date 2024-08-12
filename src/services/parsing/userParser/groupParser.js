@@ -1,8 +1,8 @@
 // src/services/userParser/groupParser.js
 
-const { client } = require('../../main');
-const { getPhoneNumber } = require('../../db');
-const logger = require('../../utils/logger');
+const { client } = require('../../../main');
+const { getPhoneNumber } = require('../../../db');
+const logger = require('../../../utils/logger');
 
 class GroupParser {
   constructor(userParser) {

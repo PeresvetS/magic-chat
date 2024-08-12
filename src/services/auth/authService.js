@@ -7,7 +7,7 @@ const config = require('../../config');
 const logger = require('../../utils/logger');
 const { getPhoneNumber } = require('../../db');
 
-let client;
+let mainClient;
 
 async function authenticate() {
   try {
@@ -16,36 +16,33 @@ async function authenticate() {
       throw new Error('Номер телефона не установлен. Используйте команду /setnumber в админ-боте.');
     }
 
-    logger.info('Starting authentication process...');
+    logger.info('Starting authentication process for main client...');
     const stringSession = new StringSession(""); // Используйте сохраненную сессию, если она есть
-    client = new TelegramClient(stringSession, config.API_ID, config.API_HASH, {
+    mainClient = new TelegramClient(stringSession, config.API_ID, config.API_HASH, {
       connectionRetries: 5,
     });
 
-    await client.start({
+    await mainClient.start({
       phoneNumber: async () => phoneNumber,
-      password: async () => {
-        logger.info('Требуется двухфакторная аутентификация.');
-        return await input.text("Введите ваш пароль 2FA: ");
-      },
+      password: async () => await input.text("Введите ваш пароль 2FA: "),
       phoneCode: async () => await input.text("Введите код подтверждения, полученный в Telegram: "),
       onError: (err) => logger.error(err),
     });
 
-    logger.info('Аутентификация успешна!');
-    logger.info('Session string:', client.session.save()); // Сохраните эту строку для будущего использования
-    return client;
+    logger.info('Main client authenticated successfully!');
+    logger.info('Session string:', mainClient.session.save()); // Сохраните эту строку для будущего использования
+    return mainClient;
   } catch (error) {
-    logger.error('Ошибка аутентификации:', error);
+    logger.error('Error authenticating main client:', error);
     throw error;
   }
 }
 
 function getClient() {
-  if (!client) {
-    throw new Error('Client is not authenticated. Call authenticate() first.');
+  if (!mainClient) {
+    throw new Error('Main client is not authenticated. Call authenticateMainClient() first.');
   }
-  return client;
+  return mainClient;
 }
 
 module.exports = { authenticate, getClient };

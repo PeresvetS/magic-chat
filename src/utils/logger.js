@@ -55,6 +55,16 @@ const logger = winston.createLogger({
   ],
 });
 
+// Если мы не в продакшене, то также выводим логи в консоль
+if (process.env.NODE_ENV !== 'production') {
+  logger.add(new winston.transports.Console({
+    format: combine(
+      winston.format.colorize(),
+      winston.format.simple()
+    )
+  }));
+}
+
 function logEnvironmentInfo() {
   logger.info('Environment Information:');
   logger.info(`Node Version: ${process.version}`);
@@ -69,22 +79,11 @@ function logEnvironmentInfo() {
     }
   });
 }
+
+// Добавляем функцию logEnvironmentInfo к объекту logger
+logger.logEnvironmentInfo = logEnvironmentInfo;
+
+// Вызываем функцию logEnvironmentInfo при инициализации модуля
 logEnvironmentInfo();
 
-
-
-// Если мы не в продакшене, то также выводим логи в консоль
-if (process.env.NODE_ENV !== 'production') {
-  logger.add(new winston.transports.Console({
-    format: combine(
-      winston.format.colorize(),
-      winston.format.simple()
-    )
-  }));
-}
-
-
-module.exports = {
-  ...logger,
-  logEnvironmentInfo
-};
+module.exports = logger;

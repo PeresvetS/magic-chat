@@ -3,7 +3,7 @@
 const cron = require('node-cron');
 const config = require('./config');
 const { setupMessageHandler, getUpdates } = require('./messaging');
-const { resetDailyStats } = require('./services/phoneNumberService');
+const { resetDailyStats } = require('./services/phone/phoneNumberService');
 const { initializeTelegramClient } = require('./main');
 const adminBot = require('./bot/admin');
 const userBot = require('./bot/user');

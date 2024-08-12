@@ -1,6 +1,6 @@
 // src/bot/user/commands/phoneCommands.js
 
-const { addPhoneNumber, removePhoneNumber, getPhoneNumberInfo } = require('../../../services/phoneNumberService');
+const { addPhoneNumber, removePhoneNumber, getPhoneNumberInfo } = require('../../../services/phone/phoneNumberService');
 const telegramSessionService = require('../../../services/phone/telegramSessionService');
 
 

@@ -1,6 +1,6 @@
 // src/services/userParser/utils.js
 
-const { client } = require('../../main');
+const { client } = require('../../../main');
 
 function getLastSeen(status) {
   if (status instanceof client.Api.UserStatusOnline) {
