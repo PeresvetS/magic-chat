@@ -1,21 +1,20 @@
 -- create_tables.sql
 
-CREATE TABLE phone_numbers (
+CREATE TABLE IF NOT EXISTS phone_numbers (
   id SERIAL PRIMARY KEY,
-  phone_number TEXT NOT NULL,
-  user_id INTEGER NOT NULL,
+  phone_number VARCHAR(20) UNIQUE NOT NULL,
+  user_id BIGINT,  -- Сделали user_id необязательным
   is_banned BOOLEAN DEFAULT FALSE,
-  ban_type TEXT,
+  ban_type VARCHAR(20),
   is_premium BOOLEAN DEFAULT FALSE,
-  messages_sent_today INTEGER DEFAULT 0,
-  messages_sent_total INTEGER DEFAULT 0,
-  contacts_reached_today INTEGER DEFAULT 0,
-  contacts_reached_total INTEGER DEFAULT 0,
-  daily_limit INTEGER,
-  total_limit INTEGER,
+  messages_sent_today INT DEFAULT 0,
+  messages_sent_total INT DEFAULT 0,
+  contacts_reached_today INT DEFAULT 0,
+  contacts_reached_total INT DEFAULT 0,
+  daily_limit INT DEFAULT 40,
+  total_limit INT,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  max_inactivity_time INTEGER DEFAULT 3600000
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE parsed_users (

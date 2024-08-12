@@ -3,7 +3,7 @@
 require('dotenv').config();
 
 module.exports = {
-  API_ID: process.env.API_ID,
+  API_ID: parseInt(process.env.API_ID, 10),  // Преобразуем в число
   API_HASH: process.env.API_HASH,
   PORT: process.env.PORT || 3000,
   API_KEY: process.env.API_KEY,

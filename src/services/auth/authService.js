@@ -5,18 +5,23 @@ const { StringSession } = require("telegram/sessions");
 const input = require("input");
 const config = require('../../config');
 const logger = require('../../utils/logger');
-const { getPhoneNumber } = require('../../db');
+const { getPhoneNumber, setPhoneNumber } = require('../../db/postgres/phoneNumbers');
 
-let mainClient;
+let mainClient = null;
 
 async function authenticate() {
   try {
-    const phoneNumber = await getPhoneNumber();
+    logger.info('Initializing and authenticating Telegram client...');
+    logger.info(`Using API_ID: ${config.API_ID} (type: ${typeof config.API_ID})`);
+    
+    let phoneNumber = await getPhoneNumber();
+    
     if (!phoneNumber) {
-      throw new Error('Номер телефона не установлен. Используйте команду /setnumber в админ-боте.');
+      logger.warn('Phone number is not set. Prompting for input...');
+      phoneNumber = await input.text("Введите номер телефона для аутентификации: ");
+      await setPhoneNumber(phoneNumber);
     }
 
-    logger.info('Starting authentication process for main client...');
     const stringSession = new StringSession(""); // Используйте сохраненную сессию, если она есть
     mainClient = new TelegramClient(stringSession, config.API_ID, config.API_HASH, {
       connectionRetries: 5,
@@ -26,21 +31,25 @@ async function authenticate() {
       phoneNumber: async () => phoneNumber,
       password: async () => await input.text("Введите ваш пароль 2FA: "),
       phoneCode: async () => await input.text("Введите код подтверждения, полученный в Telegram: "),
-      onError: (err) => logger.error(err),
+      onError: (err) => {
+        logger.error('Error during Telegram client authentication:', err);
+        throw err;
+      },
     });
 
-    logger.info('Main client authenticated successfully!');
-    logger.info('Session string:', mainClient.session.save()); // Сохраните эту строку для будущего использования
+    logger.info('Telegram client authenticated successfully!');
+    logger.info('Session string:', mainClient.session.save());
     return mainClient;
   } catch (error) {
-    logger.error('Error authenticating main client:', error);
+    logger.error('Error initializing and authenticating Telegram client:', error);
+    mainClient = null;
     throw error;
   }
 }
 
 function getClient() {
   if (!mainClient) {
-    throw new Error('Main client is not authenticated. Call authenticateMainClient() first.');
+    throw new Error('Telegram client is not initialized. Call authenticate() first.');
   }
   return mainClient;
 }

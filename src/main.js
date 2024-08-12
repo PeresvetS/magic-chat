@@ -5,11 +5,16 @@ const logger = require('./utils/logger');
 
 async function initializeTelegramClient() {
   try {
-    await authenticate();
-    logger.info('Telegram client initialized successfully');
+    const client = await authenticate();
+    if (!client) {
+      logger.warn('Failed to initialize and authenticate Telegram client.');
+      return false;
+    }
+    logger.info('Telegram client initialized and authenticated successfully');
+    return true;
   } catch (error) {
-    logger.error('Failed to initialize Telegram client:', error);
-    throw error;
+    logger.error('Error initializing Telegram client:', error);
+    return false;
   }
 }
 

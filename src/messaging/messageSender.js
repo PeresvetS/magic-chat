@@ -6,8 +6,13 @@ const { getPhoneNumberInfo, updatePhoneNumberStats, getUserPhoneNumbers } = requ
 const telegramSessionService = require('../services/phone/telegramSessionService');
 
 async function simulateTyping(userId, duration) {
+  const client = getClient();
+  if (!client) {
+    logger.warn('Telegram client is not initialized. Cannot simulate typing.');
+    return;
+  }
+
   try {
-    const client = getClient();
     await client.sendAction(userId, { action: "typing" });
     await new Promise(resolve => setTimeout(resolve, duration));
   } catch (error) {
@@ -65,20 +70,31 @@ async function sendMessage(userId, message) {
 }
 
 async function getUpdates() {
+  const client = getClient();
+  if (!client) {
+    logger.warn('Telegram client is not initialized. Cannot get updates.');
+    return [];
+  }
+
   try {
-    const client = getClient();
-    const updates = await client.getUpdates();
-    logger.info('Received updates:', updates);
-    return updates;
+    // Метод getUpdates может отсутствовать в GramJS. 
+    // Вместо этого можно использовать обработчик событий, установленный в setupMessageHandler
+    logger.info('Updates are handled by event handler. This method is deprecated.');
+    return [];
   } catch (error) {
     logger.error('Error getting updates:', error);
-    throw error;
+    return [];
   }
 }
 
 async function checkNewMessages(userId) {
+  const client = getClient();
+  if (!client) {
+    logger.warn('Telegram client is not initialized. Cannot check new messages.');
+    return false;
+  }
+
   try {
-    const client = getClient();
     const messages = await client.getMessages(userId, { limit: 1 });
     return messages.length > 0;
   } catch (error) {

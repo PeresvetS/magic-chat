@@ -7,22 +7,27 @@ const DEFAULT_MAX_INACTIVITY_TIME = 60 * 60 * 1000; // 60 minutes in millisecond
 
 async function getPhoneNumber() {
   try {
-    const query = 'SELECT phone_number FROM phone_numbers ORDER BY created_at DESC LIMIT 1';
-    const result = await db.query(query);
-    return result.rows.length > 0 ? result.rows[0].phone_number : null;
+    const result = await db.query('SELECT phone_number FROM phone_numbers ORDER BY created_at DESC LIMIT 1');
+    return result.rows[0] ? result.rows[0].phone_number : null;
   } catch (error) {
     logger.error('Ошибка при получении номера телефона:', error);
     throw error;
   }
 }
 
-async function setPhoneNumber(number, userId) {
+async function setPhoneNumber(phoneNumber, userId = null) {
   try {
     const query = `
-      INSERT INTO phone_numbers (phone_number, user_id, max_inactivity_time)
-      VALUES ($1, $2, $3)
+      INSERT INTO phone_numbers (phone_number, user_id, created_at, updated_at)
+      VALUES ($1, $2, NOW(), NOW())
+      ON CONFLICT (phone_number) 
+      DO UPDATE SET updated_at = NOW()
+      RETURNING *
     `;
-    await db.query(query, [number, userId, DEFAULT_MAX_INACTIVITY_TIME]);
+    const values = [phoneNumber, userId];
+    const result = await db.query(query, values);
+    logger.info(`Номер телефона ${phoneNumber} успешно сохранен.`);
+    return result.rows[0];
   } catch (error) {
     logger.error('Ошибка при установке номера телефона:', error);
     throw error;

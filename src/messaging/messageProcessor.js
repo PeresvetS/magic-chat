@@ -5,6 +5,7 @@ const { splitIntoSentences } = require('../utils/helpers');
 const { simulateTyping, sendMessage, checkNewMessages } = require('./messageSender');
 const axios = require('axios');
 const logger = require('../utils/logger');
+const { getClient } = require('../services/auth/authService');
 
 async function processMessage(userId, message) {
   try {
@@ -52,11 +53,17 @@ async function sendToChatbotService(conversationId, message, serviceUrl) {
 }
 
 function setupMessageHandler(activeConversations) {
-  client.updates.on('updateNewMessage', async (update) => {
-    if (update.message && update.message.message) {
-      const userId = update.message.from_id;
+  const client = getClient();
+  if (!client) {
+    logger.error('Telegram client is not initialized. Cannot setup message handler.');
+    return;
+  }
+
+  client.addEventHandler(async (update) => {
+    if (update.className === 'UpdateNewMessage' && update.message.message) {
+      const userId = update.message.senderId.toString();
       const message = update.message.message;
-      const chatId = userId.toString();
+      const chatId = userId;
 
       logger.info('Received message:', message);
 

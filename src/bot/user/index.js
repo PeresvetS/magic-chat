@@ -2,7 +2,7 @@
 
 const TelegramBot = require('node-telegram-bot-api');
 const config = require('../../config');
-const { checkSubscription } = require('../../middleware/subscriptionCheck');
+const { subscriptionCheck } = require('../../middleware/subscriptionCheck');
 const phoneCommands = require('./commands/phoneCommands');
 const parsingCommands = require('./commands/parsingCommands');
 const campaignCommands = require('./commands/campaignCommands');
@@ -24,7 +24,7 @@ function createUserBot() {
   commandModules.forEach(module => {
     Object.entries(module).forEach(([command, handler]) => {
       bot.onText(new RegExp(command), async (msg, match) => {
-        if (await checkSubscription(msg.from.id)) {
+        if (await subscriptionCheck(msg.from.id)) {
           try {
             await handler(bot, msg, match);
           } catch (error) {
