@@ -5,7 +5,7 @@ const { StringSession } = require("telegram/sessions");
 const input = require("input");
 const config = require('../../config');
 const logger = require('../../utils/logger');
-const { getPhoneNumber } = require('../../db/airtable');
+const { getPhoneNumber } = require('../../db');
 
 let client;
 
