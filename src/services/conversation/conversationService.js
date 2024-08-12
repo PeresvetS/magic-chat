@@ -1,6 +1,6 @@
 // src/services/conversation/conversationService.js
 
-const { getMaxInactivityTime } = require('../../db/airtable');
+const { getMaxInactivityTime } = require('../../db');
 const logger = require('../../utils/logger');
 
 async function cleanupInactiveConversations(activeConversations) {

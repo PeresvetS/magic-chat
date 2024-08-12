@@ -1,7 +1,7 @@
 // src/services/userParser/groupParser.js
 
 const { client } = require('../../main');
-const { getPhoneNumber } = require('../../db/airtable');
+const { getPhoneNumber } = require('../../db');
 const logger = require('../../utils/logger');
 
 class GroupParser {

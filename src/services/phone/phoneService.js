@@ -1,6 +1,6 @@
 // src/services/phone/phoneService.js
 
-const { phoneNumbersTable } = require('../../db/airtable');
+const { phoneNumbersTable } = require('../../db');
 const logger = require('../../utils/logger');
 
 async function addPhone(userId, phoneNumber) {

@@ -1,6 +1,6 @@
 // src/utils/userUtils.js
 
-const { usersTable } = require('../db/airtable');
+const { usersTable } = require('../db');
 const logger = require('./logger');
 
 async function getUserId(userIdentifier) {

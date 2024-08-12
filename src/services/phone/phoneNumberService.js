@@ -1,6 +1,6 @@
 // src/services/phone/phoneNumberService.js
 
-const { phoneNumbersTable } = require('../../db/airtable');
+const { phoneNumbersTable } = require('../../db');
 const logger = require('../../utils/logger');
 const telegramSessionService = require('./telegramSessionService');
 

@@ -1,6 +1,6 @@
 // src/services/user/subscriptionService.js
 
-const { subscriptionsTable } = require('../../db/airtable');
+const { subscriptionsTable } = require('../../db');
 const logger = require('../../utils/logger');
 const { getUserId } = require('../../utils/userUtils');
 

@@ -1,6 +1,6 @@
 // src/services/userParser/campaignParser.js
 
-const { updateCampaignStatus, updateCampaignStats, saveParsedUsers } = require('../../db/airtable');
+const { updateCampaignStatus, updateCampaignStats, saveParsedUsers } = require('../../db');
 const logger = require('../../utils/logger');
 
 class CampaignParser {

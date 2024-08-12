@@ -1,6 +1,6 @@
 // src/services/stats/statsService.js
 
-const { usersTable, parsedUsersTable, parsingCampaignsTable } = require('../../db/airtable');
+const { usersTable, parsedUsersTable, parsingCampaignsTable } = require('../../db');
 const logger = require('../../utils/logger');
 
 async function getGlobalStats() {

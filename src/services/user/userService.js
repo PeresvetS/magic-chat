@@ -1,6 +1,6 @@
 // src/services/user/userService.js
 
-const { usersTable, phoneNumbersTable } = require('../../db/airtable');
+const { usersTable, phoneNumbersTable } = require('../../db');
 const logger = require('../../utils/logger');
 const { getUserId } = require('../../utils/userUtils');
 const { getLimits } = require('./limitService');

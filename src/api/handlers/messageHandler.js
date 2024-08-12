@@ -1,7 +1,7 @@
 // src/api/handlers/messageHandler.js
 
 const { processMessage } = require('../../messaging');
-const { getPhoneNumber } = require('../../db/airtable');
+const { getPhoneNumber } = require('../../db');
 const logger = require('../../utils/logger');
 
 const handleSendMessage = (activeConversations) => async (req, res) => {

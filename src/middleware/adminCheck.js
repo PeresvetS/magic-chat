@@ -1,6 +1,6 @@
 // src/middleware/adminCheck.js
 
-const { getAdminIds } = require('../db/airtable');
+const { getAdminIds } = require('../db');
 const logger = require('../utils/logger');
 
 let ALLOWED_ADMINS = [];
