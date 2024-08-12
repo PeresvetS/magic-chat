@@ -2,10 +2,9 @@
 
 const cron = require('node-cron');
 const config = require('./config');
-const { authenticate } = require('./services/auth/authService');
 const { setupMessageHandler, getUpdates } = require('./messaging');
 const { resetDailyStats } = require('./services/phoneNumberService');
-const { app } = require('./main');
+const { initializeTelegramClient } = require('./main');
 const adminBot = require('./bot/admin');
 const userBot = require('./bot/user');
 const logger = require('./utils/logger');
@@ -17,7 +16,8 @@ async function main() {
 
     // Аутентификация
     logger.info('Starting authentication...');
-    await authenticate();
+    // Инициализация Telegram клиента
+    await initializeTelegramClient();
     logger.info('Authentication completed');
 
     // Настройка обработчика сообщений

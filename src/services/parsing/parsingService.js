@@ -1,18 +1,18 @@
 // src/services/parsing/parsingService.js
 
+const { getClient } = require('../auth/authService');
+const logger = require('../../utils/logger');
 const BioEvaluator = require('./userParser/bioEvaluator');
-const CampaignParser = require('./userParser/campaignParser');
-const GroupParser = require('./userParser/groupParser');
 const UserCategorizer = require('./userParser/userCategorizer');
 const ParsingManager = require('./userParser/parsingManager');
+const CampaignParser = require('./userParser/campaignParser');
 
 class ParsingService {
   constructor() {
     this.bioEvaluator = new BioEvaluator();
-    this.groupParser = new GroupParser();
-    this.campaignParser = new CampaignParser();
-    this.userCategorizer = new UserCategorizer();
-    this.parsingManager = new ParsingManager(this.groupParser);
+    this.userCategorizer = new UserCategorizer(this.bioEvaluator);
+    this.parsingManager = new ParsingManager(this);
+    this.campaignParser = new CampaignParser(this);
   }
 
   async startParsing(userId, groupUsername, audienceDescription) {
@@ -37,6 +37,19 @@ class ParsingService {
 
   async evaluateBio(bio, audienceDescription) {
     return this.bioEvaluator.evaluateBio(bio, audienceDescription);
+  }
+
+  async parseGroup(groupUsername) {
+    try {
+      const client = getClient();
+      const entity = await client.getEntity(groupUsername);
+      const participants = await client.getParticipants(entity);
+      logger.info(`Parsed ${participants.length} users from ${groupUsername}`);
+      return participants;
+    } catch (error) {
+      logger.error('Error parsing group:', error);
+      throw error;
+    }
   }
 }
 
