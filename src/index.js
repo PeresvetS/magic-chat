@@ -56,22 +56,23 @@ async function main() {
         logger.error('Error stopping user bot:', error);
       }
 
-      cron.schedule('0 0 * * *', async () => {
-        try {
-          await resetDailyStats();
-          logger.info('Daily stats reset completed');
-        } catch (error) {
-          logger.error('Error during daily stats reset:', error);
-        }
-      });
-
       process.exit(0);
+    });
+
+    // Планирование ежедневного сброса статистики
+    cron.schedule('0 0 * * *', async () => {
+      try {
+        await resetDailyStats();
+        logger.info('Daily stats reset completed');
+      } catch (error) {
+        logger.error('Error during daily stats reset:', error);
+      }
     });
 
   } catch (error) {
     logger.error('Error in main function:', error);
-    process.exit(1);
+    throw error;  // Позволяем ошибке подняться выше
   }
 }
 
-main();
+module.exports = { main };
