@@ -1,4 +1,4 @@
-// src/services/user/userPhoneService.js
+// src/services/user/src/userPhoneService.js
 
 const { phoneNumbersTable } = require('../../../db');
 const logger = require('../../../utils/logger');

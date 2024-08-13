@@ -1,4 +1,4 @@
-// src/services/user/subscriptionService.js
+// src/services/user/src/subscriptionService.js
 
 const { subscriptionsTable } = require('../../../db');
 const logger = require('../../../utils/logger');

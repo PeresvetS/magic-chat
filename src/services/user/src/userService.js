@@ -1,4 +1,4 @@
-// src/services/user/userService.js
+// src/services/user/src/userService.js
 
 const { usersTable } = require('../../../db');
 const logger = require('../../../utils/logger');

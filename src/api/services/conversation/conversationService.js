@@ -1,7 +1,9 @@
 // src/services/conversation/conversationService.js
 
-const { getMaxInactivityTime } = require('../../db');
-const logger = require('../../utils/logger');
+// сервис для API
+
+const { getMaxInactivityTime } = require('../../../db');
+const logger = require('../../../utils/logger');
 
 async function cleanupInactiveConversations(activeConversations) {
   const now = Date.now();

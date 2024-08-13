@@ -1,4 +1,4 @@
-// src/services/index.js   
+// src/services/user/index.js   
 
 const userService = require('./src/userService');
 const subscriptionService = require('./src/subscriptionService');

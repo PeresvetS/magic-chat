@@ -8,7 +8,7 @@ const parsingCommands = require('./commands/parsingCommands');
 const campaignCommands = require('./commands/campaignCommands');
 const accountCommands = require('./commands/accountCommands');
 const helpCommands = require('./commands/helpCommands');
-const telegramSessionService = require('../../services/phone/telegramSessionService');
+const telegramSessionService = require('../../services/telegram');
 
 function createUserBot() {
   const bot = new TelegramBot(config.USER_BOT_TOKEN, { polling: false });

@@ -3,7 +3,7 @@
 const { getClient } = require('../services/auth/authService');
 const logger = require('../utils/logger');
 const { getPhoneNumberInfo, updatePhoneNumberStats, getUserPhoneNumbers } = require('../services/phone/phoneNumberService');
-const telegramSessionService = require('../services/phone/telegramSessionService');
+const telegramSessionService = require('../services/telegram');
 
 async function simulateTyping(userId, duration) {
   const client = getClient();
