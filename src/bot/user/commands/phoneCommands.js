@@ -1,8 +1,7 @@
 // src/bot/user/commands/phoneCommands.js
 
 const { addPhoneNumber, removePhoneNumber, getPhoneNumberInfo } = require('../../../services/phone/phoneNumberService');
-const telegramSessionService = require('../../../services/telegram');
-
+const { TelegramSessionService } = require('../../../services/telegram');
 
 module.exports = {
   '/addphone ([+]?[0-9]+)': async (bot, msg, match) => {
@@ -29,7 +28,9 @@ module.exports = {
     const phoneNumber = match[1];
     try {
       await removePhoneNumber(msg.from.id, phoneNumber);
-      bot.sendMessage(msg.chat.id, `Номер телефона ${phoneNumber} успешно удален.`);
+      // Разрыв сессии при удалении номера
+      await TelegramSessionService.disconnectSession(phoneNumber);
+      bot.sendMessage(msg.chat.id, `Номер телефона ${phoneNumber} успешно удален и сессия разорвана.`);
     } catch (error) {
       bot.sendMessage(msg.chat.id, `Ошибка при удалении номера: ${error.message}`);
     }
@@ -56,4 +57,3 @@ module.exports = {
       bot.sendMessage(msg.chat.id, `Ошибка при получении информации о номере: ${error.message}`);
     }
   }
-};

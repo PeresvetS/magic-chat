@@ -1,11 +1,11 @@
 // src/messaging/messageProcessor.js
 
-const config = require('../config');
-const { splitIntoSentences } = require('../utils/helpers');
+const config = require('../../config');
+const { splitIntoSentences } = require('../../utils/helpers');
 const { simulateTyping, sendMessage, checkNewMessages } = require('./messageSender');
 const axios = require('axios');
-const logger = require('../utils/logger');
-const { getClient } = require('../services/auth/authService');
+const logger = require('../../utils/logger');
+const { getClient } = require('../../services/auth/authService');
 
 async function processMessage(userId, message) {
   try {

@@ -25,8 +25,8 @@ class TelegramSessionService {
 
     const client = new TelegramClient(stringSession, config.API_ID, config.API_HASH, {
       connectionRetries: 3,
-      deviceModel: 'MacBookPro16,1',  // Модель устройства (например, MacBook Pro)
-      systemVersion: 'macOS 11.2.3',  // Версия системы (например, macOS Big Sur)
+      deviceModel: 'MacBookPro16,1',
+      systemVersion: 'macOS 11.2.3',
       appVersion: '5.3.1',
       langCode: 'ru',
     });
@@ -104,8 +104,6 @@ class TelegramSessionService {
     }
   }
 
-  
-
   async getAuthCodeFromUser(phoneNumber, bot, chatId) {
     return new Promise((resolve, reject) => {
       const messageText = `Пожалуйста, введите код подтверждения для номера ${phoneNumber}:`;
@@ -125,7 +123,6 @@ class TelegramSessionService {
 
       bot.on('message', callback);
 
-      // Устанавливаем таймаут на 5 минут
       setTimeout(() => {
         bot.removeListener('message', callback);
         reject(new Error('Timeout: код подтверждения не был введен в течение 5 минут'));
@@ -146,7 +143,6 @@ class TelegramSessionService {
 
       bot.on('message', callback);
 
-      // Устанавливаем таймаут на 5 минут
       setTimeout(() => {
         bot.removeListener('message', callback);
         reject(new Error('Timeout: пароль не был введен'));
@@ -159,6 +155,26 @@ class TelegramSessionService {
       return this.sessions.get(phoneNumber);
     }
     return await this.createSession(phoneNumber);
+  }
+
+  async checkSession(phoneNumber) {
+    const client = await this.getSession(phoneNumber);
+    if (!client) {
+      throw new Error(`Сессия для номера ${phoneNumber} не найдена. Пожалуйста, добавьте номер заново.`);
+    }
+    if (!client.connected) {
+      await client.connect();
+    }
+    return client;
+  }
+
+  async disconnectSession(phoneNumber) {
+    if (this.sessions.has(phoneNumber)) {
+      const client = this.sessions.get(phoneNumber);
+      await client.disconnect();
+      this.sessions.delete(phoneNumber);
+      logger.info(`Session for ${phoneNumber} has been disconnected and removed.`);
+    }
   }
 }
 

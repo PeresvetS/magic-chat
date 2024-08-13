@@ -2,7 +2,6 @@
 
 const { phoneNumbersTable } = require('../../db');
 const logger = require('../../utils/logger');
-const telegramSessionService = require('../telegram');
 
 async function addPhoneNumber(userId, phoneNumber, isPremium = false) {
   try {
