@@ -1,10 +1,11 @@
 // src/services/user/userService.js
 
-const { usersTable, phoneNumbersTable } = require('../../db');
-const logger = require('../../utils/logger');
-const { getUserId } = require('../../utils/userUtils');
+const { usersTable } = require('../../../db');
+const logger = require('../../../utils/logger');
+const { getUserId } = require('../../../utils/userUtils');
 const { getLimits } = require('./limitService');
 const { getSubscriptionInfo } = require('./subscriptionService');
+const { getPhoneNumbers } = require('./userPhoneService');
 
 async function getUserInfo(userIdentifier) {
   try {
@@ -37,15 +38,18 @@ async function getUserInfo(userIdentifier) {
   }
 }
 
-async function getPhoneNumbers(userId) {
-  const records = await phoneNumbersTable.select({
-    filterByFormula: `{user_id} = '${userId}'`
-  }).firstPage();
-
-  return records.map(record => ({
-    number: record.fields.phone_number,
-    isActive: record.fields.is_active
-  }));
+async function getAccountInfo(userId) {
+  try {
+    const userInfo = await getUserInfo(userId);
+    const limits = await getLimits(userId);
+    return {
+      ...userInfo,
+      limits
+    };
+  } catch (error) {
+    logger.error('Error getting account info:', error);
+    throw error;
+  }
 }
 
 async function createUser(userId, username) {
@@ -109,33 +113,11 @@ async function updateUserBanStatus(userIdentifier, isBanned) {
   }
 }
 
-async function disablePhoneNumbers(userIdentifier) {
-  try {
-    const userId = await getUserId(userIdentifier);
-    const records = await phoneNumbersTable.select({
-      filterByFormula: `{user_id} = '${userId}'`
-    }).firstPage();
-
-    for (const record of records) {
-      await phoneNumbersTable.update([
-        {
-          id: record.id,
-          fields: { is_active: false }
-        }
-      ]);
-    }
-
-    logger.info(`Disabled phone numbers for user ${userId}`);
-  } catch (error) {
-    logger.error('Error disabling phone numbers:', error);
-    throw error;
-  }
-}
 
 module.exports = {
+  getAccountInfo,
   getUserInfo,
   createUser,
   banUser,
-  unbanUser,
-  disablePhoneNumbers
+  unbanUser
 };
