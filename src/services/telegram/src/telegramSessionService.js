@@ -1,13 +1,13 @@
-// src/services/phone/telegramSessionService.js
+// src/services/telegram/src/telegramSessionService.js
 
 const { TelegramClient } = require("telegram");
 const { StringSession } = require("telegram/sessions");
-const { Api } = require("telegram/tl");
 const fs = require('fs');
 const path = require('path');
+const config = require('../../../config');
+const logger = require('../../../utils/logger');
 const qrcode = require('qrcode');
-const config = require('../../config');
-const logger = require('../../utils/logger');
+const { Api } = require("telegram/tl");
 
 class TelegramSessionService {
   constructor() {
@@ -40,48 +40,6 @@ class TelegramSessionService {
     return client;
   }
 
-  async generateQRCode(phoneNumber, bot, chatId) {
-    const client = await this.getSession(phoneNumber);
-    if (!client) {
-      throw new Error('Session not found');
-    }
-
-    try {
-      const result = await client.invoke(new Api.auth.ExportLoginToken({
-        apiId: config.API_ID,
-        apiHash: config.API_HASH,
-        exceptIds: [],
-      }));
-
-      if (result instanceof Api.auth.LoginToken) {
-        const qrCodeData = `tg://login?token=${Buffer.from(result.token).toString('base64')}`;
-        const qrCodeImage = await qrcode.toBuffer(qrCodeData);
-
-        await bot.sendPhoto(chatId, qrCodeImage, {
-          caption: 'Отсканируйте этот QR-код в официальном приложении Telegram для входа'
-        });
-
-        return new Promise((resolve, reject) => {
-          const timeoutId = setTimeout(() => {
-            reject(new Error('Timeout: QR-код не был отсканирован'));
-          }, 5 * 60 * 1000);
-
-          client.addEventHandler((update) => {
-            if (update instanceof Api.UpdateLoginToken) {
-              clearTimeout(timeoutId);
-              resolve(update);
-            }
-          });
-        });
-      } else {
-        throw new Error('Failed to generate login token');
-      }
-    } catch (error) {
-      logger.error(`Error in QR code authentication for ${phoneNumber}:`, error);
-      throw error;
-    }
-  }
-
   async authenticateSession(phoneNumber, bot, chatId) {
     const client = await this.getSession(phoneNumber);
     if (!client) {
@@ -103,6 +61,50 @@ class TelegramSessionService {
       throw error;
     }
   }
+
+  async generateQRCode(phoneNumber, bot, chatId) {
+    const client = await this.getSession(phoneNumber);
+    if (!client) {
+      throw new Error('Session not found');
+    }
+  
+    try {
+      const result = await client.invoke(new Api.auth.ExportLoginToken({
+        apiId: config.API_ID,
+        apiHash: config.API_HASH,
+        exceptIds: [],
+      }));
+  
+      if (result instanceof Api.auth.LoginToken) {
+        const qrCodeData = `tg://login?token=${Buffer.from(result.token).toString('base64')}`;
+        const qrCodeImage = await qrcode.toBuffer(qrCodeData);
+  
+        await bot.sendPhoto(chatId, qrCodeImage, {
+          caption: 'Отсканируйте этот QR-код в официальном приложении Telegram для входа'
+        });
+  
+        return new Promise((resolve, reject) => {
+          const timeoutId = setTimeout(() => {
+            reject(new Error('Timeout: QR-код не был отсканирован'));
+          }, 5 * 60 * 1000);
+  
+          client.addEventHandler((update) => {
+            if (update instanceof Api.UpdateLoginToken) {
+              clearTimeout(timeoutId);
+              resolve(update);
+            }
+          });
+        });
+      } else {
+        throw new Error('Failed to generate login token');
+      }
+    } catch (error) {
+      logger.error(`Error in QR code authentication for ${phoneNumber}:`, error);
+      throw error;
+    }
+  }
+
+  
 
   async getAuthCodeFromUser(phoneNumber, bot, chatId) {
     return new Promise((resolve, reject) => {
