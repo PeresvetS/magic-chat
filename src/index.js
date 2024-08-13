@@ -31,30 +31,41 @@ async function main() {
       logger.info(`Server is running on port ${port}`);
     });
 
-    // Graceful shutdown
-    process.on('SIGTERM', async () => {
-      logger.info('SIGTERM signal received. Closing HTTP server and stopping bots.');
-      
+    // Функция корректного завершения работы
+    async function gracefulShutdown() {
+      logger.info('Graceful shutdown initiated');
+
+      // Остановка Express сервера
       server.close(() => {
-        logger.info('HTTP server closed.');
+        logger.info('HTTP server closed');
       });
 
+      // Остановка ботов
       try {
-        adminBot.stop();
-        logger.info('Admin bot stopped.');
+        await adminBot.stop();
+        logger.info('Admin bot stopped');
       } catch (error) {
         logger.error('Error stopping admin bot:', error);
       }
 
       try {
-        userBot.stop();
-        logger.info('User bot stopped.');
+        await userBot.stop();
+        logger.info('User bot stopped');
       } catch (error) {
         logger.error('Error stopping user bot:', error);
       }
-ч
+
+      // Освобождение блокировки (эта функция должна быть определена в основном index.js)
+      if (typeof global.releaseLock === 'function') {
+        global.releaseLock();
+      }
+
       process.exit(0);
-    });
+    }
+
+    // Обработка сигналов завершения
+    process.on('SIGTERM', gracefulShutdown);
+    process.on('SIGINT', gracefulShutdown);
 
     // Планирование ежедневного сброса статистики
     logger.info('Scheduling daily stats reset...');

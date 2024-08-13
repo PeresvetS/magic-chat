@@ -96,6 +96,15 @@ CREATE TABLE IF NOT EXISTS parsed_users (
   processing_status VARCHAR(50)
 );
 
+-- Message stats table
+CREATE TABLE message_stats (
+  id SERIAL PRIMARY KEY,
+  user_id BIGINT NOT NULL,
+  phone_number VARCHAR(20) NOT NULL,
+  tokens_used INTEGER NOT NULL,
+  timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
 -- Create indexes
 CREATE INDEX idx_users_telegram_id ON users(telegram_id);
 CREATE INDEX idx_phone_numbers_user_id ON phone_numbers(user_id);

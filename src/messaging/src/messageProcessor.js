@@ -1,26 +1,44 @@
 // src/messaging/messageProcessor.js
 
-const config = require('../../config');
-const { splitIntoSentences } = require('../../utils/helpers');
+const { generateResponse } = require('../services/gpt/gptService');
+const ContextManager = require('../services/langchain/contextManager');
+const { countTokens } = require('../services/tokenizer/tokenizer');
 const { simulateTyping, sendMessage, checkNewMessages } = require('./messageSender');
-const axios = require('axios');
 const logger = require('../../utils/logger');
-const { getClient } = require('../../services/auth/authService');
+const fs = require('fs');
+const path = require('path');
+const db = require('../../db/postgres/config');
 
-async function processMessage(userId, message) {
+const contextManagers = new Map();
+
+async function processMessage(userId, message, phoneNumber) {
   try {
-    const sentences = splitIntoSentences(message);
+    if (!contextManagers.has(userId)) {
+      contextManagers.set(userId, new ContextManager());
+    }
+    const contextManager = contextManagers.get(userId);
 
+    await contextManager.addMessage('human', message);
+    const messages = await contextManager.getMessages();
+
+    const systemPrompt = "You are a helpful assistant."; // Customize this
+    const response = await generateResponse(messages, systemPrompt);
+
+    await contextManager.addMessage('ai', response);
+
+    const tokenCount = countTokens(response);
+    await saveMessageStats(userId, phoneNumber, tokenCount);
+    await saveDialogToFile(userId, message, response);
+
+    const sentences = response.split(/(?<=[.!?])\s+/);
     for (const sentence of sentences) {
-      const typingDuration = Math.min(Math.max(sentence.length * 100, 2000), 5000);
-      await simulateTyping(userId, typingDuration);
-      
+      await simulateTyping(userId, getTypingDuration(sentence));
       if (await checkNewMessages(userId)) {
         logger.info('New message received, stopping response');
         break;
       }
-      
       await sendMessage(userId, sentence);
+      await new Promise(resolve => setTimeout(resolve, getResponseDelay()));
     }
   } catch (error) {
     logger.error('Error processing message:', error);
@@ -28,69 +46,30 @@ async function processMessage(userId, message) {
   }
 }
 
-async function sendToChatbotService(conversationId, message, serviceUrl) {
-  try {
-    logger.info('Отправка сообщения в сервис чат-бота', { conversationId });
-    const response = await axios.post(serviceUrl, {
-      conversationId,
-      message
-    }, {
-      headers: {
-        'X-API-Key': config.API_KEY,
-        'Content-Type': 'application/json'
-      }
-    });
-    logger.info('Сообщение успешно отправлено в сервис чат-бота', { conversationId, response: response.data });
-    return response.data;
-  } catch (error) {
-    logger.error('Ошибка при отправке сообщения в сервис чат-бота', { 
-      conversationId, 
-      error: error.message, 
-      stack: error.stack 
-    });
-    throw error;
-  }
+function getTypingDuration(text) {
+  return Math.floor(Math.random() * (20 - 5 + 1) + 5) * 1000;
 }
 
-function setupMessageHandler(activeConversations) {
-  const client = getClient();
-  if (!client) {
-    logger.error('Telegram client is not initialized. Cannot setup message handler.');
-    return;
-  }
-
-  client.addEventHandler(async (update) => {
-    if (update.className === 'UpdateNewMessage' && update.message.message) {
-      const userId = update.message.senderId.toString();
-      const message = update.message.message;
-      const chatId = userId;
-
-      logger.info('Received message:', message);
-
-      const conversation = activeConversations.get(chatId);
-      if (conversation && update.message.id > conversation.lastMessageId) {
-        conversation.pendingSentences = [];
-        
-        try {
-          await sendToChatbotService(conversation.conversationId, message, conversation.serviceUrl);
-        } catch (error) {
-          logger.error('Не удалось отправить сообщение в сервис чат-бота', { 
-            chatId, 
-            conversationId: conversation.conversationId, 
-            error: error.message 
-          });
-        }
-        
-        conversation.lastMessageId = update.message.id;
-        conversation.lastActivityTime = Date.now();
-        activeConversations.set(chatId, conversation);
-      }
-    }
-  });
+function getResponseDelay() {
+  return Math.floor(Math.random() * (10 - 1 + 1) + 1) * 1000;
 }
 
-module.exports = {
-  processMessage,
-  sendToChatbotService,
-  setupMessageHandler
-};
+async function saveMessageStats(userId, phoneNumber, tokenCount) {
+  const query = `
+    INSERT INTO message_stats (user_id, phone_number, tokens_used, timestamp)
+    VALUES ($1, $2, $3, NOW())
+  `;
+  await db.query(query, [userId, phoneNumber, tokenCount]);
+}
+
+async function saveDialogToFile(userId, userMessage, botResponse) {
+  const dialogDir = path.join(__dirname, '../../dialogs');
+  if (!fs.existsSync(dialogDir)) {
+    fs.mkdirSync(dialogDir);
+  }
+  const filePath = path.join(dialogDir, `${userId}_dialog.txt`);
+  const content = `User: ${userMessage}\nBot: ${botResponse}\n\n`;
+  fs.appendFileSync(filePath, content);
+}
+
+module.exports = { processMessage };

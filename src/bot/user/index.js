@@ -1,3 +1,5 @@
+// src/bot/user/index.js
+
 const TelegramBot = require('node-telegram-bot-api');
 const config = require('../../config');
 const { checkSubscription } = require('../../middleware/checkSubscription');
@@ -76,6 +78,14 @@ function createUserBot() {
           bot.answerCallbackQuery(query.id, { text: `Ошибка при генерации QR-кода: ${error.message}` });
         }
       }
+    }
+  });
+
+  bot.on('polling_error', (error) => {
+    logger.error('Polling error:', error);
+    if (error.code === 'ETELEGRAM' && error.message.includes('terminated by other getUpdates request')) {
+      logger.warn('Another instance is running. Shutting down...');
+      bot.stopPolling();
     }
   });
 
