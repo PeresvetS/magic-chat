@@ -1,34 +1,19 @@
 // src/services/user/src/limitService.js
 
-const { userLimitsTable, parsedUsersTable, phoneNumbersTable, parsingCampaignsTable } = require('../../../db');
+const db = require('../../../db/postgres/config');
 const logger = require('../../../utils/logger');
-const { getUserId } = require('../../../utils/userUtils');
+const { ensureUserExistsById } = require('../../../utils/userUtils');
 
-async function setLimit(userIdentifier, limitType, limitValue) {
+async function setLimit(userId, limitType, limitValue) {
   try {
-    const userId = await getUserId(userIdentifier);
-    const records = await userLimitsTable.select({
-      filterByFormula: `{user_id} = '${userId}'`
-    }).firstPage();
-
-    if (records.length === 0) {
-      await userLimitsTable.create([
-        {
-          fields: {
-            user_id: userId,
-            [`${limitType}_limit`]: limitValue
-          }
-        }
-      ]);
-    } else {
-      await userLimitsTable.update([
-        {
-          id: records[0].id,
-          fields: { [`${limitType}_limit`]: limitValue }
-        }
-      ]);
-    }
-
+    await ensureUserExistsById(userId);
+    const query = `
+      INSERT INTO user_limits (user_id, ${limitType}_limit)
+      VALUES ($1, $2)
+      ON CONFLICT (user_id) 
+      DO UPDATE SET ${limitType}_limit = $2
+    `;
+    await db.query(query, [userId, limitValue]);
     logger.info(`Set ${limitType} limit to ${limitValue} for user ${userId}`);
   } catch (error) {
     logger.error('Error setting limit:', error);
@@ -36,14 +21,13 @@ async function setLimit(userIdentifier, limitType, limitValue) {
   }
 }
 
-async function getLimits(userIdentifier) {
+async function getLimits(userId) {
   try {
-    const userId = await getUserId(userIdentifier);
-    const records = await userLimitsTable.select({
-      filterByFormula: `{user_id} = '${userId}'`
-    }).firstPage();
+    await ensureUserExistsById(userId);
+    const query = 'SELECT * FROM user_limits WHERE user_id = $1';
+    const { rows } = await db.query(query, [userId]);
 
-    if (records.length === 0) {
+    if (rows.length === 0) {
       return {
         parsing: null,
         phones: null,
@@ -53,7 +37,7 @@ async function getLimits(userIdentifier) {
       };
     }
 
-    const limits = records[0].fields;
+    const limits = rows[0];
     return {
       parsing: limits.parsing_limit,
       phones: limits.phones_limit,
@@ -67,17 +51,17 @@ async function getLimits(userIdentifier) {
   }
 }
 
-async function checkLimit(userId, limitType) {
+async function checkLimit(userIdentifier, limitType) {
   try {
-    const records = await userLimitsTable.select({
-      filterByFormula: `{user_id} = '${userId}'`
-    }).firstPage();
+    const userId = await ensureUserExistsById(userIdentifier);
+    const query = 'SELECT * FROM user_limits WHERE user_id = $1';
+    const { rows } = await db.query(query, [userId]);
 
-    if (records.length === 0) {
+    if (rows.length === 0) {
       return true; // No limits set, allow action
     }
 
-    const limits = records[0].fields;
+    const limits = rows[0];
     const limitValue = limits[`${limitType}_limit`];
 
     if (limitValue === null || limitValue === undefined) {
@@ -110,38 +94,33 @@ async function getCurrentUsage(userId, limitType) {
 }
 
 async function getParsedUsersCount(userId) {
-  const records = await parsedUsersTable.select({
-    filterByFormula: `{user_id} = '${userId}'`
-  }).firstPage();
-  return records.length;
+  const query = 'SELECT COUNT(*) FROM parsed_users WHERE user_id = $1';
+  const { rows } = await db.query(query, [userId]);
+  return parseInt(rows[0].count);
 }
 
 async function getActivePhoneNumbersCount(userId) {
-  const records = await phoneNumbersTable.select({
-    filterByFormula: `AND({user_id} = '${userId}', {is_active} = TRUE())`
-  }).firstPage();
-  return records.length;
+  const query = 'SELECT COUNT(*) FROM phone_numbers WHERE user_id = $1 AND is_active = TRUE';
+  const { rows } = await db.query(query, [userId]);
+  return parseInt(rows[0].count);
 }
 
 async function getCampaignsCount(userId) {
-  const records = await parsingCampaignsTable.select({
-    filterByFormula: `{user_id} = '${userId}'`
-  }).firstPage();
-  return records.length;
+  const query = 'SELECT COUNT(*) FROM parsing_campaigns WHERE user_id = $1';
+  const { rows } = await db.query(query, [userId]);
+  return parseInt(rows[0].count);
 }
 
 async function getProcessedContactsCount(userId) {
-  const records = await parsedUsersTable.select({
-    filterByFormula: `AND({user_id} = '${userId}', {is_processed} = TRUE())`
-  }).firstPage();
-  return records.length;
+  const query = 'SELECT COUNT(*) FROM parsed_users WHERE user_id = $1 AND is_processed = TRUE';
+  const { rows } = await db.query(query, [userId]);
+  return parseInt(rows[0].count);
 }
 
 async function getSuccessfulLeadsCount(userId) {
-  const records = await parsedUsersTable.select({
-    filterByFormula: `AND({user_id} = '${userId}', {processing_status} = 'lead')`
-  }).firstPage();
-  return records.length;
+  const query = 'SELECT COUNT(*) FROM parsed_users WHERE user_id = $1 AND processing_status = \'lead\'';
+  const { rows } = await db.query(query, [userId]);
+  return parseInt(rows[0].count);
 }
 
 module.exports = {

@@ -1,66 +1,97 @@
-// src/bot/user/index.js
-
 const TelegramBot = require('node-telegram-bot-api');
 const config = require('../../config');
-const { subscriptionCheck } = require('../../middleware/subscriptionCheck');
+const { checkSubscription } = require('../../middleware/checkSubscription');
 const phoneCommands = require('./commands/phoneCommands');
-const parsingCommands = require('./commands/parsingCommands');
-const campaignCommands = require('./commands/campaignCommands');
-const accountCommands = require('./commands/accountCommands');
+const { getUserInfo, getUserByTgId } = require('../../services/user');
+// const parsingCommands = require('./commands/parsingCommands');
+// const campaignCommands = require('./commands/campaignCommands');
 const helpCommands = require('./commands/helpCommands');
-const telegramSessionService = require('../../services/telegram');
+const subscriptionCommands = require('./commands/subscriptionCommands');
+const { TelegramSessionService } = require('../../services/telegram');
+const logger = require('../../utils/logger');
 
 function createUserBot() {
   const bot = new TelegramBot(config.USER_BOT_TOKEN, { polling: false });
 
   const commandModules = [
     phoneCommands,
-    parsingCommands,
-    campaignCommands,
-    accountCommands,
-    helpCommands
+    // parsingCommands,
+    // campaignCommands,
+    helpCommands,
+    subscriptionCommands
   ];
 
   commandModules.forEach(module => {
     Object.entries(module).forEach(([command, handler]) => {
-      bot.onText(new RegExp(command), async (msg, match) => {
-        if (await subscriptionCheck(msg.from.id)) {
-          try {
-            await handler(bot, msg, match);
-          } catch (error) {
-            console.error(`Error executing command ${command}:`, error);
-            bot.sendMessage(msg.chat.id, `Произошла ошибка при выполнении команды: ${error.message}`);
+      bot.onText(new RegExp(`^${command}`), async (msg, match) => {
+        const telegramId = msg.from.id;
+       
+        try {
+          const user = await getUserByTgId(telegramId);
+          const userInfo = await getUserInfo(user.id);
+          
+          logger.info(`Received command ${command} from user ${user.id}`);
+          
+          if (userInfo.isBanned) {
+            bot.sendMessage(msg.chat.id, 'Вы забанены администратором.');
+            return;
           }
-        } else {
-          bot.sendMessage(msg.chat.id, 'У вас нет активной подписки. Обратитесь к администратору для продления.');
+
+          if (await checkSubscription(user.id)) {
+            await handler(bot, msg, match);
+          } else {
+            logger.info(`User ${user.id} does not have an active subscription`);
+            bot.sendMessage(msg.chat.id, 'У вас нет активной подписки. Обратитесь к администратору для продления.');
+          }
+        } catch (error) {
+          logger.error(`Error executing command ${command}:`, error);
+          bot.sendMessage(msg.chat.id, `Произошла ошибка при выполнении команды: ${error.message}`);
         }
       });
     });
   });
 
-  // Добавляем обработчик callback query
   bot.on('callback_query', async (query) => {
     const [action, authType, phoneNumber] = query.data.split('_');
+    logger.info(`Received callback query: ${query.data}`);
+  
     if (action === 'auth') {
       if (authType === 'code') {
         try {
-          await telegramSessionService.authenticateSession(phoneNumber, bot, query.message.chat.id);
+          logger.info(`Authenticating session for phone number ${phoneNumber}`);
+          await TelegramSessionService.authenticateSession(phoneNumber, bot, query.message.chat.id);
+          await setPhoneAuthenticated(phoneNumber, true);
           bot.sendMessage(query.message.chat.id, `Номер телефона ${phoneNumber} успешно аутентифицирован.`);
         } catch (error) {
-          bot.sendMessage(query.message.chat.id, `Ошибка при аутентификации номера: ${error.message}`);
+          logger.error(`Error authenticating session for phone number ${phoneNumber}:`, error);
+          bot.answerCallbackQuery(query.id, { text: `Ошибка при аутентификации номера: ${error.message}` });
         }
       } else if (authType === 'qr') {
         try {
-          await telegramSessionService.generateQRCode(phoneNumber, bot, query.message.chat.id);
-          bot.sendMessage(query.message.chat.id, `QR-код для аутентификации номера ${phoneNumber} отправлен.`);
+          logger.info(`Generating QR code for phone number ${phoneNumber}`);
+          await TelegramSessionService.generateQRCode(phoneNumber, bot, query.message.chat.id);
+          // Здесь мы не устанавливаем is_authenticated в true, так как процесс аутентификации через QR-код может быть не завершен
         } catch (error) {
-          bot.sendMessage(query.message.chat.id, `Ошибка при генерации QR-кода: ${error.message}`);
+          logger.error(`Error generating QR code for phone number ${phoneNumber}:`, error);
+          bot.answerCallbackQuery(query.id, { text: `Ошибка при генерации QR-кода: ${error.message}` });
         }
       }
     }
   });
 
-  return bot;
+  return {
+    bot,
+    launch: () => {
+      logger.info('Starting bot polling');
+      bot.startPolling();
+      logger.info('Bot polling started successfully');
+    },
+    stop: () => {
+      logger.info('Stopping bot polling');
+      bot.stopPolling();
+      logger.info('Bot polling stopped successfully');
+    }
+  };
 }
 
 module.exports = createUserBot();

@@ -1,73 +1,108 @@
 // src/services/phone/phoneNumberService.js
 
-const { phoneNumbersTable } = require('../../db');
+const db = require('../../db/postgres/config');
 const logger = require('../../utils/logger');
+const { ensureUserExistsById } = require('../../utils/userUtils');
+
+function validatePhoneNumber(phoneNumber) {
+  const phoneRegex = /^\+[1-9]\d{5,14}$/;
+  if (!phoneRegex.test(phoneNumber)) {
+    logger.warn(`Invalid phone number format: ${phoneNumber}`);
+    throw new Error('Неверный формат номера телефона. Используйте международный формат, начиная с +');
+  }
+  logger.info(`Phone number validated successfully: ${phoneNumber}`);
+}
 
 async function addPhoneNumber(userId, phoneNumber, isPremium = false) {
   try {
-    const record = await phoneNumbersTable.create({
-      user_id: userId,
-      phone_number: phoneNumber,
-      is_premium: isPremium,
-      daily_limit: 40,
-      total_limit: null,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString()
-    });
-    logger.info(`Added phone number ${phoneNumber} for user ${userId}`);
-    return record;
+    validatePhoneNumber(phoneNumber);
+    logger.info(`Attempting to add phone number ${phoneNumber} for user with Telegram ID ${userId}`);
+
+    await ensureUserExistsById(userId);
+
+    // Проверяем, существует ли уже такой номер телефона
+    const checkQuery = 'SELECT * FROM phone_numbers WHERE phone_number = $1';
+    const checkResult = await db.query(checkQuery, [phoneNumber]);
+
+    if (checkResult.rows.length > 0) {
+      // Номер уже существует, обновляем его данные
+      const updateQuery = `
+        UPDATE phone_numbers 
+        SET user_id = $1, is_premium = $2, updated_at = NOW()
+        WHERE phone_number = $3
+        RETURNING *
+      `;
+      const { rows } = await db.query(updateQuery, [userId, isPremium, phoneNumber]);
+      logger.info(`Phone number ${phoneNumber} updated for user with ID ${userId}`);
+      return { ...rows[0], is_new: false };
+    } else {
+      // Номер не существует, добавляем новый
+      const insertQuery = `
+        INSERT INTO phone_numbers (user_id, phone_number, is_premium, daily_limit, total_limit, created_at, updated_at, is_authenticated)
+        VALUES ($1, $2, $3, $4, $5, NOW(), NOW(), FALSE)
+        RETURNING *
+      `;
+      const values = [userId, phoneNumber, isPremium, 40, null];
+      const { rows } = await db.query(insertQuery, values);
+      logger.info(`Phone number ${phoneNumber} added successfully for user with ID ${userId}`);
+      return { ...rows[0], is_new: true };
+    }
   } catch (error) {
-    logger.error('Error adding phone number:', error);
+    logger.error(`Error adding/updating phone number ${phoneNumber} for user with ID ${userId}:`, error);
     throw error;
   }
 }
 
 async function getUserPhoneNumbers(userId) {
-    try {
-      const records = await phoneNumbersTable.select({
-        filterByFormula: `{user_id} = '${userId}'`
-      }).all();
-      return records.map(record => record.fields.phone_number);
-    } catch (error) {
-      logger.error('Error getting user phone numbers:', error);
-      throw error;
-    }
+  logger.info(`Getting phone numbers for user ${userId}`);
+  try {
+    const query = `
+      SELECT pn.phone_number, pn.is_authenticated
+      FROM phone_numbers pn
+      JOIN users u ON u.id = pn.user_id
+      WHERE u.id = $1
+    `;
+    const { rows } = await db.query(query, [userId]);
+    return rows;
+  } catch (error) {
+    logger.error(`Error getting phone numbers for user ${userId}:`, error);
+    throw error;
   }
+}
 
 async function removePhoneNumber(userId, phoneNumber) {
-  try {
-    const records = await phoneNumbersTable.select({
-      filterByFormula: `AND({user_id} = '${userId}', {phone_number} = '${phoneNumber}')`
-    }).firstPage();
+  logger.info(`removePhoneNumber called with userId: ${userId}, phoneNumber: ${phoneNumber}`);
 
-    if (records.length === 0) {
-      throw new Error('Phone number not found');
+  try {
+    if (!phoneNumber) {
+      logger.warn('Phone number is undefined or empty');
+      throw new Error('Номер телефона не может быть пустым');
+    }
+    
+    await ensureUserExistsById(userId);
+
+    const query = 'DELETE FROM phone_numbers WHERE user_id = $1 AND phone_number = $2';
+    const result = await db.query(query, [userId, phoneNumber]);
+
+    if (result.rowCount === 0) {
+      logger.warn(`Phone number ${phoneNumber} not found for user ${userId}`);
+      throw new Error('Номер телефона не найден');
     }
 
-    await phoneNumbersTable.destroy(records[0].id);
     logger.info(`Removed phone number ${phoneNumber} for user ${userId}`);
   } catch (error) {
-    logger.error('Error removing phone number:', error);
+    logger.error(`Error removing phone number ${phoneNumber} for user ${userId}:`, error);
     throw error;
   }
 }
 
 async function updatePhoneNumberStatus(phoneNumber, isBanned, banType = null) {
   try {
-    const records = await phoneNumbersTable.select({
-      filterByFormula: `{phone_number} = '${phoneNumber}'`
-    }).firstPage();
-
-    if (records.length === 0) {
+    const query = 'UPDATE phone_numbers SET is_banned = $1, ban_type = $2, updated_at = $3 WHERE phone_number = $4';
+    const { rowCount } = await db.query(query, [isBanned, banType, new Date(), phoneNumber]);
+    if (rowCount === 0) {
       throw new Error('Phone number not found');
     }
-
-    await phoneNumbersTable.update(records[0].id, {
-      is_banned: isBanned,
-      ban_type: banType,
-      updated_at: new Date().toISOString()
-    });
-
     logger.info(`Updated status for phone number ${phoneNumber}: banned=${isBanned}, type=${banType}`);
   } catch (error) {
     logger.error('Error updating phone number status:', error);
@@ -77,23 +112,20 @@ async function updatePhoneNumberStatus(phoneNumber, isBanned, banType = null) {
 
 async function updatePhoneNumberStats(phoneNumber, messagesSent, contactsReached) {
   try {
-    const records = await phoneNumbersTable.select({
-      filterByFormula: `{phone_number} = '${phoneNumber}'`
-    }).firstPage();
-
-    if (records.length === 0) {
+    const query = `
+      UPDATE phone_numbers 
+      SET 
+        messages_sent_today = messages_sent_today + $1,
+        messages_sent_total = messages_sent_total + $1,
+        contacts_reached_today = contacts_reached_today + $2,
+        contacts_reached_total = contacts_reached_total + $2,
+        updated_at = $3
+      WHERE phone_number = $4
+    `;
+    const { rowCount } = await db.query(query, [messagesSent, contactsReached, new Date(), phoneNumber]);
+    if (rowCount === 0) {
       throw new Error('Phone number not found');
     }
-
-    const currentRecord = records[0];
-    await phoneNumbersTable.update(currentRecord.id, {
-      messages_sent_today: (currentRecord.fields.messages_sent_today || 0) + messagesSent,
-      messages_sent_total: (currentRecord.fields.messages_sent_total || 0) + messagesSent,
-      contacts_reached_today: (currentRecord.fields.contacts_reached_today || 0) + contactsReached,
-      contacts_reached_total: (currentRecord.fields.contacts_reached_total || 0) + contactsReached,
-      updated_at: new Date().toISOString()
-    });
-
     logger.info(`Updated stats for phone number ${phoneNumber}`);
   } catch (error) {
     logger.error('Error updating phone number stats:', error);
@@ -103,20 +135,11 @@ async function updatePhoneNumberStats(phoneNumber, messagesSent, contactsReached
 
 async function setPhoneNumberLimit(phoneNumber, dailyLimit, totalLimit = null) {
   try {
-    const records = await phoneNumbersTable.select({
-      filterByFormula: `{phone_number} = '${phoneNumber}'`
-    }).firstPage();
-
-    if (records.length === 0) {
+    const query = 'UPDATE phone_numbers SET daily_limit = $1, total_limit = $2, updated_at = $3 WHERE phone_number = $4';
+    const { rowCount } = await db.query(query, [dailyLimit, totalLimit, new Date(), phoneNumber]);
+    if (rowCount === 0) {
       throw new Error('Phone number not found');
     }
-
-    await phoneNumbersTable.update(records[0].id, {
-      daily_limit: dailyLimit,
-      total_limit: totalLimit,
-      updated_at: new Date().toISOString()
-    });
-
     logger.info(`Updated limits for phone number ${phoneNumber}: daily=${dailyLimit}, total=${totalLimit}`);
   } catch (error) {
     logger.error('Error setting phone number limits:', error);
@@ -126,15 +149,12 @@ async function setPhoneNumberLimit(phoneNumber, dailyLimit, totalLimit = null) {
 
 async function getPhoneNumberInfo(phoneNumber) {
   try {
-    const records = await phoneNumbersTable.select({
-      filterByFormula: `{phone_number} = '${phoneNumber}'`
-    }).firstPage();
-
-    if (records.length === 0) {
+    const query = 'SELECT * FROM phone_numbers WHERE phone_number = $1';
+    const { rows } = await db.query(query, [phoneNumber]);
+    if (rows.length === 0) {
       throw new Error('Phone number not found');
     }
-
-    return records[0].fields;
+    return rows[0];
   } catch (error) {
     logger.error('Error getting phone number info:', error);
     throw error;
@@ -142,24 +162,29 @@ async function getPhoneNumberInfo(phoneNumber) {
 }
 
 async function resetDailyStats() {
-    try {
-      const allRecords = await phoneNumbersTable.select().all();
-      const updates = allRecords.map(record => ({
-        id: record.id,
-        fields: {
-          messages_sent_today: 0,
-          contacts_reached_today: 0,
-          updated_at: new Date().toISOString()
-        }
-      }));
-  
-      await phoneNumbersTable.update(updates);
-      logger.info('Daily stats reset for all phone numbers');
-    } catch (error) {
-      logger.error('Error resetting daily stats:', error);
-      throw error;
-    }
+  try {
+    const query = `
+      UPDATE phone_numbers 
+      SET messages_sent_today = 0, contacts_reached_today = 0, updated_at = $1
+    `;
+    await db.query(query, [new Date()]);
+    logger.info('Daily stats reset for all phone numbers');
+  } catch (error) {
+    logger.error('Error resetting daily stats:', error);
+    throw error;
   }
+}
+
+async function setPhoneAuthenticated(phoneNumber, isAuthenticated) {
+  logger.info(`Setting authentication status for phone number ${phoneNumber} to ${isAuthenticated}`);
+  try {
+    const query = 'UPDATE phone_numbers SET is_authenticated = $1 WHERE phone_number = $2';
+    await db.query(query, [isAuthenticated, phoneNumber]);
+  } catch (error) {
+    logger.error(`Error setting authentication status for phone number ${phoneNumber}:`, error);
+    throw error;
+  }
+}
 
 module.exports = {
   addPhoneNumber,
@@ -169,5 +194,6 @@ module.exports = {
   setPhoneNumberLimit,
   getPhoneNumberInfo,
   getUserPhoneNumbers,
-  resetDailyStats
+  resetDailyStats,
+  setPhoneAuthenticated
 };

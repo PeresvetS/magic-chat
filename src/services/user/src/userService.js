@@ -1,31 +1,26 @@
 // src/services/user/src/userService.js
 
-const { usersTable } = require('../../../db');
+const db = require('../../../db/postgres/config');
 const logger = require('../../../utils/logger');
-const { getUserId } = require('../../../utils/userUtils');
+const { ensureUserExistsById, getUserByUsername, getUserIdByTgId } = require('../../../utils/userUtils');
 const { getLimits } = require('./limitService');
-const { getSubscriptionInfo } = require('./subscriptionService');
+const { getUserSubscriptionInfo } = require('./subscriptionService');
 const { getPhoneNumbers } = require('./userPhoneService');
 
-async function getUserInfo(userIdentifier) {
+
+async function getUserInfo(id) {
   try {
-    const userId = await getUserId(userIdentifier);
-    const records = await usersTable.select({
-      filterByFormula: `{user_id} = '${userId}'`
-    }).firstPage();
-
-    if (records.length === 0) {
-      throw new Error('User not found');
-    }
-
-    const user = records[0].fields;
-    const phoneNumbers = await getPhoneNumbers(userId);
-    const limits = await getLimits(userId);
-    const subscription = await getSubscriptionInfo(userId);
+    const user = await ensureUserExistsById(id);
+    const phoneNumbers = await getPhoneNumbers(user.id);
+    const limits = await getLimits(user.id);
+    const subscription = await getUserSubscriptionInfo(user.id);
 
     return {
-      userId: user.user_id,
+      id: user.id,
+      telegramId: user.telegram_id,
       username: user.username,
+      firstName: user.first_name,
+      lastName: user.last_name,
       isBanned: user.is_banned,
       registeredAt: user.registered_at,
       phoneNumbers: phoneNumbers,
@@ -38,44 +33,67 @@ async function getUserInfo(userIdentifier) {
   }
 }
 
-async function getAccountInfo(userId) {
+async function createUser(telegramId, username, firstName, lastName) {
   try {
-    const userInfo = await getUserInfo(userId);
-    const limits = await getLimits(userId);
-    return {
-      ...userInfo,
-      limits
-    };
+    const query = 'INSERT INTO users (telegram_id, username, first_name, last_name) VALUES ($1, $2, $3, $4) RETURNING id';
+    const { rows } = await db.query(query, [telegramId, username, firstName, lastName]);
+    logger.info(`Created new user: ${username} (${telegramId})`);
+    return rows[0].id;
   } catch (error) {
-    logger.error('Error getting account info:', error);
+    logger.error('Error creating user:', error);
     throw error;
   }
 }
 
-async function createUser(userId, username) {
+async function getAllUsers() {
   try {
-    const existingRecords = await usersTable.select({
-      filterByFormula: `OR({user_id} = '${userId}', {username} = '${username}')`
-    }).firstPage();
+    const query = 'SELECT * FROM users ORDER BY id';
+    const { rows } = await db.query(query);
+    return rows;
+  } catch (error) {
+    logger.error('Error getting all users:', error);
+    throw error;
+  }
+}
 
-    if (existingRecords.length > 0) {
-      throw new Error('User already exists');
+async function getUserByIdentifier(identifier) {
+  try {
+    logger.info(`Getting user by identifier: ${identifier}`);
+    let query;
+    let params;
+
+    if (!isNaN(identifier)) {
+      // Если identifier - число, проверяем сначала id, потом telegram_id
+      query = 'SELECT * FROM users WHERE id = $1 OR telegram_id = $1';
+      params = [parseInt(identifier)];
+    } else {
+      // Если identifier - строка, считаем его username
+      query = 'SELECT * FROM users WHERE username = $1';
+      params = [identifier.startsWith('@') ? identifier.slice(1) : identifier];
     }
 
-    await usersTable.create([
-      {
-        fields: {
-          user_id: userId,
-          username: username,
-          is_banned: false,
-          registered_at: new Date().toISOString()
-        }
-      }
-    ]);
+    const { rows } = await db.query(query, params);
 
-    logger.info(`Created new user: ${username} (${userId})`);
+    if (rows.length === 0) {
+      logger.warn(`User not found for identifier: ${identifier}`);
+      return null;
+    }
+
+    logger.info(`User found: ${JSON.stringify(rows[0])}`);
+    return rows[0];
   } catch (error) {
-    logger.error('Error creating user:', error);
+    logger.error('Error in getUserByIdentifier:', error);
+    throw error;
+  }
+}
+
+async function getUserByTgId(telegramId) {
+  try {
+      const query = 'SELECT * FROM users WHERE telegram_id = $1';
+      const { rows } = await db.query(query, [telegramId]);
+      return rows[0];
+  } catch (error) {
+    logger.error('Error getting user by telegramId:', error);
     throw error;
   }
 }
@@ -88,36 +106,24 @@ async function unbanUser(userIdentifier) {
   await updateUserBanStatus(userIdentifier, false);
 }
 
-async function updateUserBanStatus(userIdentifier, isBanned) {
+async function updateUserBanStatus(id, isBanned) {
   try {
-    const userId = await getUserId(userIdentifier);
-    const records = await usersTable.select({
-      filterByFormula: `{user_id} = '${userId}'`
-    }).firstPage();
-
-    if (records.length === 0) {
-      throw new Error('User not found');
-    }
-
-    await usersTable.update([
-      {
-        id: records[0].id,
-        fields: { is_banned: isBanned }
-      }
-    ]);
-
-    logger.info(`User ${userId} has been ${isBanned ? 'banned' : 'unbanned'}`);
+    await ensureUserExistsById(id);
+    const query = 'UPDATE users SET is_banned = $1 WHERE id = $2';
+    await db.query(query, [isBanned, id]);
+    logger.info(`User ${id} has been ${isBanned ? 'banned' : 'unbanned'}`);
   } catch (error) {
     logger.error(`Error ${isBanned ? 'banning' : 'unbanning'} user:`, error);
     throw error;
   }
 }
 
-
 module.exports = {
-  getAccountInfo,
   getUserInfo,
   createUser,
   banUser,
-  unbanUser
+  unbanUser,
+  getAllUsers,
+  getUserByIdentifier,
+  getUserByTgId,
 };

@@ -7,16 +7,17 @@ module.exports = {
   /addphone [номер] - Добавить новый телефон
   /removephone [номер] - Удалить телефон
   /listphones - Показать список телефонов
-  /startparsing [группа] - Начать парсинг группы
-  /stopparsing - Остановить текущий парсинг
-  /parsingstatus - Показать статус парсинга
-  /createcampaign [название] - Создать новую кампанию
-  /listcampaigns - Показать список кампаний
-  /campaignstats [id] - Показать статистику кампании
-  /accountinfo - Показать информацию об аккаунте
-  /subscriptioninfo - Показать информацию о подписке
+  /checksubscription - Показать информацию о подписке
   /help - Показать эту справку
       `;
       bot.sendMessage(msg.chat.id, helpText);
     }
   };
+
+
+  //   /startparsing [группа] - Начать парсинг группы
+  // /stopparsing - Остановить текущий парсинг
+  // /parsingstatus - Показать статус парсинга
+  // /createcampaign [название] - Создать новую кампанию
+  // /listcampaigns - Показать список кампаний
+  // /campaignstats [id] - Показать статистику кампании

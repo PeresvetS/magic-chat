@@ -1,24 +1,14 @@
 // src/middleware/adminCheck.js
 
-const { getAdminIds } = require('../db');
+const config = require('../config');
 const logger = require('../utils/logger');
 
-let ALLOWED_ADMINS = [];
-
-async function updateAdminList() {
-  try {
-    ALLOWED_ADMINS = await getAdminIds();
-    logger.info('Admin list updated successfully');
-  } catch (error) {
-    logger.error('Error updating admin list:', error);
-  }
-}
-
-async function isAdmin(msg) {
-  if (ALLOWED_ADMINS.length === 0) {
-    await updateAdminList();
-  }
-  return ALLOWED_ADMINS.includes(msg.from.id);
+async function isAdmin(userId) {
+  logger.info(`Checking if user ${userId} is admin`);
+  logger.info(`Allowed admins: ${JSON.stringify(config.ALLOWED_ADMINS)}`);
+  const isAdminUser = config.ALLOWED_ADMINS.includes(userId);
+  logger.info(`User ${userId} is admin: ${isAdminUser}`);
+  return isAdminUser;
 }
 
 module.exports = { isAdmin };

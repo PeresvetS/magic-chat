@@ -1,5 +1,3 @@
-// src/services/telegram/src/telegramSessionService.js
-
 const { TelegramClient } = require("telegram");
 const { StringSession } = require("telegram/sessions");
 const fs = require('fs');
@@ -12,15 +10,27 @@ const { Api } = require("telegram/tl");
 class TelegramSessionService {
   constructor() {
     this.sessions = new Map();
+    this.sessionDir = path.join(__dirname, '..', '..', 'sessions');
+    this.ensureSessionDirExists();
+  }
+
+  ensureSessionDirExists() {
+    if (!fs.existsSync(this.sessionDir)) {
+      fs.mkdirSync(this.sessionDir, { recursive: true });
+      logger.info(`Created sessions directory: ${this.sessionDir}`);
+    }
   }
 
   async createSession(phoneNumber) {
-    const sessionFile = path.join(__dirname, '..', '..', 'sessions', `${phoneNumber}.json`);
+    const sessionFile = path.join(this.sessionDir, `${phoneNumber}.json`);
     let stringSession = new StringSession('');
 
     if (fs.existsSync(sessionFile)) {
       const sessionData = fs.readFileSync(sessionFile, 'utf8');
       stringSession = new StringSession(sessionData);
+      logger.info(`Loaded existing session for ${phoneNumber}`);
+    } else {
+      logger.info(`Creating new session for ${phoneNumber}`);
     }
 
     const client = new TelegramClient(stringSession, config.API_ID, config.API_HASH, {
@@ -31,19 +41,29 @@ class TelegramSessionService {
       langCode: 'ru',
     });
 
-    await client.connect();
+    try {
+      await client.connect();
+      logger.info(`Connected client for ${phoneNumber}`);
 
-    const sessionString = client.session.save();
-    fs.writeFileSync(sessionFile, sessionString);
+      const sessionString = client.session.save();
+      fs.writeFileSync(sessionFile, sessionString);
+      logger.info(`Saved session for ${phoneNumber}`);
 
-    this.sessions.set(phoneNumber, client);
-    return client;
+      this.sessions.set(phoneNumber, client);
+      return client;
+    } catch (error) {
+      logger.error(`Error creating session for ${phoneNumber}:`, error);
+      throw error;
+    }
   }
 
   async authenticateSession(phoneNumber, bot, chatId) {
-    const client = await this.getSession(phoneNumber);
-    if (!client) {
-      throw new Error('Session not found');
+    let client;
+    try {
+      client = await this.getSession(phoneNumber);
+    } catch (error) {
+      logger.error(`Error getting session for ${phoneNumber}:`, error);
+      throw new Error(`Не удалось получить сессию для номера ${phoneNumber}`);
     }
 
     try {
@@ -51,21 +71,35 @@ class TelegramSessionService {
         phoneNumber: async () => phoneNumber,
         password: async () => await this.get2FAPasswordFromUser(phoneNumber, bot, chatId),
         phoneCode: async () => await this.getAuthCodeFromUser(phoneNumber, bot, chatId),
-        onError: (err) => logger.error(err),
+        onError: (err) => {
+          logger.error(`Error during authentication for ${phoneNumber}:`, err);
+          if (err.message === 'PHONE_NUMBER_INVALID') {
+            bot.sendMessage(chatId, 'Неверный формат номера телефона. Пожалуйста, проверьте номер и попробуйте снова.');
+          } else {
+            bot.sendMessage(chatId, `Ошибка при аутентификации: ${err.message}`);
+          }
+          throw err;
+        },
       });
 
       logger.info(`Session authenticated for ${phoneNumber}`);
       return client;
     } catch (error) {
       logger.error(`Error authenticating session for ${phoneNumber}:`, error);
+      if (error.message !== 'AUTH_USER_CANCEL') {
+        bot.sendMessage(chatId, `Ошибка при аутентификации: ${error.message}`);
+      }
       throw error;
     }
   }
 
   async generateQRCode(phoneNumber, bot, chatId) {
-    const client = await this.getSession(phoneNumber);
-    if (!client) {
-      throw new Error('Session not found');
+    let client;
+    try {
+      client = await this.getSession(phoneNumber);
+    } catch (error) {
+      logger.error(`Error getting session for ${phoneNumber}:`, error);
+      throw new Error(`Не удалось получить сессию для номера ${phoneNumber}`);
     }
   
     try {
@@ -106,17 +140,22 @@ class TelegramSessionService {
 
   async getAuthCodeFromUser(phoneNumber, bot, chatId) {
     return new Promise((resolve, reject) => {
-      const messageText = `Пожалуйста, введите код подтверждения для номера ${phoneNumber}:`;
+      const messageText = `Пожалуйста, введите код подтверждения для номера ${phoneNumber} или отправьте /cancel для отмены:`;
       bot.sendMessage(chatId, messageText);
       
       const callback = (msg) => {
         if (msg.chat.id === chatId) {
+          if (msg.text.toLowerCase() === '/cancel') {
+            bot.removeListener('message', callback);
+            reject(new Error('AUTH_USER_CANCEL'));
+            return;
+          }
           const code = msg.text.trim();
           if (/^\d{5}$/.test(code)) {
             bot.removeListener('message', callback);
             resolve(code);
           } else {
-            bot.sendMessage(chatId, 'Неверный формат кода. Пожалуйста, введите 5-значный код.');
+            bot.sendMessage(chatId, 'Неверный формат кода. Пожалуйста, введите 5-значный код или отправьте /cancel для отмены.');
           }
         }
       };
@@ -129,6 +168,7 @@ class TelegramSessionService {
       }, 5 * 60 * 1000);
     });
   }
+
 
   async get2FAPasswordFromUser(phoneNumber, bot, chatId) {
     return new Promise((resolve, reject) => {
@@ -152,28 +192,40 @@ class TelegramSessionService {
 
   async getSession(phoneNumber) {
     if (this.sessions.has(phoneNumber)) {
+      logger.info(`Returning existing session for ${phoneNumber}`);
       return this.sessions.get(phoneNumber);
     }
+    logger.info(`Creating new session for ${phoneNumber}`);
     return await this.createSession(phoneNumber);
   }
 
   async checkSession(phoneNumber) {
-    const client = await this.getSession(phoneNumber);
-    if (!client) {
-      throw new Error(`Сессия для номера ${phoneNumber} не найдена. Пожалуйста, добавьте номер заново.`);
+    try {
+      const client = await this.getSession(phoneNumber);
+      if (!client.connected) {
+        await client.connect();
+        logger.info(`Reconnected client for ${phoneNumber}`);
+      }
+      return client;
+    } catch (error) {
+      logger.error(`Error checking session for ${phoneNumber}:`, error);
+      throw new Error(`Ошибка проверки сессии для номера ${phoneNumber}`);
     }
-    if (!client.connected) {
-      await client.connect();
-    }
-    return client;
   }
 
   async disconnectSession(phoneNumber) {
     if (this.sessions.has(phoneNumber)) {
       const client = this.sessions.get(phoneNumber);
-      await client.disconnect();
-      this.sessions.delete(phoneNumber);
-      logger.info(`Session for ${phoneNumber} has been disconnected and removed.`);
+      try {
+        await client.disconnect();
+        this.sessions.delete(phoneNumber);
+        logger.info(`Session for ${phoneNumber} has been disconnected and removed.`);
+      } catch (error) {
+        logger.error(`Error disconnecting session for ${phoneNumber}:`, error);
+        throw error;
+      }
+    } else {
+      logger.info(`No active session found for ${phoneNumber}`);
     }
   }
 }

@@ -16,12 +16,9 @@ async function main() {
 
     // Инициализация ботов
     logger.info('Initializing bots...');
-    await adminBot.launch();
-    await userBot.launch();
+    adminBot.launch();
+    userBot.launch();
     logger.info('Bots initialized and polling started');
-
-    // Отправка приветственного сообщения с доступными командами
-    await sendWelcomeMessages();
 
     // Настройка Express
     app.get('/', (req, res) => {
@@ -43,19 +40,19 @@ async function main() {
       });
 
       try {
-        await adminBot.stop();
+        adminBot.stop();
         logger.info('Admin bot stopped.');
       } catch (error) {
         logger.error('Error stopping admin bot:', error);
       }
 
       try {
-        await userBot.stop();
+        userBot.stop();
         logger.info('User bot stopped.');
       } catch (error) {
         logger.error('Error stopping user bot:', error);
       }
-
+ч
       process.exit(0);
     });
 
@@ -74,25 +71,6 @@ async function main() {
   } catch (error) {
     logger.error('Error in main function:', error);
     throw error;
-  }
-}
-
-async function sendWelcomeMessages() {
-  const adminCommands = '/help - Показать список доступных команд';
-  const userCommands = '/help - Показать список доступных команд';
-
-  try {
-    await adminBot.telegram.sendMessage(config.ADMIN_CHAT_ID, `Бот запущен. Доступные команды:\n${adminCommands}`);
-    logger.info('Welcome message sent to admin');
-  } catch (error) {
-    logger.error('Error sending welcome message to admin:', error);
-  }
-
-  try {
-    await userBot.telegram.sendMessage(config.USER_CHAT_ID, `Бот запущен. Доступные команды:\n${userCommands}`);
-    logger.info('Welcome message sent to user');
-  } catch (error) {
-    logger.error('Error sending welcome message to user:', error);
   }
 }
 
