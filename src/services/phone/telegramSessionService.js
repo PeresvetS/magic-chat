@@ -24,11 +24,11 @@ class TelegramSessionService {
     }
 
     const client = new TelegramClient(stringSession, config.API_ID, config.API_HASH, {
-      connectionRetries: 5,
-      deviceModel: 'Desktop',
-      systemVersion: 'Windows 10',
-      appVersion: '1.0.0',
-      langCode: 'en',
+      connectionRetries: 3,
+      deviceModel: 'MacBookPro16,1',  // Модель устройства (например, MacBook Pro)
+      systemVersion: 'macOS 11.2.3',  // Версия системы (например, macOS Big Sur)
+      appVersion: '5.3.1',
+      langCode: 'ru',
     });
 
     await client.connect();
