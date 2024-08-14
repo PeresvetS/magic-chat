@@ -8,7 +8,7 @@ const {
   setPhoneAuthenticated
 } = require('../../../services/phone/phoneNumberService');
 const { getUserByTgId } = require('../../../services/user');
-const { TelegramSessionService } = require('../../../services/telegram');
+const TelegramSessionService = require('../../../services/telegram/telegramSessionService');
 const logger = require('../../../utils/logger');
 
 module.exports = {

@@ -1,75 +1,56 @@
-// src/messaging/messageProcessor.js
+// src/messaging/src/messageProcessor.js
 
-const { generateResponse } = require('../services/gpt/gptService');
-const ContextManager = require('../services/langchain/contextManager');
-const { countTokens } = require('../services/tokenizer/tokenizer');
-const { simulateTyping, sendMessage, checkNewMessages } = require('./messageSender');
+const { generateResponse } = require('../../services/gpt/gptService');
+const ContextManager = require('../../services/langchain/contextManager');
+const { countTokens } = require('../../services/tokenizer/tokenizer');
+const { simulateHumanBehavior, checkNewMessages } = require('./messageSender');
 const logger = require('../../utils/logger');
 const fs = require('fs');
 const path = require('path');
 const db = require('../../db/postgres/config');
+const TelegramSessionService = require('../../services/telegram/telegramSessionService');
+const { saveMessageStats, saveDialogToFile } = require('../../utils/messageUtils');
 
 const contextManagers = new Map();
 
 async function processMessage(userId, message, phoneNumber) {
+  logger.info(`Processing message in processMessage function: ${message}`);
   try {
     if (!contextManagers.has(userId)) {
       contextManagers.set(userId, new ContextManager());
     }
     const contextManager = contextManagers.get(userId);
 
-    await contextManager.addMessage('human', message);
+    await contextManager.addMessage({ role: 'human', content: message });
     const messages = await contextManager.getMessages();
 
     const systemPrompt = "You are a helpful assistant."; // Customize this
+    logger.info(`Message processed, generating response`);
     const response = await generateResponse(messages, systemPrompt);
+    logger.info(`Response generated: ${response}`);
 
-    await contextManager.addMessage('ai', response);
+    await contextManager.addMessage({ role: 'assistant', content: response });
 
     const tokenCount = countTokens(response);
     await saveMessageStats(userId, phoneNumber, tokenCount);
     await saveDialogToFile(userId, message, response);
 
-    const sentences = response.split(/(?<=[.!?])\s+/);
-    for (const sentence of sentences) {
-      await simulateTyping(userId, getTypingDuration(sentence));
-      if (await checkNewMessages(userId)) {
-        logger.info('New message received, stopping response');
-        break;
-      }
-      await sendMessage(userId, sentence);
-      await new Promise(resolve => setTimeout(resolve, getResponseDelay()));
+    const session = await TelegramSessionService.getSession(phoneNumber);
+    // Проверяем, нет ли новых сообщений перед началом симуляции
+    if (await checkNewMessages(userId, session)) {
+      logger.info('New message received before starting response, skipping');
+      return;
     }
+
+    logger.info(`Starting human behavior simulation for user ${userId}`);
+    await simulateHumanBehavior(session, userId, response);
+    logger.info(`Human behavior simulated for user ${userId}`);
   } catch (error) {
-    logger.error('Error processing message:', error);
-    throw error;
+    logger.error(`Error in processMessage:`, error);
+    throw error; // Перебрасываем ошибку, чтобы она была поймана в вызывающей функции
   }
 }
 
-function getTypingDuration(text) {
-  return Math.floor(Math.random() * (20 - 5 + 1) + 5) * 1000;
-}
-
-function getResponseDelay() {
-  return Math.floor(Math.random() * (10 - 1 + 1) + 1) * 1000;
-}
-
-async function saveMessageStats(userId, phoneNumber, tokenCount) {
-  const query = `
-    INSERT INTO message_stats (user_id, phone_number, tokens_used, timestamp)
-    VALUES ($1, $2, $3, NOW())
-  `;
-  await db.query(query, [userId, phoneNumber, tokenCount]);
-}
-
-async function saveDialogToFile(userId, userMessage, botResponse) {
-  const dialogDir = path.join(__dirname, '../../dialogs');
-  if (!fs.existsSync(dialogDir)) {
-    fs.mkdirSync(dialogDir);
-  }
-  const filePath = path.join(dialogDir, `${userId}_dialog.txt`);
-  const content = `User: ${userMessage}\nBot: ${botResponse}\n\n`;
-  fs.appendFileSync(filePath, content);
-}
 
 module.exports = { processMessage };
+

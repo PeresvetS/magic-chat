@@ -7,20 +7,39 @@ const lockFile = path.join(__dirname, 'app.lock');
 
 function acquireLock() {
   try {
+    // Проверяем, существует ли файл блокировки
+    if (fs.existsSync(lockFile)) {
+      const pid = fs.readFileSync(lockFile, 'utf8');
+      // Проверяем, запущен ли процесс с этим PID
+      try {
+        process.kill(parseInt(pid), 0);
+        logger.warn(`Another instance is already running with PID ${pid}`);
+        return false;
+      } catch (e) {
+        // Если процесс не существует, удаляем старый файл блокировки
+        logger.warn('Stale lock file found. Removing it.');
+        fs.unlinkSync(lockFile);
+      }
+    }
+
+    // Создаем новый файл блокировки
     fs.writeFileSync(lockFile, process.pid.toString(), { flag: 'wx' });
     return true;
   } catch (err) {
-    if (err.code === 'EEXIST') {
-      logger.warn('Another instance is already running');
-      return false;
-    }
-    throw err;
+    logger.error('Error acquiring lock:', err);
+    return false;
   }
 }
 
 function releaseLock() {
   try {
-    fs.unlinkSync(lockFile);
+    if (fs.existsSync(lockFile)) {
+      const pid = fs.readFileSync(lockFile, 'utf8');
+      if (pid === process.pid.toString()) {
+        fs.unlinkSync(lockFile);
+        logger.info('Lock file removed');
+      }
+    }
   } catch (err) {
     logger.error('Error releasing lock:', err);
   }
@@ -51,4 +70,18 @@ process.on('SIGTERM', () => {
   logger.info('SIGTERM received. Shutting down...');
   releaseLock();
   process.exit(0);
+});
+
+// Добавляем обработчик необработанных исключений
+process.on('uncaughtException', (error) => {
+  logger.error('Uncaught Exception:', error);
+  releaseLock();
+  process.exit(1);
+});
+
+// Добавляем обработчик необработанных отклонений промисов
+process.on('unhandledRejection', (reason, promise) => {
+  logger.error('Unhandled Rejection at:', promise, 'reason:', reason);
+  releaseLock();
+  process.exit(1);
 });

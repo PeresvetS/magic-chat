@@ -1,25 +1,33 @@
 // src/services/gpt/gptService.js
 
-const { Configuration, OpenAIApi } = require("openai");
-const config = require('../../../config');
+const OpenAI = require("openai");
+const config = require('../../config');
+const logger = require('../../utils/logger');
 
-const configuration = new Configuration({
+const openai = new OpenAI({
   apiKey: config.OPENAI_API_KEY,
 });
-const openai = new OpenAIApi(configuration);
 
 async function generateResponse(messages, systemPrompt) {
   try {
-    const response = await openai.createChatCompletion({
+    const formattedMessages = [
+      { role: "system", content: systemPrompt },
+      ...messages.map(msg => ({
+        role: msg.role === 'human' ? 'user' : 'assistant',
+        content: msg.content
+      }))
+    ];
+
+    logger.info(`Sending request to OpenAI with messages: ${JSON.stringify(formattedMessages)}`);
+
+    const response = await openai.chat.completions.create({
       model: "gpt-4o-mini",
-      messages: [
-        { role: "system", content: systemPrompt },
-        ...messages
-      ],
+      messages: formattedMessages,
     });
-    return response.data.choices[0].message.content;
+
+    return response.choices[0].message.content;
   } catch (error) {
-    console.error('Error generating GPT response:', error);
+    logger.error('Error generating GPT response:', error);
     throw error;
   }
 }

@@ -9,7 +9,7 @@ const { getUserInfo, getUserByTgId } = require('../../services/user');
 // const campaignCommands = require('./commands/campaignCommands');
 const helpCommands = require('./commands/helpCommands');
 const subscriptionCommands = require('./commands/subscriptionCommands');
-const { TelegramSessionService } = require('../../services/telegram');
+const TelegramSessionService = require('../../services/telegram/telegramSessionService');
 const logger = require('../../utils/logger');
 
 function createUserBot() {
@@ -77,7 +77,7 @@ function createUserBot() {
         try {
           logger.info(`Generating QR code for phone number ${phoneNumber}`);
           await TelegramSessionService.generateQRCode(phoneNumber, bot, query.message.chat.id);
-          // Здесь мы не устанавливаем is_authenticated в true, так как процесс аутентификации через QR-код может быть не завершен
+          // Обработка успешной аутентификации через QR-код теперь происходит внутри метода generateQRCode
         } catch (error) {
           logger.error(`Error generating QR code for phone number ${phoneNumber}:`, error);
           bot.answerCallbackQuery(query.id, { text: `Ошибка при генерации QR-кода: ${error.message}` });

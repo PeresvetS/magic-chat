@@ -1,28 +1,27 @@
+// src/services/langchain/contextManager.js
+
 const { ConversationSummaryMemory } = require("langchain/memory");
-const { OpenAI } = require("langchain/llms/openai");
-const { ChatOpenAI } = require("langchain/chat_models/openai");
-const { HumanMessage, AIMessage } = require("langchain/schema");
-const config = require('../../../config');
+const { ChatOpenAI } = require("@langchain/openai");
+const { HumanMessage, AIMessage } = require("@langchain/core/messages");
+const config = require('../../config');
 
 class ContextManager {
   constructor() {
-    const model = new OpenAI({ temperature: 0, modelName: "gpt-4-mini", openAIApiKey: config.OPENAI_API_KEY });
+    const model = new ChatOpenAI({ 
+      temperature: 0, 
+      modelName: "gpt-4o-mini", // Убедитесь, что используете доступную вам модель
+      openAIApiKey: config.OPENAI_API_KEY 
+    });
     this.memory = new ConversationSummaryMemory({
       memoryKey: "chat_history",
-      llm: model,
-      maxTokenLimit: 1000  // Adjust this value as needed
+      llm: new ChatOpenAI({ temperature: 0, modelName: "gpt-4o-mini" }),
+      maxTokenLimit: 1000
     });
     this.chatHistory = [];
   }
 
-  async addMessage(role, content) {
-    if (role === 'human') {
-      this.chatHistory.push(new HumanMessage(content));
-    } else if (role === 'ai') {
-      this.chatHistory.push(new AIMessage(content));
-    }
-
-    // Keep only the last 10 messages in the chat history
+  async addMessage(message) {
+    this.chatHistory.push(message);
     if (this.chatHistory.length > 10) {
       const excessMessages = this.chatHistory.slice(0, -10);
       for (const msg of excessMessages) {
@@ -37,7 +36,10 @@ class ContextManager {
 
   async getMessages() {
     const { history } = await this.memory.loadMemoryVariables({});
-    return [...(history ? [new AIMessage(history)] : []), ...this.chatHistory];
+    return [
+      ...(history ? [{ role: 'system', content: history }] : []),
+      ...this.chatHistory
+    ];
   }
 }
 

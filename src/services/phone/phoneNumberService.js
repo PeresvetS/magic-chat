@@ -178,8 +178,12 @@ async function resetDailyStats() {
 async function setPhoneAuthenticated(phoneNumber, isAuthenticated) {
   logger.info(`Setting authentication status for phone number ${phoneNumber} to ${isAuthenticated}`);
   try {
-    const query = 'UPDATE phone_numbers SET is_authenticated = $1 WHERE phone_number = $2';
-    await db.query(query, [isAuthenticated, phoneNumber]);
+    const query = 'UPDATE phone_numbers SET is_authenticated = $1, updated_at = NOW() WHERE phone_number = $2';
+    const result = await db.query(query, [isAuthenticated, phoneNumber]);
+    if (result.rowCount === 0) {
+      throw new Error(`Phone number ${phoneNumber} not found`);
+    }
+    logger.info(`Authentication status updated for ${phoneNumber}`);
   } catch (error) {
     logger.error(`Error setting authentication status for phone number ${phoneNumber}:`, error);
     throw error;

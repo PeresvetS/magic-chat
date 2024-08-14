@@ -7,12 +7,15 @@ const { resetDailyStats } = require('./services/phone/phoneNumberService');
 const adminBot = require('./bot/admin');
 const userBot = require('./bot/user');
 const logger = require('./utils/logger');
+const TelegramSessionService = require('./services/telegram/telegramSessionService');
 
 const app = express();
 
 async function main() {
   try {
     logger.info('Main function started');
+    // Инициализация сессий Telegram
+    await TelegramSessionService.initializeSessions();
 
     // Инициализация ботов
     logger.info('Initializing bots...');
@@ -55,7 +58,15 @@ async function main() {
         logger.error('Error stopping user bot:', error);
       }
 
-      // Освобождение блокировки (эта функция должна быть определена в основном index.js)
+      // Отключение всех сессий Telegram
+      try {
+        await TelegramSessionService.disconnectAllSessions();
+        logger.info('All Telegram sessions disconnected');
+      } catch (error) {
+        logger.error('Error disconnecting Telegram sessions:', error);
+      }
+
+      // Освобождение блокировки
       if (typeof global.releaseLock === 'function') {
         global.releaseLock();
       }

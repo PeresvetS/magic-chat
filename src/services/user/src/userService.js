@@ -13,7 +13,6 @@ async function getUserInfo(id) {
     const user = await ensureUserExistsById(id);
     const phoneNumbers = await getPhoneNumbers(user.id);
     const limits = await getLimits(user.id);
-    logger.info(`sdfdsfdsfSDDDD: ${user.id}`);
     const subscription = await getUserSubscriptionInfo(user.id);
 
     return {
