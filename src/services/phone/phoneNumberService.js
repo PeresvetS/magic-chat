@@ -16,7 +16,7 @@ function validatePhoneNumber(phoneNumber) {
 async function addPhoneNumber(userId, phoneNumber, isPremium = false) {
   try {
     validatePhoneNumber(phoneNumber);
-    logger.info(`Attempting to add phone number ${phoneNumber} for user with Telegram ID ${userId}`);
+    logger.info(`Attempting to add phone number ${phoneNumber} for user ${userId}`);
 
     await ensureUserExistsById(userId);
 

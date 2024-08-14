@@ -1,5 +1,6 @@
-const { addUserSubscription, getUserSubscriptionInfo, updateUserSubscription } = require('../../../services/user/src/subscriptionService');
-const { getUserByIdentifier } = require('../../../services/user/src/userService');
+// src/bot/admin/commands/subscriptionCommands.js
+
+const { addUserSubscription, getUserSubscriptionInfo, updateUserSubscription, getUserByIdentifier } = require('../../../services/user');
 const logger = require('../../../utils/logger');
 
 module.exports = {
@@ -11,14 +12,9 @@ module.exports = {
       const durationDays = unit === 'months' ? parseInt(duration) * 30 : parseInt(duration);
       const isRepeating = repeatType === 'repeat';
 
-      const user = await getUserByIdentifier(userIdentifier);
-      if (!user) {
-        throw new Error('Пользователь не найден');
-      }
-
-      await addUserSubscription(user.id, durationDays, isRepeating);
+      const subscriptionId = await addUserSubscription(userIdentifier, durationDays, isRepeating);
       
-      bot.sendMessage(msg.chat.id, `Подписка для пользователя с ID ${user.id} успешно добавлена.`);
+      bot.sendMessage(msg.chat.id, `Подписка успешно добавлена с ID ${subscriptionId}.`);
     } catch (error) {
       logger.error('Error in add subscription command:', error);
       bot.sendMessage(msg.chat.id, `Произошла ошибка при добавлении подписки: ${error.message}`);

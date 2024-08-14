@@ -1,4 +1,4 @@
-// 
+// src/utils/userUtils.js
 
 const db = require('../db/postgres/config');
 const logger = require('./logger');
@@ -42,14 +42,6 @@ async function getUserByUsername(username) {
   }
 }
 
-async function ensureUserExistsByTgId(telegramId) {
-  const user = await getUserByTgId(telegramId);
-  if (user === null) {
-    throw new Error(`User with telegramId ${telegramId} not found`);
-  }
-  return user.id;
-}
-
 async function getUserById(id) {
   try {
     logger.info(`Getting user by ID: ${id}`);
@@ -76,6 +68,15 @@ async function ensureUserExistsById(id) {
   }
   return user;
 }
+
+async function ensureUserExistsByTgId(telegramId) {
+  const user = await getUserByTgId(telegramId);
+  if (user === null) {
+    throw new Error(`User with telegramId ${telegramId} not found`);
+  }
+  return user.id;
+}
+
 
 module.exports = {
   ensureUserExistsByTgId,

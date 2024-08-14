@@ -7,12 +7,16 @@ const {
   setPhoneNumberLimit,
   setPhoneAuthenticated
 } = require('../../../services/phone/phoneNumberService');
+const { getUserByTgId } = require('../../../services/user');
 const { TelegramSessionService } = require('../../../services/telegram');
 const logger = require('../../../utils/logger');
 
 module.exports = {
   '/addphone': async (bot, msg, match) => {
-    const userId = msg.from.id;
+    
+    const user = await getUserByTgId(msg.from.id);
+    const userId = user.id;
+
     logger.info(`Addphone command called by user ${userId}`);
     
     // Извлекаем номер телефона из текста сообщения
@@ -53,7 +57,8 @@ module.exports = {
   },
 
 '/removephone': async (bot, msg, match) => {
-    const userId = msg.from.id;
+  const user = await getUserByTgId(msg.from.id);
+  const userId = user.id;
     logger.info(`Removephone command called by user ${userId}`);
     
     // Извлекаем номер телефона из текста сообщения
@@ -82,7 +87,8 @@ module.exports = {
   },
 
   '/listphones': async (bot, msg) => {
-    const userId = msg.from.id;
+    const user = await getUserByTgId(msg.from.id);
+    const userId = user.id;
     logger.info(`Listphones command called by user ${userId}`);
     try {
       const phoneNumbers = await getUserPhoneNumbers(userId);
@@ -102,7 +108,8 @@ module.exports = {
   },
 
   '/phoneinfo': async (bot, msg, match) => {
-    const userId = msg.from.id;
+    const user = await getUserByTgId(msg.from.id);
+    const userId = user.id;
     logger.info(`Phoneinfo command called by user ${userId}`);
     const phoneNumber = match[1];
     if (!phoneNumber) {
@@ -133,7 +140,8 @@ module.exports = {
   },
 
   '/banphone': async (bot, msg, match) => {
-    const userId = msg.from.id;
+    const user = await getUserByTgId(msg.from.id);
+    const userId = user.id;
     logger.info(`Banphone command called by user ${userId}`);
     const [phoneNumber, banType] = match[1].split(' ');
     if (!phoneNumber || !banType) {
@@ -152,7 +160,8 @@ module.exports = {
   },
 
   '/unbanphone': async (bot, msg, match) => {
-    const userId = msg.from.id;
+    const user = await getUserByTgId(msg.from.id);
+    const userId = user.id;
     logger.info(`Unbanphone command called by user ${userId}`);
     const phoneNumber = match[1];
     if (!phoneNumber) {
@@ -171,7 +180,8 @@ module.exports = {
   },
 
   '/setphonelimit': async (bot, msg, match) => {
-    const userId = msg.from.id;
+    const user = await getUserByTgId(msg.from.id);
+    const userId = user.id;
     logger.info(`Setphonelimit command called by user ${userId}`);
     const [phoneNumber, dailyLimit, totalLimit] = match[1].split(' ');
     if (!phoneNumber || !dailyLimit) {

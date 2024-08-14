@@ -3,16 +3,27 @@
 const db = require('../../../db/postgres/config');
 const logger = require('../../../utils/logger');
 const { ensureUserExistsByTgId, ensureUserExistsById, getUserByTgId } = require('../../../utils/userUtils');
+const { createUser } = require('./userService');
 
 async function addUserSubscription(userIdentifier, durationDays, isRepeating) {
   try {
     let userId;
+    let user;
+
     if (isNaN(userIdentifier)) {
-      const user = await getUserByTgId(userIdentifier);
-      userId = user.id;
+      // Если userIdentifier - строка (предполагаем, что это username)
+      user = await getUserByUsername(userIdentifier);
     } else {
-      userId = parseInt(userIdentifier);
-      await ensureUserExistsById(userId);
+      // Если userIdentifier - число (предполагаем, что это telegram_id)
+      user = await getUserByTgId(userIdentifier);
+    }
+
+    if (!user) {
+      // Если пользователь не найден, создаем нового
+      userId = await createUser(userIdentifier, null, null, null);
+      logger.info(`New user created with ID: ${userId}`);
+    } else {
+      userId = user.id;
     }
 
     const startDate = new Date();
@@ -35,19 +46,9 @@ async function addUserSubscription(userIdentifier, durationDays, isRepeating) {
 }
 
 
-async function getUserSubscriptionInfo(userIdentifier) {
+async function getUserSubscriptionInfo(userId) {
   try {
-    let userId;
-    if (isNaN(userIdentifier)) {
-      const user = await getUserByTgId(userIdentifier);
-      userId = user.id;
-    } else {
-      userId = parseInt(userIdentifier);
-    }
-
     logger.info(`Getting subscription info for user ID: ${userId}`);
-    await ensureUserExistsById(userId);
-
     const query = `
       SELECT * FROM subscriptions
       WHERE user_id = $1 AND end_date > NOW()

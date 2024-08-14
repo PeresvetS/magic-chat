@@ -26,10 +26,15 @@ function createUserBot() {
   commandModules.forEach(module => {
     Object.entries(module).forEach(([command, handler]) => {
       bot.onText(new RegExp(`^${command}`), async (msg, match) => {
-        const telegramId = msg.from.id;
        
         try {
-          const user = await getUserByTgId(telegramId);
+          const user = await getUserByTgId( msg.from.id);
+
+          if (!user) {
+            bot.sendMessage(msg.chat.id, 'У вас нет активной подписки. Обратитесь к администратору для её оформления.');
+            return;
+          }
+
           const userInfo = await getUserInfo(user.id);
           
           logger.info(`Received command ${command} from user ${user.id}`);

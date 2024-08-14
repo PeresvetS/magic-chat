@@ -1,18 +1,14 @@
-const { addUserSubscription, getUserSubscriptionInfo } = require('../../../services/user/src/subscriptionService');
-const { getUserByIdentifier } = require('../../../services/user/src/userService');
+// src/bot/user/commands/subscriptionCommands.js
+
+const { getUserSubscriptionInfo, getUserByTgId } = require('../../../services/user');
 const logger = require('../../../utils/logger');
 
 module.exports = {
 
   '/checksubscription': async (bot, msg, match) => {
-    const text = msg.text.split(' ');
-    if (text.length !== 2) {
-      bot.sendMessage(msg.chat.id, 'Неверный формат команды. Используйте: /checksubscription [user]');
-      return;
-    }
-    const [, userIdentifier] = text;
     try {
-      const user = await getUserByIdentifier(userIdentifier);
+      const user = await getUserByTgId(msg.from.id);
+      
       if (!user) {
         throw new Error('Пользователь не найден');
       }
