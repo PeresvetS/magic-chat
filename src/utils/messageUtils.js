@@ -21,9 +21,7 @@ async function saveMessageStats(userId, phoneNumber, tokenCount) {
 async function saveDialogToFile(userId, userMessage, botResponse) {
   try {
     const dialogDir = path.join(__dirname, '../../../dialogs');
-    if (!await fs.access(dialogDir).catch(() => false)) {
-      await fs.mkdir(dialogDir, { recursive: true });
-    }
+    await fs.mkdir(dialogDir, { recursive: true });
     const filePath = path.join(dialogDir, `${userId}_dialog.txt`);
     const content = `User: ${userMessage}\nBot: ${botResponse}\n\n`;
     await fs.appendFile(filePath, content);
@@ -32,8 +30,6 @@ async function saveDialogToFile(userId, userMessage, botResponse) {
     logger.error('Error saving dialog to file:', error);
   }
 }
-
-
 
 module.exports = {
   saveMessageStats,

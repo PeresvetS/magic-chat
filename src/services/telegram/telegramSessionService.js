@@ -11,6 +11,7 @@ const logger = require('../../utils/logger');
 const qrcode = require('qrcode');
 const { setPhoneAuthenticated } = require('../phone/phoneNumberService');
 const { processIncomingMessage } = require('./handleMessageService');
+const sessionManager = require('./sessionManager');
 
 class TelegramSessionService {
   constructor() {
@@ -344,7 +345,6 @@ class TelegramSessionService {
           logger.info(`Reconnected client for ${phoneNumber}`);
         } catch (error) {
           logger.error(`Error reconnecting client for ${phoneNumber}:`, error);
-          // If reconnection fails, create a new session
           return await this.createSession(phoneNumber);
         }
       }
@@ -383,6 +383,12 @@ class TelegramSessionService {
     }
   }
 
+  async getDialogs(phoneNumber) {
+    // await rateLimiter.limit(`getDialogs:${phoneNumber}`);
+    const session = await this.getSession(phoneNumber);
+    return session.getDialogs();
+  }
+
   async disconnectAllSessions() {
     for (const [phoneNumber, client] of this.sessions.entries()) {
       try {
@@ -396,4 +402,7 @@ class TelegramSessionService {
   }
 }
 
-module.exports = new TelegramSessionService();
+const telegramSessionService = new TelegramSessionService();
+sessionManager.setTelegramSessionService(telegramSessionService);
+
+module.exports = telegramSessionService;

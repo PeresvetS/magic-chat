@@ -9,4 +9,10 @@ function countTokens(text) {
   return encoded.text.length;
 }
 
-module.exports = { countTokens };
+function countTokensForMessages(messages) {
+  return messages.reduce((total, message) => {
+    return total + 4 + countTokens(message.role) + countTokens(message.content);
+  }, 0);
+}
+
+module.exports = { countTokens, countTokensForMessages };

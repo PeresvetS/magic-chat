@@ -11,6 +11,7 @@ const helpCommands = require('./commands/helpCommands');
 const subscriptionCommands = require('./commands/subscriptionCommands');
 const TelegramSessionService = require('../../services/telegram/telegramSessionService');
 const logger = require('../../utils/logger');
+const { setPhoneAuthenticated } = require('../../services/phone/phoneNumberService');
 
 function createUserBot() {
   const bot = new TelegramBot(config.USER_BOT_TOKEN, { polling: false });
