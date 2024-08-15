@@ -2,6 +2,7 @@ const fs = require('fs');
 const path = require('path');
 const { main } = require('./src/index');
 const logger = require('./src/utils/logger');
+const { safeStringify } = require('./src/utils/helpers');
 
 const lockFile = path.join(__dirname, 'app.lock');
 
@@ -26,7 +27,7 @@ function acquireLock() {
     fs.writeFileSync(lockFile, process.pid.toString(), { flag: 'wx' });
     return true;
   } catch (err) {
-    logger.error('Error acquiring lock:', err);
+    logger.error('Error acquiring lock:', safeStringify(err));
     return false;
   }
 }
@@ -41,7 +42,7 @@ function releaseLock() {
       }
     }
   } catch (err) {
-    logger.error('Error releasing lock:', err);
+    logger.error('Error releasing lock:', safeStringify(err));
   }
 }
 
@@ -51,9 +52,9 @@ logger.info('Current working directory:', process.cwd());
 
 if (acquireLock()) {
   main().catch(error => {
-    logger.error('Unhandled error in main function:', error);
-    releaseLock();
-    process.exit(1);
+    logger.error('Unhandled error in main function:', safeStringify(error));
+    // releaseLock();
+    // process.exit(1);
   });
 } else {
   logger.warn('Exiting due to another instance running');
@@ -74,14 +75,11 @@ process.on('SIGTERM', () => {
 
 // Добавляем обработчик необработанных исключений
 process.on('uncaughtException', (error) => {
-  logger.error('Uncaught Exception:', error);
-  releaseLock();
-  process.exit(1);
+  logger.error('Uncaught Exception:', safeStringify(error));
 });
 
 // Добавляем обработчик необработанных отклонений промисов
 process.on('unhandledRejection', (reason, promise) => {
-  logger.error('Unhandled Rejection at:', promise, 'reason:', reason);
-  releaseLock();
-  process.exit(1);
+  logger.error('Unhandled Rejection at:', safeStringify(promise));
+  logger.error('Reason:', safeStringify(reason)); 
 });

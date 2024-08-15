@@ -5,9 +5,6 @@ const ContextManager = require('../../services/langchain/contextManager');
 const { countTokens } = require('../../services/tokenizer/tokenizer');
 const { simulateHumanBehavior, checkNewMessages } = require('./messageSender');
 const logger = require('../../utils/logger');
-const fs = require('fs');
-const path = require('path');
-const db = require('../../db/postgres/config');
 const TelegramSessionService = require('../../services/telegram/telegramSessionService');
 const { saveMessageStats, saveDialogToFile } = require('../../utils/messageUtils');
 

@@ -1,29 +1,51 @@
 // src/services/telegram/onlineStatusManager.js
 
 const logger = require('../../utils/logger');
+const { Api } = require('telegram/tl');
+const { safeStringify } = require('../../utils/helpers');
 
 class OnlineStatusManager {
     constructor() {
       this.onlineUsers = new Map();
       this.timeoutDuration = 20000; // 20 seconds
+      logger.info('OnlineStatusManager initialized');
     }
   
-    setOnline(userId, session) {
-      if (this.onlineUsers.has(userId)) {
-        clearTimeout(this.onlineUsers.get(userId));
+    async setOnline(userId, session) {
+      try {
+        logger.info(`Setting online status for user ${userId}`);
+        if (this.onlineUsers.has(userId)) {
+          clearTimeout(this.onlineUsers.get(userId));
+          logger.info(`Cleared existing timeout for user ${userId}`);
+        }
+        this.onlineUsers.set(userId, setTimeout(() => this.setOffline(userId, session), this.timeoutDuration));
+        const result = await session.invoke(new Api.account.UpdateStatus({ offline: false }));
+        logger.info(`Online status set for user ${userId}, result: ${safeStringify(result)}`);
+
+        logger.info(`Online status set for user ${userId}`);
+        return result;
+      } catch (error) {
+        logger.error(`Error setting online status for user ${userId}:`, safeStringify(error));
+        throw error;
       }
-      this.onlineUsers.set(userId, setTimeout(() => this.setOffline(userId, session), this.timeoutDuration));
-      return session.invoke(new Api.account.UpdateStatus({ offline: false }));
     }
   
     async setOffline(userId, session) {
-      this.onlineUsers.delete(userId);
-      await session.invoke(new Api.account.UpdateStatus({ offline: true }));
+      try {
+        logger.info(`Setting offline status for user ${userId}`);
+        this.onlineUsers.delete(userId);
+        await session.invoke(new Api.account.UpdateStatus({ offline: true }));
+        logger.info(`Offline status set for user ${userId}`);
+      } catch (error) {
+        logger.error(`Error setting offline status for user ${userId}:`, safeStringify(error));
+      }
     }
   
     isOnline(userId) {
-      return this.onlineUsers.has(userId);
+      const isOnline = this.onlineUsers.has(userId);
+      logger.info(`Checking online status for user ${userId}: ${isOnline}`);
+      return isOnline;
     }
-  }
-  
-  module.exports = new OnlineStatusManager();
+}
+
+module.exports = new OnlineStatusManager();

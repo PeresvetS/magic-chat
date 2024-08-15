@@ -102,7 +102,7 @@ async function checkNewMessages(userId, session) {
       hash: BigInt(0)
     }));
 
-    logger.info(`Checked for new messages. Result: ${safeStringify(messages)}`);
+    // logger.info(`Checked for new messages. Result: ${safeStringify(messages)}`);
     
     if (messages.messages.length > 0 && !messages.messages[0].out) {
       const lastMessageDate = new Date(messages.messages[0].date * 1000);
@@ -200,22 +200,26 @@ async function simulateHumanBehavior(session, userId, response) {
     const sentences = response.split(/(?<=[.!?])\s+/);
     logger.info(`Response split into ${sentences.length} sentences`);
     for (const sentence of sentences) {
-      if (await checkNewMessages(userId, session)) {
-        logger.info('New message received, stopping response');
-        break;
+      try {
+        if (await checkNewMessages(userId, session)) {
+          logger.info('New message received, stopping response');
+          break;
+        }
+
+        const typingDuration = Math.random() * 5000 + 5000;
+        logger.info(`Simulating typing for ${typingDuration}ms`);
+        await simulateTyping(session, userId, typingDuration);
+
+        logger.info(`Attempting to send sentence: "${sentence}"`);
+        await sendMessage(userId, sentence, session.phoneNumber);
+        logger.info(`Sentence sent successfully: "${sentence}"`);
+
+        const messageDelay = Math.random() * 3000 + 1000;
+        logger.info(`Waiting for ${messageDelay}ms before next sentence`);
+        await new Promise(resolve => setTimeout(resolve, messageDelay));
+      } catch (error) {
+        logger.error(`Error processing sentence for user ${userId}:`, error);
       }
-
-      const typingDuration = Math.random() * 5000 + 5000;
-      logger.info(`Simulating typing for ${typingDuration}ms`);
-      await simulateTyping(session, userId, typingDuration);
-
-      logger.info(`Attempting to send sentence: "${sentence}"`);
-      await sendMessage(userId, sentence, session.phoneNumber);
-      logger.info(`Sentence sent successfully: "${sentence}"`);
-
-      const messageDelay = Math.random() * 3000 + 1000;
-      logger.info(`Waiting for ${messageDelay}ms before next sentence`);
-      await new Promise(resolve => setTimeout(resolve, messageDelay));
     }
   } catch (error) {
     logger.error(`Error in simulateHumanBehavior: ${error.message}`);
