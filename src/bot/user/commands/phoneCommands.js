@@ -4,8 +4,7 @@ const {
   getPhoneNumberInfo, 
   getUserPhoneNumbers,
   updatePhoneNumberStatus,
-  setPhoneNumberLimit,
-  setPhoneAuthenticated
+  setPhoneNumberLimit
 } = require('../../../services/phone/phoneNumberService');
 const { getUserByTgId } = require('../../../services/user');
 const TelegramSessionService = require('../../../services/telegram/telegramSessionService');

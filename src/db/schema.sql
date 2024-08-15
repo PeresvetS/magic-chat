@@ -77,6 +77,16 @@ CREATE TABLE IF NOT EXISTS parsing_campaigns (
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+
+-- statistic conacts table
+CREATE TABLE phone_number_contacts (
+  id SERIAL PRIMARY KEY,
+  phone_number VARCHAR(20) NOT NULL,
+  user_id VARCHAR(20) NOT NULL,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE(phone_number, user_id)
+);
+
 -- Parsed users table
 CREATE TABLE IF NOT EXISTS parsed_users (
   id SERIAL PRIMARY KEY,

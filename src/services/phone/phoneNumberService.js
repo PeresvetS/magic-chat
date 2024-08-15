@@ -110,25 +110,57 @@ async function updatePhoneNumberStatus(phoneNumber, isBanned, banType = null) {
   }
 }
 
-async function updatePhoneNumberStats(phoneNumber, messagesSent, contactsReached) {
+async function updatePhoneNumberStats(phoneNumber, userId) {
   try {
-    const query = `
-      UPDATE phone_numbers 
-      SET 
-        messages_sent_today = messages_sent_today + $1,
-        messages_sent_total = messages_sent_total + $1,
-        contacts_reached_today = contacts_reached_today + $2,
-        contacts_reached_total = contacts_reached_total + $2,
-        updated_at = $3
-      WHERE phone_number = $4
+    // Начинаем транзакцию
+    await db.query('BEGIN');
+
+    // Проверяем, существует ли запись о контакте
+    const checkContactQuery = `
+      SELECT * FROM phone_number_contacts
+      WHERE phone_number = $1 AND user_id = $2
     `;
-    const { rowCount } = await db.query(query, [messagesSent, contactsReached, new Date(), phoneNumber]);
-    if (rowCount === 0) {
-      throw new Error('Phone number not found');
+    const contactResult = await db.query(checkContactQuery, [phoneNumber, userId]);
+
+    let isNewContact = false;
+    if (contactResult.rows.length === 0) {
+      // Если контакт новый, добавляем его
+      const insertContactQuery = `
+        INSERT INTO phone_number_contacts (phone_number, user_id)
+        VALUES ($1, $2)
+      `;
+      await db.query(insertContactQuery, [phoneNumber, userId]);
+      isNewContact = true;
     }
-    logger.info(`Updated stats for phone number ${phoneNumber}`);
+
+    // Обновляем статистику
+    const updateStatsQuery = `
+      UPDATE phone_numbers
+      SET 
+        messages_sent_today = messages_sent_today + 1,
+        messages_sent_total = messages_sent_total + 1,
+        contacts_reached_today = contacts_reached_today + $1,
+        contacts_reached_total = contacts_reached_total + $1,
+        updated_at = NOW()
+      WHERE phone_number = $2
+      RETURNING *
+    `;
+    const updateResult = await db.query(updateStatsQuery, [isNewContact ? 1 : 0, phoneNumber]);
+
+    // Завершаем транзакцию
+    await db.query('COMMIT');
+
+    if (updateResult.rows.length > 0) {
+      logger.info(`Updated stats for ${phoneNumber}: +1 message, +${isNewContact ? 1 : 0} contact`);
+      return updateResult.rows[0];
+    } else {
+      logger.warn(`No phone number found for ${phoneNumber}`);
+      return null;
+    }
   } catch (error) {
-    logger.error('Error updating phone number stats:', error);
+    // В случае ошибки отменяем транзакцию
+    await db.query('ROLLBACK');
+    logger.error(`Error updating phone number stats for ${phoneNumber}:`, error);
     throw error;
   }
 }

@@ -7,7 +7,6 @@ const { safeStringify } = require('../../utils/helpers');
 const { getOrCreateSession } = require('../../services/telegram/sessionManager');
 const { getPhoneNumberInfo, updatePhoneNumberStats } = require('../../services/phone/phoneNumberService');
 
-
 async function sendMessage(userId, message, phoneNumber) {
   try {
     logger.info(`Starting sendMessage for user ${userId} from ${phoneNumber}`);
@@ -37,7 +36,9 @@ async function sendMessage(userId, message, phoneNumber) {
 
     logger.info(`Message sent successfully from ${phoneNumber} to ${userId}: ${safeStringify(result)}`);
 
-    await updatePhoneNumberStats(phoneNumber, 1, 1);
+    // Обновляем статистику в базе данных
+    await updatePhoneNumberStats(phoneNumber, userId)
+    
 
     return result;
   } catch (error) {
