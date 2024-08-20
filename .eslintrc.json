@@ -1,0 +1,48 @@
+{
+  "env": {
+    "es2021": true,
+    "node": true
+  },
+  "extends": [
+    "airbnb-base",
+    "prettier"
+  ],
+  "plugins": [
+    "import"
+  ],
+  "rules": {
+    "prettier/prettier": "error",
+    "camelcase": "error",
+    "spaced-comment": "error",
+    "quotes": [
+      "error",
+      "single"
+    ],
+    "no-duplicate-imports": "error",
+    "no-unused-vars": "warn",
+    "no-magic-numbers": "warn",
+    "eqeqeq": [
+      "error",
+      "always"
+    ],
+    "curly": [
+      "error",
+      "all"
+    ],
+    "no-console": "warn",
+    "no-debugger": "error",
+    "import/order": [
+      "error",
+      {
+        "groups": [
+          [
+            "builtin",
+            "external",
+            "internal"
+          ]
+        ],
+        "newlines-between": "always"
+      }
+    ]
+  }
+}
