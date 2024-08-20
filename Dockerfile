@@ -1,20 +1,16 @@
-# Use the official Node.js 14 image as a parent image
-FROM node:14
+FROM node:20-alpine
 
-# Set the working directory in the container
+RUN apk update && \
+  apk add --no-cache util-linux python3 g++ vim make curl git bash sed
+
 WORKDIR /usr/src/app
 
-# Copy package.json and package-lock.json
-COPY package*.json ./
+COPY package.json package.json
 
-# Install dependencies
-RUN npm install
+RUN yarn install
 
-# Copy the rest of your app's source code
 COPY . .
 
-# Expose the port your app runs on
 EXPOSE 3000
 
-# Run the application
 CMD ["node", "src/index.js"]
