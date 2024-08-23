@@ -8,8 +8,11 @@ const adminBot = require('./bot/admin');
 const userBot = require('./bot/user');
 const logger = require('./utils/logger');
 const TelegramSessionService = require('./services/telegram/telegramSessionService');
+const bitrix24WebhookRouter = require('./api/routes/bitrix24Webhook');
 
 const app = express();
+
+app.use('/api/bitrix24', bitrix24WebhookRouter);
 
 async function main() {
   try {

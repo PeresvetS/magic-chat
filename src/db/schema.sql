@@ -157,3 +157,18 @@ BEGIN
     ALTER TABLE phone_numbers ADD COLUMN is_authenticated BOOLEAN DEFAULT FALSE;
   END IF;
 END $$;
+
+-- Leads table
+CREATE TABLE IF NOT EXISTS leads (
+  id SERIAL PRIMARY KEY,
+  bitrix_id VARCHAR(255) UNIQUE NOT NULL,
+  name VARCHAR(255) NOT NULL,
+  phone VARCHAR(20) NOT NULL,
+  source VARCHAR(255),
+  status VARCHAR(255) NOT NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Create index
+CREATE INDEX idx_leads_bitrix_id ON leads(bitrix_id);
+CREATE INDEX idx_leads_phone ON leads(phone);

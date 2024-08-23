@@ -10,8 +10,10 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "@2bad/bitrix": "^2.5.1",
     "@langchain/openai": "^0.2.6",
     "axios": "^1.7.2",
+    "bitrix-gds": "^1.0.7",
     "body-parser": "^1.20.2",
     "dotenv": "^16.4.5",
     "express": "^4.19.2",
@@ -31,9 +33,9 @@
   },
   "devDependencies": {
     "eslint": "^8.37.0",
-    "eslint-plugin-import": "^2.29.1",
     "eslint-config-airbnb-base": "^15.0.0",
     "eslint-config-prettier": "^9.1.0",
+    "eslint-plugin-import": "^2.29.1",
     "prettier": "^2.8.8"
   }
 }
