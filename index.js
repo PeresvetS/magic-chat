@@ -49,8 +49,6 @@ function releaseLock() {
 }
 
 logger.info('Starting application...');
-logger.info('Node environment:', process.env.NODE_ENV);
-logger.info('Current working directory:', process.cwd());
 
 if (acquireLock()) {
   main().catch(error => {

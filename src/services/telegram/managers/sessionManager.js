@@ -4,7 +4,6 @@ const logger = require('../../../utils/logger');
 
 let TelegramSessionService;
 
-// Функция для установки TelegramSessionService после его инициализации
 function setTelegramSessionService(service) {
   TelegramSessionService = service;
 }
@@ -27,7 +26,22 @@ async function getOrCreateSession(phoneNumber) {
   }
 }
 
+async function reauthorizeSession(phoneNumber) {
+  if (!TelegramSessionService) {
+    throw new Error('TelegramSessionService not initialized');
+  }
+
+  try {
+    logger.info(`Attempting to reauthorize session for ${phoneNumber}`);
+    return await TelegramSessionService.reauthorizeSession(phoneNumber);
+  } catch (error) {
+    logger.error(`Error reauthorizing session for ${phoneNumber}:`, error);
+    throw error;
+  }
+}
+
 module.exports = {
   setTelegramSessionService,
-  getOrCreateSession
+  getOrCreateSession,
+  reauthorizeSession
 };

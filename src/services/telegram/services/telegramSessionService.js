@@ -10,7 +10,7 @@ const config = require('../../../config');
 const logger = require('../../../utils/logger');
 const qrcode = require('qrcode');
 const { setPhoneAuthenticated } = require('../../phone').phoneNumberService;
-const { processIncomingMessage } = require('./handleMessageService');
+const { processIncomingMessage } = require('../../messaging').handleMessageService;
 const sessionManager = require('../managers/sessionManager');
 
 class TelegramSessionService {

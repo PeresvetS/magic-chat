@@ -4,7 +4,7 @@ const { Api } = require('telegram/tl');
 const logger = require('../../../utils/logger');
 const { delay, safeStringify } = require('../../../utils/helpers');
 const OnlineStatusManager = require('./onlineStatusManager');
-const TelegramSessionService = require('../services/telegramSessionService');
+const sessionManager = require('./sessionManager');
 
 class BotStateManager {
   constructor() {
@@ -17,49 +17,53 @@ class BotStateManager {
     this.processingMessage = false;
   }
 
-  async setOffline(session, userId) {
+  async setOffline(phoneNumber, userId) {
     this.state = 'offline';
     clearTimeout(this.typingTimer);
     clearTimeout(this.offlineTimer);
+    const session = await sessionManager.getOrCreateSession(phoneNumber);
     await OnlineStatusManager.setOffline(userId, session);
     logger.info(`Bot set to offline for user ${userId}`);
   }
 
-  async setPreOnline(session, userId) {
+  async setPreOnline(phoneNumber, userId) {
     this.state = 'pre-online';
-      if (this.newMessage = true) {
+    if (this.newMessage === true) {
       await delay(Math.random() * 14000 + 1000); // 1-15 seconds delay
+      const session = await sessionManager.getOrCreateSession(phoneNumber);
       await OnlineStatusManager.setOnline(userId, session);
       await delay(Math.random() * 4000 + 1000); // 1-5 seconds delay
-      await this.markMessagesAsRead(session, userId);
-      await this.setTyping(session, userId);
+      await this.markMessagesAsRead(phoneNumber, userId);
+      await this.setTyping(phoneNumber, userId);
       this.newMessage = false;
     }
   }
 
-  async setOnline(session, userId) {
+  async setOnline(phoneNumber, userId) {
     this.state = 'online';
+    const session = await sessionManager.getOrCreateSession(phoneNumber);
     await OnlineStatusManager.setOnline(userId, session);
-    await this.markMessagesAsRead(session, userId);
-    this.resetOfflineTimer(session, userId);
+    await this.markMessagesAsRead(phoneNumber, userId);
+    this.resetOfflineTimer(phoneNumber, userId);
     logger.info(`Bot set to online for user ${userId}`);
   }
 
-  async setTyping(session, userId) {
+  async setTyping(phoneNumber, userId) {
     this.state = 'typing';
     clearTimeout(this.offlineTimer);
-    await this.markMessagesAsRead(session, userId);
-    await this.typing(session, userId);
+    await this.markMessagesAsRead(phoneNumber, userId);
+    await this.typing(phoneNumber, userId);
   }
 
-  resetOfflineTimer(session, userId) {
+  resetOfflineTimer(phoneNumber, userId) {
     clearTimeout(this.offlineTimer);
-    this.offlineTimer = setTimeout(() => this.setOffline(session, userId), Math.random() * 10000 + 20000); // 20-30 seconds
+    this.offlineTimer = setTimeout(() => this.setOffline(phoneNumber, userId), Math.random() * 10000 + 20000); // 20-30 seconds
   }
 
-  async markMessagesAsRead(session, userId) {
+  async markMessagesAsRead(phoneNumber, userId) {
     try {
-      const peer = await this.getCorrectPeer(session, userId);
+      const session = await sessionManager.getOrCreateSession(phoneNumber);
+      const peer = await this.getCorrectPeer(phoneNumber, userId);
       await session.invoke(new Api.messages.ReadHistory({
         peer: peer,
         maxId: 0
@@ -69,22 +73,23 @@ class BotStateManager {
     }
   }
 
-  async typing (session, userId) {
-    const peer = await this.getCorrectPeer(session, userId);
+  async typing(phoneNumber, userId) {
+    const session = await sessionManager.getOrCreateSession(phoneNumber);
+    const peer = await this.getCorrectPeer(phoneNumber, userId);
     await session.invoke(new Api.messages.SetTyping({
       peer: peer,
       action: new Api.SendMessageTypingAction()
     }));
   }
 
-  async simulateTyping(session, userId) {
+  async simulateTyping(phoneNumber, userId) {
     const typingDuration = Math.random() * 6000 + 4000; // 4-10 seconds
     let elapsedTime = 0;
-    const typingInterval = 3; 
+    const typingInterval = 3000; 
     
     while (elapsedTime < typingDuration) {
       try {
-        this.typing(session, userId);
+        await this.typing(phoneNumber, userId);
         if (typingDuration > typingInterval) {
           await delay(typingInterval);
         }
@@ -92,37 +97,40 @@ class BotStateManager {
       } catch (error) {
         logger.error(`Error in simulateTyping: ${error}`);
       }
-        this.resetOfflineTimer(session, userId);
+      this.resetOfflineTimer(phoneNumber, userId);
     }
   }
 
-  async getCorrectPeer(session, userId) {
-    try {
-      if (this.peer !== null ) {
-        logger.info(`peer is reused`);
-         return this.peer;
-      }
-      const dialogs = await session.getDialogs();
-      const dialog = dialogs.find(d => d.entity && d.entity.id.toString() === userId.toString());
-      if (dialog) {
-        logger.info(`Dialog found: ${safeStringify(dialog.inputEntity)}`);
-        this.peer = dialog.inputEntity;
-        return this.peer;
-      }
-      
-      throw new Error('User or dialog not found');
-    } catch (error) {
-      logger.error(`Error in getCorrectPeer: ${error.message}`);
-      if (error.message.includes('AUTH_KEY_UNREGISTERED')) {
-        logger.info(`Attempting to reauthorize session for ${session.phoneNumber}`);
-        await TelegramSessionService.reauthorizeSession(session.phoneNumber);
-        return this.getCorrectPeer(await TelegramSessionService.createOrGetSession(session.phoneNumber), userId);
-      }
-      throw error;
+async getCorrectPeer(phoneNumber, userId) {
+  try {
+    if (this.peer !== null) {
+      logger.info('peer is reused');
+      return this.peer;
     }
+    const session = await sessionManager.getOrCreateSession(phoneNumber);
+    logger.info(`Session checked for ${phoneNumber}`);
+    
+    const dialogs = await session.getDialogs();
+    const dialog = dialogs.find(d => d.entity && d.entity.id.toString() === userId.toString());
+    if (dialog) {
+      logger.info(`Dialog found: ${safeStringify(dialog.inputEntity)}`);
+      this.peer = dialog.inputEntity;
+      return this.peer;
+    }
+    
+    throw new Error('User or dialog not found');
+  } catch (error) {
+    logger.error(`Error in getCorrectPeer: ${error.message}`);
+    if (error.message.includes('AUTH_KEY_UNREGISTERED')) {
+      logger.info(`Attempting to reauthorize session for ${phoneNumber}`);
+      await sessionManager.reauthorizeSession(phoneNumber);
+      return this.getCorrectPeer(phoneNumber, userId);
+    }
+    throw error;
   }
+}
 
-  async handleIncomingMessage(session, userId, message) {
+  async handleIncomingMessage(phoneNumber, userId, message) {
     this.messageBuffer.push(message);
     
     if (this.processingMessage) {
@@ -137,20 +145,20 @@ class BotStateManager {
       status = 'pre-online';
     }
 
-    this.resetOfflineTimer(session, userId);
+    this.resetOfflineTimer(phoneNumber, userId);
 
     switch (status) {
       case 'offline':
-        await this.setPreOnline(session, userId);
+        await this.setPreOnline(phoneNumber, userId);
         break;
       case 'pre-online':
-        await this.setPreOnline(session, userId);
+        await this.setPreOnline(phoneNumber, userId);
         break;
       case 'online':
-        await this.setTyping(session, userId);
+        await this.setTyping(phoneNumber, userId);
         break;
       case 'typing':
-        await this.handleTypingState(session, userId);
+        await this.handleTypingState(phoneNumber, userId);
         break;
     }
     
@@ -160,23 +168,24 @@ class BotStateManager {
     return combinedMessage;
   }
 
-  async handleTypingState(session, userId) {
+  async handleTypingState(phoneNumber, userId) {
     await delay(Math.random() * 5000 + 1000); // 1-5 sec
 
-    // await simulateTyping(session, userId);
+    await this.simulateTyping(phoneNumber, userId);
 
-    let userIsTyping = await this.checkUserTyping(session, userId);
+    let userIsTyping = await this.checkUserTyping(phoneNumber, userId);
     while (userIsTyping) {
       await delay(3000); 
-      userIsTyping = await this.checkUserTyping(session, userId);
+      userIsTyping = await this.checkUserTyping(phoneNumber, userId);
     }
 
     await delay(Math.random() * 5000 + 1000); // Wait another 1-4 seconds
   }
 
-  async checkUserTyping(session, userId) {
+  async checkUserTyping(phoneNumber, userId) {
     try {
-      const peer = await this.getCorrectPeer(session, userId);
+      const session = await sessionManager.getOrCreateSession(phoneNumber);
+      const peer = await this.getCorrectPeer(phoneNumber, userId);
       const updates = await session.invoke(new Api.messages.GetPeerSettings({
         peer: peer
       }));
