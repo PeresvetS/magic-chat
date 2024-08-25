@@ -1,4 +1,4 @@
-// src/services/mailing/messageSenderService.js
+// src/services/mailing/src/messageSenderService.js
 
 const { getClient } = require('../../auth/authService');
 const logger = require('../../../utils/logger');
@@ -51,6 +51,12 @@ class MessageSenderService {
     // Реализация отправки WhatsApp сообщений будет добавлена позже
     logger.warn('WhatsApp sending is not implemented yet');
     return { success: false, error: 'Not implemented' };
+  }
+
+  async sendTgAndWa(phoneNumber, message) { 
+     // Реализация отправки Telegram и WhatsApp сообщений будет добавлена позже
+     logger.warn('Telegram and WhatsApp sending is not implemented yet');
+     return { success: false, error: 'Not implemented' };
   }
 
   async checkDailyLimit(phoneNumber, platform) {

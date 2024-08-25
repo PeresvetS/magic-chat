@@ -1,6 +1,6 @@
-// src/db/repositories/phoneNumberRepository.js
+// src/db/repositories/phoneNumberRepo.js
 
-const prisma = require('../prisma');
+const prisma = require('../utils/prisma');
 const logger = require('../../utils/logger');
 
 const DEFAULT_MAX_INACTIVITY_TIME = 60 * 60 * 1000; // 60 minutes in milliseconds

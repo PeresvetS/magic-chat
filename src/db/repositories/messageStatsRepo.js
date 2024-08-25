@@ -1,6 +1,6 @@
-// src/db/repositories/messageStatsRepository.js
+// src/db/repositories/messageStatsRepo.js
 
-const prisma = require('../prisma');
+const prisma = require('../utils/prisma');
 const logger = require('../../utils/logger');
 
 async function saveMessageStats(userId, phoneNumber, tokenCount) {

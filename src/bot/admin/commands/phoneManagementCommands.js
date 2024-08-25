@@ -3,7 +3,7 @@
 const { updatePhoneNumberStatus, setPhoneNumberLimit, getPhoneNumberInfo } = require('../../../services/phone').phoneNumberService;
 
 module.exports = {
-  '/banphone ([+]?[0-9]+) (temporary|permanent)': async (bot, msg, match) => {
+  '/ban_phone ([+]?[0-9]+) (temporary|permanent)': async (bot, msg, match) => {
     const [, phoneNumber, banType] = match;
     try {
       await updatePhoneNumberStatus(phoneNumber, true, banType);
@@ -13,7 +13,7 @@ module.exports = {
     }
   },
 
-  '/unbanphone ([+]?[0-9]+)': async (bot, msg, match) => {
+  '/unban_phone ([+]?[0-9]+)': async (bot, msg, match) => {
     const [, phoneNumber] = match;
     try {
       await updatePhoneNumberStatus(phoneNumber, false);
@@ -23,7 +23,7 @@ module.exports = {
     }
   },
 
-  '/setphonelimit ([+]?[0-9]+) (\\d+) (\\d+)?': async (bot, msg, match) => {
+  '/set_phone_limit ([+]?[0-9]+) (\\d+) (\\d+)?': async (bot, msg, match) => {
     const [, phoneNumber, dailyLimit, totalLimit] = match;
     try {
       await setPhoneNumberLimit(phoneNumber, parseInt(dailyLimit), totalLimit ? parseInt(totalLimit) : null);
@@ -33,7 +33,7 @@ module.exports = {
     }
   },
 
-  '/phonedetails ([+]?[0-9]+)': async (bot, msg, match) => {
+  '/phone_details ([+]?[0-9]+)': async (bot, msg, match) => {
     const [, phoneNumber] = match;
     try {
       const info = await getPhoneNumberInfo(phoneNumber);

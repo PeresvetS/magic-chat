@@ -1,6 +1,6 @@
-// src/db/repositories/userRepository.js
+// src/db/repositories/userRepo.js
 
-const prisma = require('../prisma');
+const prisma = require('../utils/prisma');
 const logger = require('../../utils/logger');
 
 async function getUserByTgId(telegramId) {

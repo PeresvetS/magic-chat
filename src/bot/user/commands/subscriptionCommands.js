@@ -5,7 +5,7 @@ const logger = require('../../../utils/logger');
 
 module.exports = {
 
-  '/checksubscription': async (bot, msg, match) => {
+  '/check_subscription': async (bot, msg, match) => {
     try {
       const user = await userService.getUserByTgId(msg.from.id);
       

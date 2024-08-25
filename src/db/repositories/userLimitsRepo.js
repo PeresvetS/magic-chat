@@ -1,6 +1,6 @@
-// src/db/repositories/userLimitsRepository.js
+// src/db/repositories/userLimitsRepo.js
 
-const prisma = require('../prisma');
+const prisma = require('../utils/prisma');
 const logger = require('../../utils/logger');
 
 async function setLimit(userId, limitType, limitValue) {

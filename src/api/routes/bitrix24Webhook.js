@@ -6,6 +6,7 @@ const logger = require('../../utils/logger');
 const { checkBitrix24Token } = require('../middleware/checkApiTokens');
 const Bitrix24LeadService = require('../services/lead/bitrix24LeadService');
 const { safeJSONParse, parsePHPSerialized, safeStringify } = require('../../utils/helpers');
+const { sendMessageToLead } = require('../../services/mailing').distributionService;
 
 // Middleware для парсинга различных форматов данных
 const router = express.Router();
@@ -84,6 +85,9 @@ router.post('/webhook', checkBitrix24Token, async (req, res) => {
     });
 
     logger.info('Successfully processed Bitrix24 webhook', { leadId: savedLead.id });
+
+    await sendMessageToLead(savedLead);
+
   } catch (error) {
     logger.error('Error processing Bitrix24 webhook', { 
       error: error.message, 

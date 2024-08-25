@@ -3,7 +3,7 @@
 const { setLimit, getLimits } = require('../../../services/user').limitService;
 
 module.exports = {
-  '/setlimit ([\\w\\.]+) (parsing|phones|campaigns|contacts|leads) (\\d+)': async (bot, msg, match) => {
+  '/set_limit ([\\w\\.]+) (parsing|phones|campaigns|contacts|leads) (\\d+)': async (bot, msg, match) => {
     const [, userIdentifier, limitType, limitValue] = match;
     try {
       await setLimit(userIdentifier, limitType, parseInt(limitValue));
@@ -13,7 +13,7 @@ module.exports = {
     }
   },
 
-  '/getlimits ([\\w\\.]+)': async (bot, msg, match) => {
+  '/get_limits ([\\w\\.]+)': async (bot, msg, match) => {
     const [, userIdentifier] = match;
     try {
       const limits = await getLimits(userIdentifier);

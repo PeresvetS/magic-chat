@@ -1,11 +1,11 @@
-// src/db/src/campaigns.js
+// src/db/repositories/campaignsParsingRepo.js
 
-const prisma = require('../prisma');
+const prisma = require('../utils/prisma');
 const logger = require('../../utils/logger');
 
 async function createParsingCampaign(name, groups, audienceDescription, maxUsers = 100, depth = 2) {
   try {
-    const campaign = await prisma.parsingCampaign.create({
+    const campaign = await prisma.CampaignsParsing.create({
       data: {
         name,
         groups: groups.join(','),
@@ -24,7 +24,7 @@ async function createParsingCampaign(name, groups, audienceDescription, maxUsers
 
 async function updateCampaignStatus(campaignId, status) {
   try {
-    await prisma.parsingCampaign.update({
+    await prisma.CampaignsParsing.update({
       where: { id: campaignId },
       data: { status }
     });
@@ -36,7 +36,7 @@ async function updateCampaignStatus(campaignId, status) {
 
 async function getCampaignStats() {
   try {
-    return await prisma.parsingCampaign.findMany({
+    return await prisma.CampaignsParsing.findMany({
       select: {
         id: true,
         name: true,
@@ -54,7 +54,7 @@ async function getCampaignStats() {
 
 async function markCampaignAsFullyProcessed(campaignId) {
   try {
-    await prisma.parsingCampaign.update({
+    await prisma.CampaignsParsing.update({
       where: { id: campaignId },
       data: { isFullyProcessed: true }
     });
@@ -66,7 +66,7 @@ async function markCampaignAsFullyProcessed(campaignId) {
 
 async function updateCampaignStats(campaignId, totalParsed, processedCount) {
   try {
-    await prisma.parsingCampaign.update({
+    await prisma.CampaignsParsing.update({
       where: { id: campaignId },
       data: { totalParsed, processedCount }
     });

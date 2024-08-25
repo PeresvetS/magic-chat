@@ -1,6 +1,6 @@
-// src/db/src/subscriptions.js
+// src/db/repositories/subscriptionsRepo.js
 
-const prisma = require('../prisma');
+const prisma = require('../utils/prisma');
 const logger = require('../../utils/logger');
 
 async function addSubscription(userId, durationDays, isRepeating) {

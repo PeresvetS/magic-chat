@@ -16,7 +16,7 @@ const sessionManager = require('../managers/sessionManager');
 class TelegramSessionService {
   constructor() {
     this.sessions = new Map();
-    this.sessionDir = path.join(__dirname, '../../../temp/sessions');
+    this.sessionDir = path.join(__dirname, '../../../../temp/sessions');
     this.ensureSessionDirExists();
     this.startConnectionCheck();
     this.startAuthorizationCheck()

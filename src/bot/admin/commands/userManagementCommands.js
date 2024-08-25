@@ -4,7 +4,7 @@ const { banUser, unbanUser, getUserInfo, getAllUsers } = require('../../../servi
 const logger = require('../../../utils/logger');
 
 module.exports = {
-  '/banuser ([\\w\\.]+)': async (bot, msg, match) => {
+  '/ban_user ([\\w\\.]+)': async (bot, msg, match) => {
     const [, userIdentifier] = match;
     try {
       await banUser(userIdentifier);
@@ -14,7 +14,7 @@ module.exports = {
     }
   },
 
-  '/unbanuser ([\\w\\.]+)': async (bot, msg, match) => {
+  '/unban_user ([\\w\\.]+)': async (bot, msg, match) => {
     const [, userIdentifier] = match;
     try {
       await unbanUser(userIdentifier);
@@ -24,7 +24,7 @@ module.exports = {
     }
   },
 
-  '/userinfo ([\\w\\.]+)': async (bot, msg, match) => {
+  '/user_info ([\\w\\.]+)': async (bot, msg, match) => {
     const [, userIdentifier] = match;
     try {
       const info = await getUserInfo(userIdentifier);
@@ -34,7 +34,7 @@ module.exports = {
     }
   },
   
-  '/userslist': async (bot, msg) => {
+  '/users_list': async (bot, msg) => {
     try {
       const users = await getAllUsers();
       let message = 'Список пользователей:\n\n';

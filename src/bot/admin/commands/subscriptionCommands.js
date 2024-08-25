@@ -5,7 +5,7 @@ const logger = require('../../../utils/logger');
 const { stringifyWithBigInt } = require('../../../utils/helpers');
 
 module.exports = {
-  '/addsubscription ([\\w\\.@]+) (\\d+) (days|months) (repeat|once)': async (bot, msg, match) => {
+  '/add_subscription ([\\w\\.@]+) (\\d+) (days|months) (repeat|once)': async (bot, msg, match) => {
     try {
       const [, userIdentifier, duration, unit, repeatType] = match;
       logger.info(`Adding subscription for user: ${userIdentifier}, duration: ${duration} ${unit}, repeat: ${repeatType}`);
@@ -22,7 +22,7 @@ module.exports = {
     }
   },
 
-  '/checksubscription ([\\w\\.@]+)': async (bot, msg, match) => {
+  '/check_subscription ([\\w\\.@]+)': async (bot, msg, match) => {
     try {
       const [, userIdentifier] = match;
       logger.info(`Checking subscription for user: ${userIdentifier}`);
@@ -56,7 +56,7 @@ module.exports = {
     }
   },
 
-  '/updatesubscription ([\\w\\.@]+) (-?\\d+) (days|months)': async (bot, msg, match) => {
+  '/update_subscription ([\\w\\.@]+) (-?\\d+) (days|months)': async (bot, msg, match) => {
     try {
       const [, userIdentifier, duration, unit] = match;
       const durationDays = unit === 'months' ? parseInt(duration) * 30 : parseInt(duration);

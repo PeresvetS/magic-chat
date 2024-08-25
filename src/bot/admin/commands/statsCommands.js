@@ -3,7 +3,7 @@
 const { getGlobalStats } = require('../../../services/stats/statsService');
 
 module.exports = {
-  '/globalstats': async (bot, msg) => {
+  '/global_stats': async (bot, msg) => {
     try {
       const stats = await getGlobalStats();
       bot.sendMessage(msg.chat.id, `Глобальная статистика:\n${JSON.stringify(stats, null, 2)}`);

@@ -70,7 +70,7 @@ CREATE TABLE "PhoneNumber" (
 );
 
 -- CreateTable
-CREATE TABLE "ParsingCampaign" (
+CREATE TABLE "CampaignParsing" (
     "id" SERIAL NOT NULL,
     "userId" INTEGER NOT NULL,
     "name" TEXT NOT NULL,
@@ -86,7 +86,7 @@ CREATE TABLE "ParsingCampaign" (
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
 
-    CONSTRAINT "ParsingCampaign_pkey" PRIMARY KEY ("id")
+    CONSTRAINT "CampaignParsing_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
@@ -144,6 +144,30 @@ CREATE TABLE "Lead" (
     CONSTRAINT "Lead_pkey" PRIMARY KEY ("id")
 );
 
+-- CreateTable
+CREATE TABLE "CampaignMailing" (
+    "id" SERIAL NOT NULL,
+    "name" TEXT NOT NULL,
+    "message" TEXT,
+    "isActive" BOOLEAN NOT NULL DEFAULT false,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+    "platformPriority" TEXT NOT NULL DEFAULT 'telegram',
+    "userId" INTEGER NOT NULL,
+
+    CONSTRAINT "CampaignMailing_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "PhoneNumberCampaign" (
+    "id" SERIAL NOT NULL,
+    "phoneNumber" TEXT NOT NULL,
+    "platform" TEXT NOT NULL,
+    "campaignId" INTEGER NOT NULL,
+
+    CONSTRAINT "PhoneNumberCampaign_pkey" PRIMARY KEY ("id")
+);
+
 -- CreateIndex
 CREATE UNIQUE INDEX "User_telegramId_key" ON "User"("telegramId");
 
@@ -165,6 +189,12 @@ CREATE UNIQUE INDEX "PhoneNumberContact_phoneNumber_userId_key" ON "PhoneNumberC
 -- CreateIndex
 CREATE UNIQUE INDEX "Lead_bitrixId_key" ON "Lead"("bitrixId");
 
+-- CreateIndex
+CREATE UNIQUE INDEX "CampaignMailing_name_key" ON "CampaignMailing"("name");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "PhoneNumberCampaign_phoneNumber_campaignId_key" ON "PhoneNumberCampaign"("phoneNumber", "campaignId");
+
 -- AddForeignKey
 ALTER TABLE "Admin" ADD CONSTRAINT "Admin_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
@@ -178,7 +208,13 @@ ALTER TABLE "UserLimits" ADD CONSTRAINT "UserLimits_userId_fkey" FOREIGN KEY ("u
 ALTER TABLE "PhoneNumber" ADD CONSTRAINT "PhoneNumber_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "ParsingCampaign" ADD CONSTRAINT "ParsingCampaign_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "CampaignParsing" ADD CONSTRAINT "CampaignParsing_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "ParsedUser" ADD CONSTRAINT "ParsedUser_campaignId_fkey" FOREIGN KEY ("campaignId") REFERENCES "ParsingCampaign"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "ParsedUser" ADD CONSTRAINT "ParsedUser_campaignId_fkey" FOREIGN KEY ("campaignId") REFERENCES "CampaignParsing"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "CampaignMailing" ADD CONSTRAINT "CampaignMailing_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "PhoneNumberCampaign" ADD CONSTRAINT "PhoneNumberCampaign_campaignId_fkey" FOREIGN KEY ("campaignId") REFERENCES "CampaignMailing"("id") ON DELETE RESTRICT ON UPDATE CASCADE;

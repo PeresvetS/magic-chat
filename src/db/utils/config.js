@@ -1,4 +1,4 @@
-// src/db/src/config.js
+// src/db/utils/config.js
 
 const config = require('../../config');
 

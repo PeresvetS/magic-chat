@@ -1,6 +1,6 @@
-// src/db/src/parsedUsers.js
+// src/db/repositories/parsedUsersRepo.js
 
-const prisma = require('../prisma');
+const prisma = require('../utils/prisma');
 const logger = require('../../utils/logger');
 
 async function saveParsedUsers(campaignId, groupUsername, categorizedUsers) {

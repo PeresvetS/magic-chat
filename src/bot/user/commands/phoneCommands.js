@@ -13,21 +13,18 @@ const { TelegramSessionService } = require('../../../services/telegram');
 const logger = require('../../../utils/logger');
 
 module.exports = {
-  '/addphone': async (bot, msg, match) => {
-    
+  '/add_phone ([+]?[0-9]+)': async (bot, msg, match) => {
+    const [, phoneNumber] = match;
+
+    logger.info(`Extracted phone number: ${phoneNumber}`);
+
     const user = await userService.getUserByTgId(msg.from.id);
     const userId = user.id;
 
     logger.info(`Addphone command called by user ${userId}`);
     
-    // Извлекаем номер телефона из текста сообщения
-    const fullText = msg.text;
-    const phoneNumber = fullText.split(' ')[1]; // Получаем второй элемент после разделения по пробелу
-    
-    logger.info(`Extracted phone number: ${phoneNumber}`);
-
     if (!phoneNumber) {
-      bot.sendMessage(msg.chat.id, 'Пожалуйста, укажите номер телефона после команды. Например: /addphone +79123456789');
+      bot.sendMessage(msg.chat.id, 'Пожалуйста, укажите номер телефона после команды. Например: /add_phone +79123456789');
       return;
     }
     
@@ -57,19 +54,19 @@ module.exports = {
     }
   },
 
-'/removephone': async (bot, msg, match) => {
-  const user = await userService.getUserByTgId(msg.from.id);
-  const userId = user.id;
-    logger.info(`Removephone command called by user ${userId}`);
-    
-    // Извлекаем номер телефона из текста сообщения
-    const fullText = msg.text;
-    const phoneNumber = fullText.split(' ')[1]; // Получаем второй элемент после разделения по пробелу
-    
+'/remove_phone ([+]?[0-9]+)': async (bot, msg, match) => {
+   const [, phoneNumber] = match;
+
+   logger.info(`Extracted phone number: ${phoneNumber}`);
+
+   const user = await userService.getUserByTgId(msg.from.id);
+   const userId = user.id;
+    logger.info(`Remove_phone command called by user ${userId}`);
+
     logger.info(`Extracted phone number for removal: ${phoneNumber}`);
 
     if (!phoneNumber) {
-      bot.sendMessage(msg.chat.id, 'Пожалуйста, укажите номер телефона после команды. Например: /removephone +79123456789');
+      bot.sendMessage(msg.chat.id, 'Пожалуйста, укажите номер телефона после команды. Например: /remove_phone +79123456789');
       return;
     }
     
@@ -87,7 +84,7 @@ module.exports = {
     }
   },
 
-  '/listphones': async (bot, msg) => {
+  '/list_phones': async (bot, msg) => {
     const user = await userService.getUserByTgId(msg.from.id);
     const userId = user.id;
     logger.info(`Listphones command called by user ${userId}`);
@@ -98,7 +95,7 @@ module.exports = {
         bot.sendMessage(msg.chat.id, 'У вас нет добавленных номеров телефонов.');
       } else {
         const phoneList = phoneNumbers.map(phone => 
-          `${phone.phone_number}${phone.is_authenticated ? '' : ' (не аутентифицирован, используйте /addphone)'}`
+          `${phone.phone_number}${phone.is_authenticated ? '' : ' (не аутентифицирован, используйте /add_phone)'}`
         ).join('\n');
         bot.sendMessage(msg.chat.id, `Ваши номера телефонов:\n${phoneList}`);
       }
@@ -108,13 +105,17 @@ module.exports = {
     }
   },
 
-  '/phoneinfo': async (bot, msg, match) => {
+  '/phone_stats ([+]?[0-9]+)': async (bot, msg, match) => {
+    const [, phoneNumber] = match;
+
+    logger.info(`Extracted phone number: ${phoneNumber}`);
+
     const user = await userService.getUserByTgId(msg.from.id);
     const userId = user.id;
     logger.info(`Phoneinfo command called by user ${userId}`);
-    const phoneNumber = match[1];
+
     if (!phoneNumber) {
-      bot.sendMessage(msg.chat.id, 'Пожалуйста, укажите номер телефона после команды. Например: /phoneinfo +79123456789');
+      bot.sendMessage(msg.chat.id, 'Пожалуйста, укажите номер телефона после команды. Например: /phone_info +79123456789');
       return;
     }
     logger.info(`Attempting to get info for phone number ${phoneNumber}`);
@@ -142,52 +143,14 @@ module.exports = {
     }
   },
 
+  '/set_phone_limit ([+]?[0-9]+) (\\d+) (\\d+)?': async (bot, msg, match) => {
 
-  '/banphone': async (bot, msg, match) => {
-    const user = await userService.getUserByTgId(msg.from.id);
-    const userId = user.id;
-    logger.info(`Banphone command called by user ${userId}`);
-    const [phoneNumber, banType] = match[1].split(' ');
-    if (!phoneNumber || !banType) {
-      bot.sendMessage(msg.chat.id, 'Пожалуйста, укажите номер телефона и тип бана. Например: /banphone +79123456789 spam');
-      return;
-    }
-    logger.info(`Attempting to ban phone number ${phoneNumber} with type ${banType}`);
-    try {
-      await updatePhoneNumberStatus(phoneNumber, true, banType);
-      logger.info(`Phone number ${phoneNumber} banned successfully`);
-      bot.sendMessage(msg.chat.id, `Номер телефона ${phoneNumber} успешно забанен с типом: ${banType}`);
-    } catch (error) {
-      logger.error(`Error banning phone number ${phoneNumber}:`, error);
-      bot.sendMessage(msg.chat.id, `Ошибка при бане номера: ${error.message}`);
-    }
-  },
+    const [, phoneNumber, dailyLimit, totalLimit] = match;
 
-  '/unbanphone': async (bot, msg, match) => {
-    const user = await userService.getUserByTgId(msg.from.id);
-    const userId = user.id;
-    logger.info(`Unbanphone command called by user ${userId}`);
-    const phoneNumber = match[1];
-    if (!phoneNumber) {
-      bot.sendMessage(msg.chat.id, 'Пожалуйста, укажите номер телефона. Например: /unbanphone +79123456789');
-      return;
-    }
-    logger.info(`Attempting to unban phone number ${phoneNumber}`);
-    try {
-      await updatePhoneNumberStatus(phoneNumber, false);
-      logger.info(`Phone number ${phoneNumber} unbanned successfully`);
-      bot.sendMessage(msg.chat.id, `Номер телефона ${phoneNumber} успешно разбанен.`);
-    } catch (error) {
-      logger.error(`Error unbanning phone number ${phoneNumber}:`, error);
-      bot.sendMessage(msg.chat.id, `Ошибка при разбане номера: ${error.message}`);
-    }
-  },
-
-  '/setphonelimit': async (bot, msg, match) => {
     const user = await userService.getUserByTgId(msg.from.id);
     const userId = user.id;
     logger.info(`Setphonelimit command called by user ${userId}`);
-    const [phoneNumber, dailyLimit, totalLimit] = match[1].split(' ');
+  
     if (!phoneNumber || !dailyLimit) {
       bot.sendMessage(msg.chat.id, 'Пожалуйста, укажите номер телефона и дневной лимит. Например: /setphonelimit +79123456789 100');
       return;

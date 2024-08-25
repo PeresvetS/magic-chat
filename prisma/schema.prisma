@@ -22,7 +22,8 @@ model User {
   subscriptions Subscription[]
   userLimits    UserLimits?
   phoneNumbers  PhoneNumber[]
-  campaigns     ParsingCampaign[]
+  CampaignParsing     CampaignParsing[]
+  campaignMailings CampaignMailing[]
 }
 
 model Admin {
@@ -75,7 +76,7 @@ model PhoneNumber {
   whatsappMessagesSentTotal   Int       @default(0)
 }
 
-model ParsingCampaign {
+model CampaignParsing {
   id                  Int          @id @default(autoincrement())
   user                User         @relation(fields: [userId], references: [id])
   userId              Int
@@ -96,7 +97,7 @@ model ParsingCampaign {
 
 model ParsedUser {
   id              Int             @id @default(autoincrement())
-  campaign        ParsingCampaign @relation(fields: [campaignId], references: [id])
+  campaign        CampaignParsing @relation(fields: [campaignId], references: [id])
   campaignId      Int
   groupUsername   String?
   groupLink       String?
@@ -138,4 +139,27 @@ model Lead {
   source    String?
   status    String
   createdAt DateTime @default(now())
+}
+
+model CampaignMailing {
+  id        Int      @id @default(autoincrement())
+  name      String   @unique
+  message   String?
+  isActive  Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  platformPriority String   @default("telegram")
+  user      User     @relation(fields: [userId], references: [id])
+  userId    Int
+  phoneNumbers     PhoneNumberCampaign[]
+}
+
+model PhoneNumberCampaign {
+  id         Int             @id @default(autoincrement())
+  phoneNumber String
+  platform   String // 'telegram' или 'whatsapp'
+  campaign   CampaignMailing @relation(fields: [campaignId], references: [id])
+  campaignId Int
+
+  @@unique([phoneNumber, campaignId])
 }

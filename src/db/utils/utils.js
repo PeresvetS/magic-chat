@@ -1,4 +1,4 @@
-// src/db/src/utils.js
+// src/db/utils/utils.js
 
 function chunkArray(array, size) {
     const chunks = [];

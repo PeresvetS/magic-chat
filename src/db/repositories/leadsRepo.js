@@ -1,6 +1,6 @@
-// src/db/src/leads.js
+// src/db/repositories/leadsRepo.js
 
-const prisma = require('../prisma');
+const prisma = require('../utils/prisma');
 const logger = require('../../utils/logger');
 
 async function saveLead({ bitrix_id, name, phone, source, status }) {
@@ -29,7 +29,33 @@ async function getLead(bitrix_id) {
   }
 }
 
+async function getUnsentLeads() {
+  try {
+    return await prisma.lead.findMany({
+      where: { status: 'NEW' }
+    });
+  } catch (error) {
+    logger.error('Error getting unsent leads from database', error);
+    throw error;
+  }
+}
+
+async function markLeadAsSent(id) {
+  try {
+    await prisma.lead.update({
+      where: { id },
+      data: { status: 'SENT' }
+    });
+  } catch (error) {
+    logger.error('Error marking lead as sent in database', error);
+    throw error;
+  }
+}
+
+
 module.exports = {
   saveLead,
-  getLead
+  getLead,
+  getUnsentLeads,
+  markLeadAsSent
 };

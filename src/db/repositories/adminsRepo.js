@@ -1,6 +1,6 @@
-// src/db/src/admins.js
+// src/db/repositories/adminsRepo.js
 
-const prisma = require('../prisma');
+const prisma = require('../utils/prisma');
 const logger = require('../../utils/logger');
 
 async function getAdminIds() {

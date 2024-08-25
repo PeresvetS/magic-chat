@@ -1,7 +1,7 @@
 // src/services/stats/statsService.js
 
 const logger = require('../../utils/logger');
-const prisma = require('../../db/prisma');
+const prisma = require('../../db/utils/prisma');
 
 async function getGlobalStats() {
   try {

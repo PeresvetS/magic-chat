@@ -1,23 +1,23 @@
 // src/bot/user/commands/helpCommands.js
 
 module.exports = {
-    '/help': async (bot, msg) => {
-      const helpText = `
-  Доступные команды:
-  /addphone [номер] - Добавить новый телефон
-  /removephone [номер] - Удалить телефон
-  /listphones - Показать список телефонов
-  /checksubscription - Показать информацию о подписке
-  /help - Показать эту справку
-      `;
-      bot.sendMessage(msg.chat.id, helpText);
-    }
-  };
-
-
-  //   /startparsing [группа] - Начать парсинг группы
-  // /stopparsing - Остановить текущий парсинг
-  // /parsingstatus - Показать статус парсинга
-  // /createcampaign [название] - Создать новую кампанию
-  // /listcampaigns - Показать список кампаний
-  // /campaignstats [id] - Показать статистику кампании
+  '/help': async (bot, msg) => {
+    const helpText = `
+Доступные команды:
+/add_phone [номер] - Добавить новый телефон
+/remove_phone [номер] - Удалить телефон
+/list_phones - Показать список телефонов
+/phone_stats [номер] - Показать статистику по телефону
+/check_subscription - Показать информацию о подписке
+/create_mc [название] - Создать новую кампанию рассылки
+/set_mc_message [название] [сообщение] - Установить сообщение для кампании
+/toggle_mc [название] - Включить/выключить кампанию
+/get_mc [название] - Проверить информацию о кампании
+/list_mc - Показать список всех кампаний
+/mailing_test [номер] - Отправить тестовое сообщение активной кампании
+/send_manual_mc [название_кампании] [номер] - Отправить сообщение кампании на указанный номер
+/help - Показать эту справку
+    `;
+    bot.sendMessage(msg.chat.id, helpText);
+  }
+};  

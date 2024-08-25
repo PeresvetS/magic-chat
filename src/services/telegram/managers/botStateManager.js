@@ -62,8 +62,7 @@ class BotStateManager {
 
   async markMessagesAsRead(phoneNumber, userId) {
     try {
-      const session = await sessionManager.getOrCreateSession(phoneNumber);
-      const peer = await this.getCorrectPeer(phoneNumber, userId);
+      const { peer, session } = await this.getCorrectPeer(phoneNumber, userId);
       await session.invoke(new Api.messages.ReadHistory({
         peer: peer,
         maxId: 0
@@ -74,8 +73,7 @@ class BotStateManager {
   }
 
   async typing(phoneNumber, userId) {
-    const session = await sessionManager.getOrCreateSession(phoneNumber);
-    const peer = await this.getCorrectPeer(phoneNumber, userId);
+    const { peer, session } = await this.getCorrectPeer(phoneNumber, userId);
     await session.invoke(new Api.messages.SetTyping({
       peer: peer,
       action: new Api.SendMessageTypingAction()
@@ -115,7 +113,7 @@ async getCorrectPeer(phoneNumber, userId) {
     if (dialog) {
       logger.info(`Dialog found: ${safeStringify(dialog.inputEntity)}`);
       this.peer = dialog.inputEntity;
-      return this.peer;
+      return { peer: this.peer, session };
     }
     
     throw new Error('User or dialog not found');
@@ -184,8 +182,7 @@ async getCorrectPeer(phoneNumber, userId) {
 
   async checkUserTyping(phoneNumber, userId) {
     try {
-      const session = await sessionManager.getOrCreateSession(phoneNumber);
-      const peer = await this.getCorrectPeer(phoneNumber, userId);
+      const { peer, session } = await this.getCorrectPeer(phoneNumber, userId);
       const updates = await session.invoke(new Api.messages.GetPeerSettings({
         peer: peer
       }));

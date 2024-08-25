@@ -1,4 +1,4 @@
-// src/services/mailling/messagingPlatformChecker.js
+// src/services/mailling/src/messagingPlatformChecker.js
 
 const { TelegramClient } = require("telegram");
 const { Api } = require("telegram/tl");
@@ -6,6 +6,7 @@ const { StringSession } = require("telegram/sessions");
 const config = require('../../../config');
 const logger = require('../../../utils/logger');
 const { getClient } = require('../../auth/authService');
+const { gePlatformPriority } = require('../../../db').campaignsMailingRepo;
 
 class MessagingPlatformChecker {
   constructor() {
@@ -60,12 +61,14 @@ class MessagingPlatformChecker {
         return await this.checkTelegram(phoneNumber);
       case 'whatsapp':
         return await this.checkWhatsApp(phoneNumber);
+      case 'tgwa':
+        return await this.checkTelegram(phoneNumber) && await this.checkWhatsApp(phoneNumber);
       default:
         throw new Error('Invalid platform');
     }
   }
 
-  async choosePlatform(phoneNumber, priorityPlatform) {
+  async choosePlatform(phoneNumber, priorityPlatform = null) {
       if (!phoneNumber) {
         throw new Error('Phone number is required');
       } 
@@ -73,10 +76,11 @@ class MessagingPlatformChecker {
         throw new Error('Phone number must be a string');
       }
       if (!priorityPlatform) {
-        throw new Error('Priority platform is required');
+        priorityPlatform = await gePlatformPriority(phoneNumber);
+        logger.info(`No priority platform provided. Got from DB ${priorityPlatform}.`);
       }
 
-      if (priorityPlatform !== 'telegram' && priorityPlatform !== 'whatsapp') {
+      if (priorityPlatform !== 'telegram' && priorityPlatform !== 'whatsapp' && priorityPlatform !== 'tgwa') {
         throw new Error('Invalid priority platform');
       }
 
@@ -86,6 +90,9 @@ class MessagingPlatformChecker {
       else if (priorityPlatform === 'whatsapp' && checkPlatforms(phoneNumber, 'whatsapp')) {
         return 'whatsapp';
       } 
+      else if (priorityPlatform === 'tgwa' && checkPlatforms(phoneNumber, 'tgwa')) {
+        return 'tgwa';
+      }
       else {
         return 'none';
       }
