@@ -48,8 +48,6 @@ CREATE TABLE IF NOT EXISTS phone_numbers (
   ban_type VARCHAR(20),
   is_premium BOOLEAN DEFAULT FALSE,
   is_authenticated BOOLEAN DEFAULT FALSE,
-  messages_sent_today INTEGER DEFAULT 0,
-  messages_sent_total INTEGER DEFAULT 0,
   contacts_reached_today INTEGER DEFAULT 0,
   contacts_reached_total INTEGER DEFAULT 0,
   daily_limit INTEGER DEFAULT 40,
@@ -57,6 +55,10 @@ CREATE TABLE IF NOT EXISTS phone_numbers (
   max_inactivity_time INTEGER DEFAULT 3600, -- Default to 1 hour in seconds
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+  telegram_messages_sent_today INTEGER DEFAULT 0,
+  telegram_messages_sent_total INTEGER DEFAULT 0,
+  whatsapp_messages_sent_today INTEGER DEFAULT 0,
+  whatsapp_messages_sent_total INTEGER DEFAULT 0;
 );
 
 -- Parsing campaigns table
@@ -127,6 +129,8 @@ CREATE INDEX idx_subscriptions_end_date ON subscriptions(end_date);
 CREATE INDEX idx_phone_numbers_phone_number ON phone_numbers(phone_number);
 CREATE INDEX idx_parsing_campaigns_status ON parsing_campaigns(status);
 CREATE INDEX idx_parsed_users_username ON parsed_users(username);
+CREATE INDEX idx_phone_numbers_telegram_today ON phone_numbers (telegram_messages_sent_today);
+CREATE INDEX idx_phone_numbers_whatsapp_today ON phone_numbers (whatsapp_messages_sent_today);
 
 -- Create a function to automatically update the updated_at column
 CREATE OR REPLACE FUNCTION update_updated_at_column()

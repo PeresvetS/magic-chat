@@ -55,6 +55,11 @@ const logger = winston.createLogger({
   ],
 });
 
+logger.add(new winston.transports.Console({
+  format: winston.format.simple(),
+}));
+
+
 // Если мы не в продакшене, то также выводим логи в консоль
 if (process.env.NODE_ENV !== 'production') {
   logger.add(new winston.transports.Console({

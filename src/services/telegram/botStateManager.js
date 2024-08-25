@@ -30,11 +30,10 @@ class BotStateManager {
   async setPreOnline(session, userId) {
     this.state = 'pre-online';
       if (this.newMessage = true) {
-      await delay(Math.random() * 15000 + 5000); // 5-20 seconds delay
+      await delay(Math.random() * 14000 + 1000); // 1-15 seconds delay
       await OnlineStatusManager.setOnline(userId, session);
-      await delay(Math.random() * 9000 + 1000); // 1-10 seconds delay
+      await delay(Math.random() * 4000 + 1000); // 1-5 seconds delay
       await this.markMessagesAsRead(session, userId);
-      await delay(Math.random() * 2000 + 2000); // 2-4 seconds delay
       await this.setTyping(session, userId);
       this.newMessage = false;
     }
@@ -52,7 +51,7 @@ class BotStateManager {
     this.state = 'typing';
     clearTimeout(this.offlineTimer);
     await this.markMessagesAsRead(session, userId);
-    await this.simulateTyping(session, userId);
+    await this.typing(session, userId);
   }
 
   resetOfflineTimer(session, userId) {
@@ -73,20 +72,25 @@ class BotStateManager {
     }
   }
 
-  async simulateTyping(session, userId) {
-    const typingDuration = Math.random() * 10000 + 5000; // 5-15 seconds
-    let elapsedTime = 0;
+  async typing (session, userId) {
+    const peer = await this.getCorrectPeer(session, userId);
+    await session.invoke(new Api.messages.SetTyping({
+      peer: peer,
+      action: new Api.SendMessageTypingAction()
+    }));
+  }
 
+  async simulateTyping(session, userId) {
+    const typingDuration = Math.random() * 6000 + 4000; // 4-10 seconds
+    let elapsedTime = 0;
+    const typingInterval = 3; 
+    
     while (elapsedTime < typingDuration) {
       try {
-        const peer = await this.getCorrectPeer(session, userId);
-        await session.invoke(new Api.messages.SetTyping({
-          peer: peer,
-          action: new Api.SendMessageTypingAction()
-        }));
-
-        const typingInterval = Math.random() * 4000 + 3000; // 3-7 seconds
-        await delay(typingInterval);
+        this.typing(session, userId);
+        if (typingDuration > typingInterval) {
+          await delay(typingInterval);
+        }
         elapsedTime += typingInterval;
       } catch (error) {
         logger.error(`Error in simulateTyping: ${error}`);
@@ -134,7 +138,7 @@ class BotStateManager {
       if (error.message.includes('AUTH_KEY_UNREGISTERED')) {
         logger.info(`Attempting to reauthorize session for ${session.phoneNumber}`);
         await TelegramSessionService.reauthorizeSession(session.phoneNumber);
-        return this.getCorrectPeer(await TelegramSessionService.getSession(session.phoneNumber), userId);
+        return this.getCorrectPeer(await TelegramSessionService.createOrGetSession(session.phoneNumber), userId);
       }
       throw error;
     }
@@ -179,7 +183,9 @@ class BotStateManager {
   }
 
   async handleTypingState(session, userId) {
-    await delay(Math.random() * 2000 + 3000); // Wait 3-5 seconds
+    await delay(Math.random() * 5000 + 1000); // 1-5 sec
+
+    // await simulateTyping(session, userId);
 
     let userIsTyping = await this.checkUserTyping(session, userId);
     while (userIsTyping) {
@@ -187,7 +193,7 @@ class BotStateManager {
       userIsTyping = await this.checkUserTyping(session, userId);
     }
 
-    await delay(Math.random() * 2000 + 3000); // Wait another 3-5 seconds
+    await delay(Math.random() * 5000 + 1000); // Wait another 1-4 seconds
   }
 
   async checkUserTyping(session, userId) {

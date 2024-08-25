@@ -217,8 +217,14 @@ async function setPhoneAuthenticated(phoneNumber, isAuthenticated) {
     }
     logger.info(`Authentication status updated for ${phoneNumber}`);
   } catch (error) {
-    logger.error(`Error setting authentication status for phone number ${phoneNumber}:`, error);
-    throw error;
+    if (error.code === 406 && error.errorMessage === 'AUTH_KEY_DUPLICATED') {
+      logger.warn(`AUTH_KEY_DUPLICATED for ${phoneNumber}. Attempting to handle gracefully.`);
+      // Здесь можно добавить логику для обработки дублирования ключа
+      // Например, попытаться использовать существующую сессию или очистить старую
+    } else {
+      logger.error(`Error setting authentication status for phone number ${phoneNumber}:`, error);
+      throw error;
+    }
   }
 }
 

@@ -51,20 +51,37 @@ class TelegramSessionService {
     logger.info(`Attempting to reauthorize session for ${phoneNumber}`);
     try {
       await this.disconnectSession(phoneNumber);
-      const client = await this.createSession(phoneNumber);
+      const client = new TelegramClient(new StringSession(''), config.API_ID, config.API_HASH, {
+        connectionRetries: 3,
+        deviceModel: 'MacBookPro16,1',
+        systemVersion: 'macOS 11.2.3',
+        appVersion: '5.3.1',
+        langCode: 'ru',
+      });
+  
       await client.start({
         phoneNumber: async () => phoneNumber,
-        password: async () => await this.get2FAPasswordFromUser(phoneNumber),
-        phoneCode: async () => await this.getAuthCodeFromUser(phoneNumber),
+        password: async () => {
+          const password = await this.get2FAPasswordFromUser(phoneNumber);
+          if (!password) throw new Error('2FA password is empty');
+          return password;
+        },
+        phoneCode: async () => {
+          const code = await this.getAuthCodeFromUser(phoneNumber);
+          if (!code) throw new Error('Authentication code is empty');
+          return code;
+        },
         onError: (err) => {
-          if (err.message.includes('FLOOD_WAIT')) {
-            const seconds = parseInt(err.message.split('_')[2]);
-            logger.warn(`FloodWaitError: Waiting for ${seconds} seconds before retrying`);
-            return new Promise(resolve => setTimeout(resolve, seconds * 1000));
-          }
           logger.error('Reauthorization error:', err);
+          throw err;
         },
       });
+  
+      const sessionString = client.session.save();
+      const sessionFile = path.join(this.sessionDir, `${phoneNumber}.session`);
+      await fs.writeFile(sessionFile, sessionString);
+  
+      this.sessions.set(phoneNumber, client);
       logger.info(`Successfully reauthorized session for ${phoneNumber}`);
       return client;
     } catch (error) {
@@ -166,6 +183,10 @@ class TelegramSessionService {
       this.sessions.set(phoneNumber, client);
       return client;
     } catch (error) {
+      if (error.code === 406 && error.errorMessage === 'AUTH_KEY_DUPLICATED') {
+        logger.warn(`AUTH_KEY_DUPLICATED for ${phoneNumber}. Attempting to reauthorize.`);
+        return await this.reauthorizeSession(phoneNumber);
+      }
       logger.error(`Error creating session for ${phoneNumber}:`, error);
       throw error;
     } 
@@ -174,7 +195,7 @@ class TelegramSessionService {
   async authenticateSession(phoneNumber, bot, chatId) {
     let client;
     try {
-      client = await this.getSession(phoneNumber);
+      client = await this.createOrGetSession(phoneNumber);
     } catch (error) {
       logger.error(`Error getting session for ${phoneNumber}:`, error);
       throw new Error(`Не удалось получить сессию для номера ${phoneNumber}`);
@@ -210,7 +231,7 @@ class TelegramSessionService {
   async generateQRCode(phoneNumber, bot, chatId) {
     let client;
     try {
-      client = await this.getSession(phoneNumber);
+      client = await this.createOrGetSession(phoneNumber);
     } catch (error) {
       logger.error(`Error getting session for ${phoneNumber}:`, error);
       throw new Error(`Не удалось получить сессию для номера ${phoneNumber}`);
@@ -284,57 +305,53 @@ class TelegramSessionService {
     }
   }
 
-  async getAuthCodeFromUser(phoneNumber, bot, chatId) {
+  async getAuthCodeFromUser(phoneNumber) {
     return new Promise((resolve, reject) => {
-      const messageText = `Пожалуйста, введите код подтверждения для номера ${phoneNumber} или отправьте /cancel для отмены:`;
-      bot.sendMessage(chatId, messageText);
-      
-      const callback = (msg) => {
-        if (msg.chat.id === chatId) {
-          if (msg.text.toLowerCase() === '/cancel') {
-            bot.removeListener('message', callback);
-            reject(new Error('AUTH_USER_CANCEL'));
-            return;
-          }
-          const code = msg.text.trim();
-          if (/^\d{5}$/.test(code)) {
-            bot.removeListener('message', callback);
-            resolve(code);
-          } else {
-            bot.sendMessage(chatId, 'Неверный формат кода. Пожалуйста, введите 5-значный код или отправьте /cancel для отмены.');
-          }
+      const rl = readline.createInterface({
+        input: process.stdin,
+        output: process.stdout
+      });
+  
+      rl.question(`Enter the authentication code for ${phoneNumber}: `, (code) => {
+        rl.close();
+        if (code && code.trim()) {
+          resolve(code.trim());
+        } else {
+          reject(new Error('Authentication code is empty'));
         }
-      };
-
-      bot.on('message', callback);
-
+      });
+  
       setTimeout(() => {
-        bot.removeListener('message', callback);
-        reject(new Error('Timeout: код подтверждения не был введен в течение 5 минут'));
+        rl.close();
+        reject(new Error('Timeout: Authentication code was not entered'));
+      }, 5 * 60 * 1000); // 5 минут таймаут
+    });
+  }
+  
+  async get2FAPasswordFromUser(phoneNumber) {
+    return new Promise((resolve, reject) => {
+      const rl = readline.createInterface({
+        input: process.stdin,
+        output: process.stdout
+      });
+  
+      rl.question(`Enter the 2FA password for ${phoneNumber}: `, (password) => {
+        rl.close();
+        if (password && password.trim()) {
+          resolve(password.trim());
+        } else {
+          reject(new Error('2FA password is empty'));
+        }
+      });
+  
+      setTimeout(() => {
+        rl.close();
+        reject(new Error('Timeout: 2FA password was not entered'));
       }, 5 * 60 * 1000);
     });
   }
 
 
-  async get2FAPasswordFromUser(phoneNumber, bot, chatId) {
-    return new Promise((resolve, reject) => {
-      bot.sendMessage(chatId, `Пожалуйста, введите пароль двухфакторной аутентификации для номера ${phoneNumber}:`);
-      
-      const callback = (msg) => {
-        if (msg.chat.id === chatId) {
-          bot.removeListener('message', callback);
-          resolve(msg.text.trim());
-        }
-      };
-
-      bot.on('message', callback);
-
-      setTimeout(() => {
-        bot.removeListener('message', callback);
-        reject(new Error('Timeout: пароль не был введен'));
-      }, 5 * 60 * 1000);
-    });
-  }
 
   async getSession(phoneNumber) {
     if (this.sessions.has(phoneNumber)) {
@@ -356,7 +373,7 @@ class TelegramSessionService {
 
   async checkSession(phoneNumber) {
     try {
-      const client = await this.getSession(phoneNumber);
+      const client = await this.createOrGetSession(phoneNumber);
       if (!client.connected) {
         await client.connect();
         logger.info(`Reconnected client for ${phoneNumber}`);
@@ -385,7 +402,7 @@ class TelegramSessionService {
 
   async getDialogs(phoneNumber) {
     // await rateLimiter.limit(`getDialogs:${phoneNumber}`);
-    const session = await this.getSession(phoneNumber);
+    const session = await this.createOrGetSession(phoneNumber);
     return session.getDialogs();
   }
 
@@ -399,6 +416,23 @@ class TelegramSessionService {
       }
     }
     this.sessions.clear();
+  }
+
+  async createOrGetSession(phoneNumber) {
+    try {
+      let session = await this.getSession(phoneNumber);
+      if (session) {
+        logger.info(`Existing session found for ${phoneNumber}. Reusing it.`);
+        return session;
+      }
+      return await this.createSession(phoneNumber);
+    } catch (error) {
+      if (error.code === 406 && error.errorMessage === 'AUTH_KEY_DUPLICATED') {
+        logger.warn(`AUTH_KEY_DUPLICATED for ${phoneNumber}. Attempting to reauthorize.`);
+        return await this.reauthorizeSession(phoneNumber);
+      }
+      throw error;
+    }
   }
 }
 

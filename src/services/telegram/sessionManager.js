@@ -14,7 +14,7 @@ async function getOrCreateSession(phoneNumber) {
   }
 
   try {
-    const session = await TelegramSessionService.getSession(phoneNumber);
+    const session = await TelegramSessionService.createOrGetSession(phoneNumber);
     if (!session || !session.connected) {
       logger.warn(`Session for ${phoneNumber} is not connected. Trying to reconnect...`);
       await session.connect();

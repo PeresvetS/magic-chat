@@ -17,9 +17,9 @@ async function sendMessage(userId, message, phoneNumber) {
       throw new Error(`Phone number ${phoneNumber} is banned`);
     }
 
-    if (phoneInfo.messages_sent_today >= phoneInfo.daily_limit) {
-      throw new Error(`Daily limit reached for phone number ${phoneNumber}`);
-    }
+    // if (phoneInfo.messages_sent_today >= phoneInfo.daily_limit) {
+    //   throw new Error(`Daily limit reached for phone number ${phoneNumber}`);
+    // }
 
     const session = await getOrCreateSession(phoneNumber);
     logger.info(`Session checked for ${phoneNumber}`);
