@@ -5,15 +5,13 @@ const { Api } = require('telegram/tl');
 const { safeStringify } = require('../../../utils/helpers');
 const BotStateManager = require('../../telegram/managers/botStateManager');
 const { getPhoneNumberInfo, updatePhoneNumberStats } = require('../../phone').phoneNumberService;
-const { sessionManager } = require('../../telegram');
 
 async function sendMessage(userId, message, phoneNumber) {
   try {
     logger.info(`Starting sendMessage for user ${userId} from ${phoneNumber}`);
     await validatePhoneNumber(phoneNumber);
     
-    const peer = await BotStateManager.getCorrectPeer(phoneNumber, userId);
-    const session = await sessionManager.getOrCreateSession(phoneNumber);
+    const { peer, session } = await BotStateManager.getCorrectPeer(phoneNumber, userId);
 
     logger.info(`Attempting to send message: "${message}"`);
     const result = await session.invoke(new Api.messages.SendMessage({
