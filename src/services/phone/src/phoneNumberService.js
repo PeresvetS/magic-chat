@@ -1,7 +1,7 @@
 // src/services/phone/phoneNumberService.js
 
-const logger = require('../../utils/logger');
-const { phoneNumberRepo, userRepo } = require('../../db');
+const logger = require('../../../utils/logger');
+const { phoneNumberRepo, userRepo } = require('../../../db');
 
 function validatePhoneNumber(phoneNumber) {
   const phoneRegex = /^\+[1-9]\d{5,14}$/;

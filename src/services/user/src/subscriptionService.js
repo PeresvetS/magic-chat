@@ -1,7 +1,6 @@
 // src/services/user/src/subscriptionService.js
 
 const logger = require('../../../utils/logger');
-const { createUser } = require('./userService');
 const { userRepo, subscriptionsRepo } = require('../../../db');
 const { ensureUserExistsById } = require('../../../utils/userUtils');
 

@@ -1,11 +1,10 @@
 // src/services/telegram/botStateManager.js
 
 const { Api } = require('telegram/tl');
-const logger = require('../../utils/logger');
-const { delay, safeStringify } = require('../../utils/helpers');
+const logger = require('../../../utils/logger');
+const { delay, safeStringify } = require('../../../utils/helpers');
 const OnlineStatusManager = require('./onlineStatusManager');
-const TelegramSessionService = require('./telegramSessionService');
-// const rateLimiter = require('./rateLimiter');
+const TelegramSessionService = require('../services/telegramSessionService');
 
 class BotStateManager {
   constructor() {
@@ -22,7 +21,6 @@ class BotStateManager {
     this.state = 'offline';
     clearTimeout(this.typingTimer);
     clearTimeout(this.offlineTimer);
-    // await rateLimiter.limit(`setOffline:${userId}`);
     await OnlineStatusManager.setOffline(userId, session);
     logger.info(`Bot set to offline for user ${userId}`);
   }
@@ -61,7 +59,6 @@ class BotStateManager {
 
   async markMessagesAsRead(session, userId) {
     try {
-    //   await rateLimiter.limit(`markMessagesAsRead:${userId}`);
       const peer = await this.getCorrectPeer(session, userId);
       await session.invoke(new Api.messages.ReadHistory({
         peer: peer,
@@ -105,25 +102,6 @@ class BotStateManager {
         logger.info(`peer is reused`);
          return this.peer;
       }
-    //   await rateLimiter.limit(`getCorrectPeer:${userId}`);
-    //   logger.info(`Getting correct peer for user ${userId}`);
-    //   const user = await session.invoke(new Api.users.GetUsers({
-    //     id: [new Api.InputUser({
-    //       userId: BigInt(userId),
-    //       accessHash: BigInt(0)
-    //     })]
-    //   }));
-      
-    //   if (user && user.length > 0) {
-    //     logger.info(`User found: ${safeStringify(user[0])}`);
-    //     return new Api.InputPeerUser({
-    //       userId: BigInt(user[0].id),
-    //       accessHash: BigInt(user[0].accessHash)
-    //     });
-    //   }
-      
-    //   logger.info(`User not found, searching in dialogs`);
-    //   await rateLimiter.limit(`getDialogs:${userId}`);
       const dialogs = await session.getDialogs();
       const dialog = dialogs.find(d => d.entity && d.entity.id.toString() === userId.toString());
       if (dialog) {
@@ -198,7 +176,6 @@ class BotStateManager {
 
   async checkUserTyping(session, userId) {
     try {
-    //   await rateLimiter.limit(`checkUserTyping:${userId}`);
       const peer = await this.getCorrectPeer(session, userId);
       const updates = await session.invoke(new Api.messages.GetPeerSettings({
         peer: peer

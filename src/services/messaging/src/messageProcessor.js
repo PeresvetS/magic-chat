@@ -1,12 +1,12 @@
-// src/messaging/src/messageProcessor.js
+// services/messaging/src/messageProcessor.js
 
-const { generateResponse } = require('../../services/gpt/gptService');
-const ContextManager = require('../../services/langchain/contextManager');
-const { countTokens, countTokensForMessages } = require('../../services/tokenizer/tokenizer');
-const logger = require('../../utils/logger');
-const { saveMessageStats, saveDialogToFile } = require('../../utils/messageUtils');
+const { generateResponse } = require('../../gpt/gptService');
+const ContextManager = require('../../langchain/contextManager');
+const { countTokens, countTokensForMessages } = require('../../tokenizer/tokenizer');
+const logger = require('../../../utils/logger');
+const { saveMessageStats, saveDialogToFile } = require('../../../utils/messageUtils');
 const { sendResponse } = require('./messageSender');
-const { getOrCreateSession } = require('../../services/telegram/sessionManager');
+const { sessionManager } = require('../../telegram');
 
 const contextManagers = new Map();
 
@@ -32,7 +32,7 @@ async function processMessage(userId, message, phoneNumber) {
     await saveMessageStats(userId, phoneNumber, tokenCount);
     await saveDialogToFile(userId, message, response);
 
-    const session = await getOrCreateSession(phoneNumber);
+    const session = await sessionManager.getOrCreateSession(phoneNumber);
 
     logger.info(`Starting response for user ${userId}`);
     await sendResponse(session, userId, response, phoneNumber);

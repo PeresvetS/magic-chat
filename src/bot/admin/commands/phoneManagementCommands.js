@@ -1,6 +1,6 @@
 // src/bot/admin/commands/phoneManagementCommands.js
 
-const { updatePhoneNumberStatus, setPhoneNumberLimit, getPhoneNumberInfo } = require('../../../services/phone/phoneNumberService');
+const { updatePhoneNumberStatus, setPhoneNumberLimit, getPhoneNumberInfo } = require('../../../services/phone').phoneNumberService;
 
 module.exports = {
   '/banphone ([+]?[0-9]+) (temporary|permanent)': async (bot, msg, match) => {

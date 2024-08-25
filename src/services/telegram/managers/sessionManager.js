@@ -1,6 +1,7 @@
-// src/services/telegram/sessionManager.js
+// src/services/telegram/managers/sessionManager.js
 
-const logger = require('../../utils/logger');
+const logger = require('../../../utils/logger');
+
 let TelegramSessionService;
 
 // Функция для установки TelegramSessionService после его инициализации

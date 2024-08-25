@@ -1,4 +1,4 @@
-// src/messaging/index.js
+// src/services/messaging/index.js
 
 const messageSender = require('./src/messageSender');
 const messageProcessor = require('./src/messageProcessor');

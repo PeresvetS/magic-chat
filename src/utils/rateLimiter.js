@@ -1,6 +1,6 @@
 // src/services/telegram/rateLimiter.js
 
-const logger = require('../../utils/logger');
+const logger = require('./logger');
 
 class RateLimiter {
   constructor() {

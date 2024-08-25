@@ -1,3 +1,5 @@
+// src/bot/user/commands/phoneCommands.js
+
 const { 
   addPhoneNumber, 
   removePhoneNumber, 
@@ -5,9 +7,9 @@ const {
   getUserPhoneNumbers,
   updatePhoneNumberStatus,
   setPhoneNumberLimit
-} = require('../../../services/phone/phoneNumberService');
+} = require('../../../services/phone').phoneNumberService;
 const { userService } = require('../../../services/user');
-const TelegramSessionService = require('../../../services/telegram/telegramSessionService');
+const { TelegramSessionService } = require('../../../services/telegram');
 const logger = require('../../../utils/logger');
 
 module.exports = {

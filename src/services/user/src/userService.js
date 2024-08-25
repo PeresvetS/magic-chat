@@ -1,7 +1,8 @@
 // src/services/user/src/userService.js
 
 const logger = require('../../../utils/logger');
-const { userRepo, phoneNumberRepo } = require('../../../db');
+const { userRepo } = require('../../../db');
+const { getUserPhoneNumbers } = require('../../phone').phoneNumberService;
 const { getLimits } = require('./limitService');
 const { getUserSubscriptionInfo } = require('./subscriptionService');
 
@@ -11,7 +12,7 @@ async function getUserInfo(telegramId) {
     if (!user) {
       throw new Error(`User with ID ${id} not found`);
     }
-    const phoneNumbers = await phoneNumberRepo.getPhoneNumbers(user.id);
+    const phoneNumbers = await getUserPhoneNumbers(user.id);
     const limits = await getLimits(user.id);
     const subscription = await getUserSubscriptionInfo(user.id);
 

@@ -1,11 +1,9 @@
 // src/services/telegram/handleMessageService.js
 
-const logger = require('../../utils/logger');
-const { safeStringify } = require('../../utils/helpers');
-const { processMessage } = require('../../messaging');
-const { sendResponse } = require('../../messaging/src/messageSender');
-const BotStateManager = require('./botStateManager');
-// const rateLimiter = require('./rateLimiter');
+const logger = require('../../../utils/logger');
+const { safeStringify } = require('../../../utils/helpers');
+const { sendResponse, processMessage } = require('../../messaging');
+const BotStateManager = require('../managers/botStateManager');
 
 async function processIncomingMessage(phoneNumber, event, session) {
   try {

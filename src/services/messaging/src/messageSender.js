@@ -1,11 +1,12 @@
-// src/messaging/src/messageSender.js
+// src/services/messaging/src/messageSender.js
 
-const logger = require('../../utils/logger');
+const logger = require('../../../utils/logger');
 const { Api } = require('telegram/tl');
-const BotStateManager = require('../../services/telegram/botStateManager');
-const { safeStringify } = require('../../utils/helpers');
-const { getOrCreateSession } = require('../../services/telegram/sessionManager');
-const { getPhoneNumberInfo, updatePhoneNumberStats } = require('../../services/phone/phoneNumberService');
+const { safeStringify } = require('../../../utils/helpers');
+const { sessionManager, BotStateManager } = require('../../telegram');
+const { getPhoneNumberInfo, updatePhoneNumberStats } = require('../../phone').phoneNumberService;
+
+
 
 async function sendMessage(userId, message, phoneNumber) {
   try {
@@ -21,7 +22,7 @@ async function sendMessage(userId, message, phoneNumber) {
     //   throw new Error(`Daily limit reached for phone number ${phoneNumber}`);
     // }
 
-    const session = await getOrCreateSession(phoneNumber);
+    const session = await sessionManager.getOrCreateSession(phoneNumber);
     logger.info(`Session checked for ${phoneNumber}`);
     
     const peer = await BotStateManager.getCorrectPeer(session, userId);
@@ -53,7 +54,7 @@ async function sendMessage(userId, message, phoneNumber) {
     
     if (error.message.includes('AUTH_KEY_UNREGISTERED')) {
       logger.info(`Attempting to reauthorize session for ${phoneNumber}`);
-      const TelegramSessionService = require('../../services/telegram/telegramSessionService');
+      const { TelegramSessionService } = require('../../services/telegram');
       await TelegramSessionService.reauthorizeSession(phoneNumber);
       logger.info(`Session reauthorized for ${phoneNumber}, retrying message send`);
       return sendMessage(userId, message, phoneNumber);

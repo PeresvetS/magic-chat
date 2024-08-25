@@ -6,12 +6,12 @@ const { NewMessage } = require("telegram/events");
 const { Api } = require("telegram/tl");
 const fs = require('fs').promises;
 const path = require('path');
-const config = require('../../config');
-const logger = require('../../utils/logger');
+const config = require('../../../config');
+const logger = require('../../../utils/logger');
 const qrcode = require('qrcode');
-const { setPhoneAuthenticated } = require('../phone/phoneNumberService');
+const { setPhoneAuthenticated } = require('../../phone').phoneNumberService;
 const { processIncomingMessage } = require('./handleMessageService');
-const sessionManager = require('./sessionManager');
+const sessionManager = require('../managers/sessionManager');
 
 class TelegramSessionService {
   constructor() {

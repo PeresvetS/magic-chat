@@ -1,4 +1,4 @@
-// src/messaging/utils/messageUtils.js
+// src/utils/messageUtils.js
 
 const logger = require('./logger');
 const { messageStatsRepo } = require('../db');

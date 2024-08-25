@@ -3,11 +3,11 @@
 const express = require('express');
 const cron = require('node-cron');
 const config = require('./config');
-const { resetDailyStats } = require('./services/phone/phoneNumberService');
+const { phoneNumberService } = require('./services/phone');
 const adminBot = require('./bot/admin');
 const userBot = require('./bot/user');
 const logger = require('./utils/logger');
-const TelegramSessionService = require('./services/telegram/telegramSessionService');
+const { TelegramSessionService } = require('./services/telegram');
 const bitrix24WebhookRouter = require('./api/routes/bitrix24Webhook');
 
 const app = express();
@@ -85,7 +85,7 @@ async function main() {
     logger.info('Scheduling daily stats reset...');
     cron.schedule('0 0 * * *', async () => {
       try {
-        await resetDailyStats();
+        await phoneNumberService.resetDailyStats();
         logger.info('Daily stats reset completed');
       } catch (error) {
         logger.error('Error during daily stats reset:', error);

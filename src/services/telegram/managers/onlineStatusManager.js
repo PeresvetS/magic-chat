@@ -1,8 +1,8 @@
 // src/services/telegram/onlineStatusManager.js
 
-const logger = require('../../utils/logger');
 const { Api } = require('telegram/tl');
-const { safeStringify } = require('../../utils/helpers');
+const logger = require('../../../utils/logger');
+const { safeStringify } = require('../../../utils/helpers');
 
 class OnlineStatusManager {
     constructor() {

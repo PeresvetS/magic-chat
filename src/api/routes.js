@@ -3,7 +3,7 @@
 const express = require('express');
 const { checkApiKey } = require('./middleware/checkApiKey');
 const { handleSendMessage } = require('./handlers/messageHandler');
-const { setupMessageHandler } = require('../messaging');
+const { setupMessageHandler } = require('../services/messaging');
 const { cleanupInactiveConversations } = require('../services/conversationManager');
 
 const router = express.Router();
