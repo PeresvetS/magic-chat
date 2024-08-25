@@ -1,4 +1,4 @@
-// src/db/postgres/utils.js
+// src/db/src/utils.js
 
 function chunkArray(array, size) {
     const chunks = [];

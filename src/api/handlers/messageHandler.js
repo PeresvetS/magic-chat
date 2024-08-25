@@ -1,7 +1,7 @@
 // src/api/handlers/messageHandler.js
 
 const { processMessage } = require('../../messaging');
-const { getPhoneNumber } = require('../../db');
+const { phoneNumberRepo } = require('../../db');
 const logger = require('../../utils/logger');
 
 const handleSendMessage = (activeConversations) => async (req, res) => {
@@ -20,7 +20,7 @@ const handleSendMessage = (activeConversations) => async (req, res) => {
   }
 
   try {
-    const senderPhone = await getPhoneNumber();
+    const senderPhone = await phoneNumberRepo.getPhoneNumber();
     if (!senderPhone) {
       logger.error('Номер телефона отправителя не настроен');
       return res.status(500).json({ error: 'Номер телефона отправителя не настроен' });

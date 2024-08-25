@@ -1,6 +1,6 @@
 // src/services/campaign/campaignService.js
 
-const { parsingCampaignsTable } = require('../../db');
+const { parsingCampaignsTable } = require('../../db').campaignsRepo;
 const logger = require('../../utils/logger');
 
 async function createCampaign(userId, campaignName) {

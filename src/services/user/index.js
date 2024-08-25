@@ -6,8 +6,8 @@ const limitService = require('./src/limitService');
 const userPhoneService = require('./src/userPhoneService');
 
 module.exports = {
-  ...userService,
-  ...subscriptionService,
-  ...limitService,
-  ...userPhoneService,
+  userService,
+  subscriptionService,
+  limitService,
+  userPhoneService,
 };

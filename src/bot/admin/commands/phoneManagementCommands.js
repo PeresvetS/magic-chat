@@ -38,20 +38,22 @@ module.exports = {
     try {
       const info = await getPhoneNumberInfo(phoneNumber);
       let message = `Детальная информация о номере ${phoneNumber}:\n`;
-      message += `Пользователь: ${info.user_id}\n`;
-      message += `Премиум: ${info.is_premium ? 'Да' : 'Нет'}\n`;
-      message += `Забанен: ${info.is_banned ? 'Да' : 'Нет'}\n`;
+      message += `Пользователь: ${info.id}\n`;
+      message += `Премиум: ${info.isPremium ? 'Да' : 'Нет'}\n`;
+      message += `Забанен: ${info.isBanned ? 'Да' : 'Нет'}\n`;
       if (info.is_banned) {
-        message += `Тип бана: ${info.ban_type}\n`;
+        message += `Тип бана: ${info.banType}\n`;
       }
-      message += `Отправлено сообщений сегодня: ${info.messages_sent_today}\n`;
-      message += `Отправлено сообщений всего: ${info.messages_sent_total}\n`;
-      message += `Охвачено контактов сегодня: ${info.contacts_reached_today}\n`;
-      message += `Охвачено контактов всего: ${info.contacts_reached_total}\n`;
-      message += `Дневной лимит: ${info.daily_limit}\n`;
-      message += `Общий лимит: ${info.total_limit || 'Не установлен'}\n`;
-      message += `Добавлен: ${info.created_at}\n`;
-      message += `Последнее обновление: ${info.updated_at}`;
+      message += `Отправлено сообщений в Telegram сегодня: ${info.telegramMessagesSentToday}\n`;
+      message += `Отправлено сообщений в WhatsApp сегодня: ${info.whatsappMessagesSentToday}\n`;
+      message += `Отправлено сообщений в Telegram всего: ${info.telegramMessagesSentTotal}\n`;
+      message += `Отправлено сообщений в WhatsApp всего: ${info.whatsappMessagesSentTotal}\n`;
+      message += `Охвачено контактов сегодня: ${info.contactsReachedToday}\n`;
+      message += `Охвачено контактов всего: ${info.contactsReachedTotal}\n`;
+      message += `Дневной лимит: ${info.dailyLimit}\n`;
+      message += `Общий лимит: ${info.totalLimit || 'Не установлен'}\n`;
+      message += `Добавлен: ${info.createdAt}\n`;
+      message += `Последнее обновление: ${info.updatedAt}`;
       bot.sendMessage(msg.chat.id, message);
     } catch (error) {
       bot.sendMessage(msg.chat.id, `Ошибка при получении информации о номере: ${error.message}`);

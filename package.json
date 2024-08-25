@@ -5,13 +5,15 @@
   "main": "index.js",
   "scripts": {
     "start": "node index.js",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "migrate": "npx prisma migrate dev"
   },
   "author": "",
   "license": "ISC",
   "dependencies": {
     "@2bad/bitrix": "^2.5.1",
     "@langchain/openai": "^0.2.6",
+    "@prisma/client": "^5.18.0",
     "axios": "^1.7.2",
     "bitrix-gds": "^1.0.7",
     "body-parser": "^1.20.2",
@@ -36,6 +38,7 @@
     "eslint-config-airbnb-base": "^15.0.0",
     "eslint-config-prettier": "^9.1.0",
     "eslint-plugin-import": "^2.29.1",
-    "prettier": "^2.8.8"
+    "prettier": "^2.8.8",
+    "prisma": "^5.18.0"
   }
 }

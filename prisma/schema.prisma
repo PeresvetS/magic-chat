@@ -1,0 +1,141 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            Int             @id @default(autoincrement())
+  telegramId    BigInt          @unique
+  username      String?         @unique
+  firstName     String?
+  lastName      String?
+  isBanned      Boolean         @default(false)
+  registeredAt  DateTime        @default(now())
+  admin         Admin?
+  subscriptions Subscription[]
+  userLimits    UserLimits?
+  phoneNumbers  PhoneNumber[]
+  campaigns     ParsingCampaign[]
+}
+
+model Admin {
+  id      Int      @id @default(autoincrement())
+  user    User     @relation(fields: [userId], references: [id])
+  userId  Int      @unique
+  addedAt DateTime @default(now())
+}
+
+model Subscription {
+  id           Int      @id @default(autoincrement())
+  user         User     @relation(fields: [userId], references: [id])
+  userId       Int
+  startDate    DateTime
+  endDate      DateTime
+  isRepeating  Boolean  @default(false)
+  durationDays Int?
+}
+
+model UserLimits {
+  id             Int  @id @default(autoincrement())
+  user           User @relation(fields: [userId], references: [id])
+  userId         Int  @unique
+  parsingLimit   Int?
+  phonesLimit    Int?
+  campaignsLimit Int?
+  contactsLimit  Int?
+  leadsLimit     Int?
+}
+
+model PhoneNumber {
+  id                          Int       @id @default(autoincrement())
+  phoneNumber                 String    @unique
+  user                        User?     @relation(fields: [userId], references: [id])
+  userId                      Int?
+  isBanned                    Boolean   @default(false)
+  banType                     String?
+  isPremium                   Boolean   @default(false)
+  isAuthenticated             Boolean   @default(false)
+  contactsReachedToday        Int       @default(0)
+  contactsReachedTotal        Int       @default(0)
+  dailyLimit                  Int       @default(40)
+  totalLimit                  Int?
+  maxInactivityTime           Int       @default(3600)
+  createdAt                   DateTime  @default(now())
+  updatedAt                   DateTime  @updatedAt
+  telegramMessagesSentToday   Int       @default(0)
+  telegramMessagesSentTotal   Int       @default(0)
+  whatsappMessagesSentToday   Int       @default(0)
+  whatsappMessagesSentTotal   Int       @default(0)
+}
+
+model ParsingCampaign {
+  id                  Int          @id @default(autoincrement())
+  user                User         @relation(fields: [userId], references: [id])
+  userId              Int
+  name                String
+  groups              String
+  audienceDescription String?
+  status              String?
+  maxUsers            Int?
+  depth               Int?
+  totalParsed         Int          @default(0)
+  processedCount      Int          @default(0)
+  isFullyProcessed    Boolean      @default(false)
+  lastParsedAt        DateTime?
+  createdAt           DateTime     @default(now())
+  updatedAt           DateTime     @updatedAt
+  parsedUsers         ParsedUser[]
+}
+
+model ParsedUser {
+  id              Int             @id @default(autoincrement())
+  campaign        ParsingCampaign @relation(fields: [campaignId], references: [id])
+  campaignId      Int
+  groupUsername   String?
+  groupLink       String?
+  userId          BigInt
+  username        String?
+  firstName       String?
+  lastName        String?
+  bio             String?
+  category        String?
+  parsedAt        DateTime        @default(now())
+  lastSeen        DateTime?
+  hasChannel      Boolean         @default(false)
+  isProcessed     Boolean         @default(false)
+  processingStatus String?
+}
+
+model PhoneNumberContact {
+  id          Int      @id @default(autoincrement())
+  phoneNumber String
+  userId      String
+  createdAt   DateTime @default(now())
+
+  @@unique([phoneNumber, userId])
+}
+
+model MessageStat {
+  id          Int      @id @default(autoincrement())
+  userId      BigInt
+  phoneNumber String
+  tokensUsed  Int
+  timestamp   DateTime @default(now())
+}
+
+model Lead {
+  id        Int      @id @default(autoincrement())
+  bitrixId  String   @unique
+  name      String
+  phone     String
+  source    String?
+  status    String
+  createdAt DateTime @default(now())
+}

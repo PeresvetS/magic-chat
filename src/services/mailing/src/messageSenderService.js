@@ -1,8 +1,8 @@
-// src/services/maiiling/messageSenderService.js
+// src/services/mailing/messageSenderService.js
 
 const { getClient } = require('../../auth/authService');
 const logger = require('../../../utils/logger');
-const db = require('../../../db/postgres/config');
+const { phoneNumberRepo } = require('../../../db');
 
 class MessageSenderService {
   constructor() {
@@ -54,49 +54,26 @@ class MessageSenderService {
   }
 
   async checkDailyLimit(phoneNumber, platform) {
-    const client = await db.connect();
     try {
-      const query = `
-        SELECT ${platform}_messages_sent_today 
-        FROM phone_numbers 
-        WHERE phone_number = $1
-      `;
-      const result = await client.query(query, [phoneNumber]);
+      const phoneNumberInfo = await phoneNumberRepo.getPhoneNumberInfo(phoneNumber);
       
-      if (result.rows.length === 0) {
+      if (!phoneNumberInfo) {
         return true; // Если записи нет, считаем что лимит не достигнут
       }
       
-      return result.rows[0][`${platform}_messages_sent_today`] < this.limits[platform];
+      return phoneNumberInfo[`${platform}MessagesSentToday`] < this.limits[platform];
     } catch (error) {
       logger.error(`Error checking daily limit for ${platform}:`, error);
       throw error;
-    } finally {
-      client.release();
     }
   }
 
   async updateMessageCount(phoneNumber, platform) {
-    const client = await db.connect();
     try {
-      const query = `
-        INSERT INTO phone_numbers (
-          phone_number, 
-          ${platform}_messages_sent_today, 
-          ${platform}_messages_sent_total
-        )
-        VALUES ($1, 1, 1)
-        ON CONFLICT (phone_number) 
-        DO UPDATE SET 
-          ${platform}_messages_sent_today = phone_numbers.${platform}_messages_sent_today + 1,
-          ${platform}_messages_sent_total = phone_numbers.${platform}_messages_sent_total + 1
-      `;
-      await client.query(query, [phoneNumber]);
+      await phoneNumberRepo.updatePhoneNumberStats(phoneNumber, null, false);
     } catch (error) {
       logger.error(`Error updating message count for ${platform}:`, error);
       throw error;
-    } finally {
-      client.release();
     }
   }
 }

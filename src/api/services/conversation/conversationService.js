@@ -2,7 +2,7 @@
 
 // сервис для API
 
-const { getMaxInactivityTime } = require('../../../db');
+const { phoneNumberRepo } = require('../../../db');
 const logger = require('../../../utils/logger');
 
 async function cleanupInactiveConversations(activeConversations) {
@@ -10,7 +10,7 @@ async function cleanupInactiveConversations(activeConversations) {
   let cleanedCount = 0;
 
   for (const [chatId, conversation] of activeConversations.entries()) {
-    const MAX_INACTIVITY_TIME = await getMaxInactivityTime(conversation.senderPhone);
+    const MAX_INACTIVITY_TIME = await phoneNumberRepo.getMaxInactivityTime(conversation.senderPhone);
     if (now - conversation.lastActivityTime > MAX_INACTIVITY_TIME) {
       activeConversations.delete(chatId);
       cleanedCount++;

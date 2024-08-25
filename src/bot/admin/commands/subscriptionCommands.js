@@ -1,7 +1,8 @@
 // src/bot/admin/commands/subscriptionCommands.js
 
-const { addUserSubscription, getUserSubscriptionInfo, updateUserSubscription, getUserByIdentifier } = require('../../../services/user');
+const { subscriptionService, userService } = require('../../../services/user');
 const logger = require('../../../utils/logger');
+const { stringifyWithBigInt } = require('../../../utils/helpers');
 
 module.exports = {
   '/addsubscription ([\\w\\.@]+) (\\d+) (days|months) (repeat|once)': async (bot, msg, match) => {
@@ -12,9 +13,9 @@ module.exports = {
       const durationDays = unit === 'months' ? parseInt(duration) * 30 : parseInt(duration);
       const isRepeating = repeatType === 'repeat';
 
-      const subscriptionId = await addUserSubscription(userIdentifier, durationDays, isRepeating);
+      const subscriptionId = await subscriptionService.addUserSubscription(userIdentifier, durationDays, isRepeating);
       
-      bot.sendMessage(msg.chat.id, `Подписка успешно добавлена с ID ${subscriptionId}.`);
+      bot.sendMessage(msg.chat.id, `Подписка успешно добавлена для пользователя ${userIdentifier}.`);
     } catch (error) {
       logger.error('Error in add subscription command:', error);
       bot.sendMessage(msg.chat.id, `Произошла ошибка при добавлении подписки: ${error.message}`);
@@ -26,22 +27,25 @@ module.exports = {
       const [, userIdentifier] = match;
       logger.info(`Checking subscription for user: ${userIdentifier}`);
 
-      const user = await getUserByIdentifier(userIdentifier);
+      const user = await userService.getUserByIdentifier(userIdentifier);
       if (!user) {
         throw new Error('Пользователь не найден');
       }
 
-      logger.info(`User found: ${JSON.stringify(user)}`);
+      logger.info(`User found: ${stringifyWithBigInt(user)}`);
 
-      const subscriptionInfo = await getUserSubscriptionInfo(user.id);
+      const subscriptionInfo = await subscriptionService.getUserSubscriptionInfo(user.id);
       logger.info(`Subscription info: ${JSON.stringify(subscriptionInfo)}`);
 
       if (subscriptionInfo) {
+
+        const daysLeft = subscriptionInfo.daysLeft.toString();
+
         bot.sendMessage(msg.chat.id, `
           Информация о подписке для пользователя с ID ${user.id}:
           Дата окончания: ${subscriptionInfo.endDate}
           Повторяющаяся: ${subscriptionInfo.isRepeating ? 'Да' : 'Нет'}
-          Осталось дней: ${subscriptionInfo.daysLeft}
+          Осталось дней: ${daysLeft}
         `);
       } else {
         bot.sendMessage(msg.chat.id, `У пользователя с ID ${user.id} нет активной подписки.`);
@@ -57,17 +61,15 @@ module.exports = {
       const [, userIdentifier, duration, unit] = match;
       const durationDays = unit === 'months' ? parseInt(duration) * 30 : parseInt(duration);
 
-      const user = await getUserByIdentifier(userIdentifier);
+      const user = await userService.getUserByIdentifier(userIdentifier);
       if (!user) {
         throw new Error('Пользователь не найден');
       }
 
-      await updateUserSubscription(user.id, durationDays);
+      await subscriptionService.updateUserSubscription(user.id, durationDays);
       
       if (durationDays > 0) {
-        
         bot.sendMessage(msg.chat.id, `Подписка для пользователя с ID ${user.id} успешно обновлена. Добавлено ${durationDays} дней.`);
-        ;
       } else if (durationDays < 0) {
         bot.sendMessage(msg.chat.id, `Подписка для пользователя с ID ${user.id} успешно обновлена. Удалено ${Math.abs(durationDays)} дней.`);
       } else {

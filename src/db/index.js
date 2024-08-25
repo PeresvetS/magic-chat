@@ -1,17 +1,23 @@
 // src/db/index.js
 
-const phoneNumbers = require('./postgres/phoneNumbers');
-const campaigns = require('./postgres/campaigns');
-const parsedUsers = require('./postgres/parsedUsers');
-const admins = require('./postgres/admins');
-const subscriptions = require('./postgres/subscriptions');
-const leads = require('./postgres/leads');
+const userRepo = require('./repositories/userRepo');
+const leadsRepo = require('./repositories/leadsRepo');
+const adminsRepo = require('./repositories/adminsRepo');
+const campaignsRepo = require('./repositories/campaignsRepo');
+const userLimitsRepo = require('./repositories/userLimitsRepo');
+const phoneNumberRepo = require('./repositories/phoneNumberRepo');
+const parsedUsersRepo = require('./repositories/parsedUsersRepo');
+const messageStatsRepo = require('./repositories/messageStatsRepo');
+const subscriptionsRepo = require('./repositories/subscriptionsRepo');
 
 module.exports = {
-  ...phoneNumbers,
-  ...campaigns,
-  ...parsedUsers,
-  ...admins,
-  ...subscriptions,
-  ...leads,
+  userRepo,
+  leadsRepo,
+  adminsRepo,
+  campaignsRepo,
+  userLimitsRepo,
+  parsedUsersRepo,
+  phoneNumberRepo,
+  messageStatsRepo,
+  subscriptionsRepo,
 };

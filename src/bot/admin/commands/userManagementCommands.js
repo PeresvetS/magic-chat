@@ -1,6 +1,6 @@
 // src/bot/admin/commands/userManagementCommands.js
 
-const { banUser, unbanUser, getUserInfo, getAllUsers } = require('../../../services/user');
+const { banUser, unbanUser, getUserInfo, getAllUsers } = require('../../../services/user').userService;
 const logger = require('../../../utils/logger');
 
 module.exports = {
@@ -40,12 +40,12 @@ module.exports = {
       let message = 'Список пользователей:\n\n';
       users.forEach(user => {
         message += `ID: ${user.id}\n`;
-        message += `Telegram ID: ${user.telegram_id}\n`;
+        message += `Telegram ID: ${user.telegramId}\n`;
         message += `Username: ${user.username || 'Не указан'}\n`;
-        message += `Имя: ${user.first_name || 'Не указано'}\n`;
-        message += `Фамилия: ${user.last_name || 'Не указана'}\n`;
-        message += `Забанен: ${user.is_banned ? 'Да' : 'Нет'}\n`;
-        message += `Зарегистрирован: ${user.registered_at}\n\n`;
+        message += `Имя: ${user.firstName || 'Не указано'}\n`;
+        message += `Фамилия: ${user.lastName || 'Не указана'}\n`;
+        message += `Забанен: ${user.isBanned ? 'Да' : 'Нет'}\n`;
+        message += `Зарегистрирован: ${user.registeredAt}\n\n`;
       });
       bot.sendMessage(msg.chat.id, message);
     } catch (error) {

@@ -1,14 +1,11 @@
 // src/services/user/src/userPhoneService.js
 
-const db = require('../../../db/postgres/config');
 const logger = require('../../../utils/logger');
-const { getUserById } = require('../../../utils/userUtils');
+const { phoneNumberRepo, userRepo } = require('../../../db');
 
 async function getPhoneNumbers(userId) {
   try {
-    const query = 'SELECT phone_number FROM phone_numbers WHERE user_id = $1';
-    const { rows } = await db.query(query, [userId]);
-    return rows.map(row => row.phone_number);
+    return await phoneNumberRepo.getPhoneNumbers(userId);
   } catch (error) {
     logger.error(`Error getting phone numbers for user ${userId}:`, error);
     throw error;
@@ -17,10 +14,12 @@ async function getPhoneNumbers(userId) {
 
 async function disablePhoneNumbers(userIdentifier) {
   try {
-    const userId = await getUserById(userIdentifier);
-    const query = 'UPDATE phone_numbers SET is_active = false WHERE user_id = $1';
-    await db.query(query, [userId]);
-    logger.info(`Disabled phone numbers for user ${userId}`);
+    const user = await userRepo.getUserById(userIdentifier);
+    if (!user) {
+      throw new Error(`User with ID ${userIdentifier} not found`);
+    }
+    await phoneNumberRepo.disablePhoneNumbers(user.id);
+    logger.info(`Disabled phone numbers for user ${user.id}`);
   } catch (error) {
     logger.error('Error disabling phone numbers:', error);
     throw error;

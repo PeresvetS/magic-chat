@@ -2,10 +2,7 @@
 
 const logger = require('../../utils/logger');
 const config = require('../../config');
-const safeStringify = require('../../utils/safeStringify');
-const safeJSONParse = require('../../utils/safeJSONParse');
-const parsePHPSerialized = require('../../utils/parsePHPSerialized');
-
+const { safeStringify, parsePHPSerialized, safeJSONParse } = require('../../utils/helpers');
 
 // Middleware для проверки токена Bitrix24
 const checkBitrix24Token = (req, res, next) => {

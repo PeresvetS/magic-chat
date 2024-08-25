@@ -1,14 +1,15 @@
 // src/api/routes/bitrix24Webhook.js
 
-const router = express.Router();
 const express = require('express');
-const { saveLead } = require('../../db');
+const { leadsRepo } = require('../../db');
 const logger = require('../../utils/logger');
 const { checkBitrix24Token } = require('../middleware/checkApiTokens');
 const Bitrix24LeadService = require('../services/lead/bitrix24LeadService');
-const { safeJSONParse, parsePHPSerialized, safeStringify } = require('../../requestParsers');
+const { safeJSONParse, parsePHPSerialized, safeStringify } = require('../../utils/helpers');
 
 // Middleware для парсинга различных форматов данных
+const router = express.Router();
+
 router.use(express.json());
 router.use(express.urlencoded({ extended: true }));
 
@@ -59,7 +60,7 @@ router.post('/webhook', checkBitrix24Token, async (req, res) => {
     logger.info('Extracted lead information', leadData);
 
     // Сохраняем информацию о лиде в базу данных
-    const savedLead = await saveLead({
+    const savedLead = await leadsRepo.saveLead({
       bitrix_id: leadData.id,
       name: leadData.name,
       phone: leadData.phone,

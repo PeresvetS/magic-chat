@@ -1,6 +1,6 @@
 // src/services/bitrix24LeadService.js
 
-const {Bitrix} = require('@2bad/bitrix');
+const { Bitrix } = require('@2bad/bitrix');
 const config = require('../../../config');
 const logger = require('../../../utils/logger');
 

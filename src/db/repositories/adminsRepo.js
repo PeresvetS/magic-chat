@@ -1,13 +1,16 @@
-// src/db/postgres/admins.js
+// src/db/src/admins.js
 
-const db = require('./config');
+const prisma = require('../prisma');
 const logger = require('../../utils/logger');
 
 async function getAdminIds() {
   try {
-    const query = 'SELECT admin_id FROM admins';
-    const result = await db.query(query);
-    return result.rows.map(row => row.admin_id);
+    const admins = await prisma.admin.findMany({
+      select: {
+        userId: true
+      }
+    });
+    return admins.map(admin => admin.userId);
   } catch (error) {
     logger.error('Error fetching admin IDs:', error);
     throw error;

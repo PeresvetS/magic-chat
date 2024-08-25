@@ -4,7 +4,7 @@ const TelegramBot = require('node-telegram-bot-api');
 const config = require('../../config');
 const { checkSubscription } = require('../../middleware/checkSubscription');
 const phoneCommands = require('./commands/phoneCommands');
-const { getUserInfo, getUserByTgId } = require('../../services/user');
+const { userService } = require('../../services/user');
 // const parsingCommands = require('./commands/parsingCommands');
 // const campaignCommands = require('./commands/campaignCommands');
 const helpCommands = require('./commands/helpCommands');
@@ -29,14 +29,14 @@ function createUserBot() {
       bot.onText(new RegExp(`^${command}`), async (msg, match) => {
        
         try {
-          const user = await getUserByTgId( msg.from.id);
+          const user = await userService.getUserByTgId( msg.from.id);
 
           if (!user) {
             bot.sendMessage(msg.chat.id, 'У вас нет активной подписки. Обратитесь к администратору для её оформления.');
             return;
           }
 
-          const userInfo = await getUserInfo(user.id);
+          const userInfo = await userService.getUserInfo(user.id);
           
           logger.info(`Received command ${command} from user ${user.id}`);
           

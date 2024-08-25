@@ -6,14 +6,14 @@ const {
   updatePhoneNumberStatus,
   setPhoneNumberLimit
 } = require('../../../services/phone/phoneNumberService');
-const { getUserByTgId } = require('../../../services/user');
+const { userService } = require('../../../services/user');
 const TelegramSessionService = require('../../../services/telegram/telegramSessionService');
 const logger = require('../../../utils/logger');
 
 module.exports = {
   '/addphone': async (bot, msg, match) => {
     
-    const user = await getUserByTgId(msg.from.id);
+    const user = await userService.getUserByTgId(msg.from.id);
     const userId = user.id;
 
     logger.info(`Addphone command called by user ${userId}`);
@@ -42,7 +42,7 @@ module.exports = {
         ]
       };
 
-      bot.sendMessage(msg.chat.id, `Номер ${phoneNumber} успешно ${result.is_new ? 'добавлен' : 'обновлен'}. Выберите способ аутентификации:`, {
+      bot.sendMessage(msg.chat.id, `Номер ${phoneNumber} успешно ${result.isNew ? 'добавлен' : 'обновлен'}. Выберите способ аутентификации:`, {
         reply_markup: JSON.stringify(keyboard)
       });
     } catch (error) {
@@ -56,7 +56,7 @@ module.exports = {
   },
 
 '/removephone': async (bot, msg, match) => {
-  const user = await getUserByTgId(msg.from.id);
+  const user = await userService.getUserByTgId(msg.from.id);
   const userId = user.id;
     logger.info(`Removephone command called by user ${userId}`);
     
@@ -86,7 +86,7 @@ module.exports = {
   },
 
   '/listphones': async (bot, msg) => {
-    const user = await getUserByTgId(msg.from.id);
+    const user = await userService.getUserByTgId(msg.from.id);
     const userId = user.id;
     logger.info(`Listphones command called by user ${userId}`);
     try {
@@ -107,7 +107,7 @@ module.exports = {
   },
 
   '/phoneinfo': async (bot, msg, match) => {
-    const user = await getUserByTgId(msg.from.id);
+    const user = await userService.getUserByTgId(msg.from.id);
     const userId = user.id;
     logger.info(`Phoneinfo command called by user ${userId}`);
     const phoneNumber = match[1];
@@ -120,17 +120,19 @@ module.exports = {
       const info = await getPhoneNumberInfo(phoneNumber);
       logger.info(`Retrieved info for phone number ${phoneNumber}`);
       let message = `Информация о номере ${phoneNumber}:\n`;
-      message += `Премиум: ${info.is_premium ? 'Да' : 'Нет'}\n`;
-      message += `Забанен: ${info.is_banned ? 'Да' : 'Нет'}\n`;
+      message += `Премиум: ${info.isPremium ? 'Да' : 'Нет'}\n`;
+      message += `Забанен: ${info.isBanned ? 'Да' : 'Нет'}\n`;
       if (info.is_banned) {
-        message += `Тип бана: ${info.ban_type}\n`;
+        message += `Тип бана: ${info.banType}\n`;
       }
-      message += `Отправлено сообщений сегодня: ${info.messages_sent_today}\n`;
-      message += `Отправлено сообщений всего: ${info.messages_sent_total}\n`;
-      message += `Охвачено контактов сегодня: ${info.contacts_reached_today}\n`;
-      message += `Охвачено контактов всего: ${info.contacts_reached_total}\n`;
-      message += `Дневной лимит: ${info.daily_limit}\n`;
-      message += `Общий лимит: ${info.total_limit || 'Не установлен'}`;
+      message += `Отправлено сообщений в Telegram сегодня: ${info.telegramMessagesSentToday}\n`;
+      message += `Отправлено сообщений в WhatsApp сегодня: ${info.whatsappMessagesSentToday}\n`;
+      message += `Отправлено сообщений в Telegram всего: ${info.telegramMessagesSentTotal}\n`;
+      message += `Отправлено сообщений в WhatsApp всего: ${info.whatsappMessagesSentTotal}\n`;
+      message += `Охвачено контактов сегодня: ${info.contactsReachedToday}\n`;
+      message += `Охвачено контактов всего: ${info.contactsReachedTotal}\n`;
+      message += `Дневной лимит: ${info.dailyLimit}\n`;
+      message += `Общий лимит: ${info.totalLimit || 'Не установлен'}\n`;
       bot.sendMessage(msg.chat.id, message);
     } catch (error) {
       logger.error(`Error getting info for phone number ${phoneNumber}:`, error);
@@ -138,8 +140,9 @@ module.exports = {
     }
   },
 
+
   '/banphone': async (bot, msg, match) => {
-    const user = await getUserByTgId(msg.from.id);
+    const user = await userService.getUserByTgId(msg.from.id);
     const userId = user.id;
     logger.info(`Banphone command called by user ${userId}`);
     const [phoneNumber, banType] = match[1].split(' ');
@@ -159,7 +162,7 @@ module.exports = {
   },
 
   '/unbanphone': async (bot, msg, match) => {
-    const user = await getUserByTgId(msg.from.id);
+    const user = await userService.getUserByTgId(msg.from.id);
     const userId = user.id;
     logger.info(`Unbanphone command called by user ${userId}`);
     const phoneNumber = match[1];
@@ -179,7 +182,7 @@ module.exports = {
   },
 
   '/setphonelimit': async (bot, msg, match) => {
-    const user = await getUserByTgId(msg.from.id);
+    const user = await userService.getUserByTgId(msg.from.id);
     const userId = user.id;
     logger.info(`Setphonelimit command called by user ${userId}`);
     const [phoneNumber, dailyLimit, totalLimit] = match[1].split(' ');
