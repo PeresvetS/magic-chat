@@ -1,18 +1,16 @@
-// src/services/bitrix24LeadService.js
+// src/api/services/lead/bitrixLeadService.js
 
 const { Bitrix } = require('@2bad/bitrix');
-const config = require('../../../config');
 const logger = require('../../../utils/logger');
 
-// Инициализация клиента Bitrix24
-
-const bitrix = Bitrix(config.BITRIX24_INBOUND_WEBHOOK_URL);
-
-class Bitrix24LeadService {
+class BitrixLeadService {
+  constructor(webhookUrl) {
+    this.bitrix = Bitrix(webhookUrl);
+  }
 
   async getStatusName(statusId) {
     try {
-      const { result } = await bitrix.call('crm.status.list');
+      const { result } = await this.bitrix.call('crm.status.list');
       const status = result.find(item => item.STATUS_ID === statusId);
       return status ? status.NAME : statusId;
     } catch (error) {
@@ -20,10 +18,10 @@ class Bitrix24LeadService {
       return statusId;
     }
   }
+
   async getLeadData(leadId) {
-    
     try {
-      const { result } = await bitrix.leads.get(leadId);
+      const { result } = await this.bitrix.leads.get(leadId);
     
       logger.info(`Lead data: ${JSON.stringify(result)}`);
 
@@ -66,7 +64,7 @@ class Bitrix24LeadService {
 
   async updateLead(leadId, fields) {
     try {
-      const { result, time } = await bitrix.leads.update(leadId, fields);
+      const { result, time } = await this.bitrix.leads.update(leadId, fields);
       if (result) {
         logger.info(`Lead with ID ${leadId} successfully updated in ${time.duration} seconds`);
         return true;
@@ -81,4 +79,4 @@ class Bitrix24LeadService {
   }
 }
 
-module.exports = new Bitrix24LeadService();
+module.exports = BitrixLeadService;
