@@ -79,10 +79,10 @@ async function getPhoneNumbers(userId) {
   try {
     const phoneNumbers = await prisma.phoneNumber.findMany({
       where: { userId: userId },
-      select: { phoneNumber: true }
+      select: { phoneNumber: true, isAuthenticated: true }
     });
-    return phoneNumbers.map(row => row.phoneNumber);
-  } catch (error) {
+    return phoneNumbers;
+  } catch (error) { 
     logger.error(`Error getting phone numbers for user ${userId}:`, error);
     throw error;
   }

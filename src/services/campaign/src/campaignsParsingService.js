@@ -8,10 +8,10 @@ async function createCampaign(userId, campaignName) {
     const record = await parsingCampaignsTable.create([
       {
         fields: {
-          user_id: userId,
+          userШd: userId,
           name: campaignName,
           status: 'pending',
-          created_at: new Date().toISOString()
+          createdAt: new Date().toISOString()
         }
       }
     ]);
@@ -43,14 +43,14 @@ async function listCampaigns(userId) {
 async function getCampaignStats(userId, campaignId) {
   try {
     const record = await parsingCampaignsTable.find(campaignId);
-    if (record.fields.user_id !== userId) {
+    if (record.fields.userId !== userId) {
       throw new Error('Campaign not found or access denied');
     }
     return {
       name: record.fields.name,
       status: record.fields.status,
-      totalParsed: record.fields.total_parsed || 0,
-      processedCount: record.fields.processed_count || 0
+      totalParsed: record.fields.totalParsed || 0,
+      processedCount: record.fields.processedCount || 0
     };
   } catch (error) {
     logger.error('Error getting campaign stats:', error);

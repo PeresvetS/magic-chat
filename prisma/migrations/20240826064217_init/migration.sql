@@ -168,6 +168,50 @@ CREATE TABLE "PhoneNumberCampaign" (
     CONSTRAINT "PhoneNumberCampaign_pkey" PRIMARY KEY ("id")
 );
 
+-- CreateTable
+CREATE TABLE "BitrixIntegration" (
+    "id" SERIAL NOT NULL,
+    "userId" INTEGER NOT NULL,
+    "bitrixWebhookId" TEXT NOT NULL,
+    "bitrixInboundUrl" TEXT NOT NULL,
+    "bitrixOutboundToken" TEXT NOT NULL,
+
+    CONSTRAINT "BitrixIntegration_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "AmoCrmIntegration" (
+    "id" SERIAL NOT NULL,
+    "userId" INTEGER NOT NULL,
+    "amoCrmWebhookId" TEXT NOT NULL,
+    "amoCrmInboundUrl" TEXT NOT NULL,
+    "amoCrmOutboundToken" TEXT NOT NULL,
+
+    CONSTRAINT "AmoCrmIntegration_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "TelegramSession" (
+    "id" SERIAL NOT NULL,
+    "phoneNumber" TEXT NOT NULL,
+    "session" TEXT NOT NULL,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "TelegramSession_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "WhatsappSession" (
+    "id" SERIAL NOT NULL,
+    "phoneNumber" TEXT NOT NULL,
+    "session" TEXT NOT NULL,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "WhatsappSession_pkey" PRIMARY KEY ("id")
+);
+
 -- CreateIndex
 CREATE UNIQUE INDEX "User_telegramId_key" ON "User"("telegramId");
 
@@ -195,6 +239,24 @@ CREATE UNIQUE INDEX "CampaignMailing_name_key" ON "CampaignMailing"("name");
 -- CreateIndex
 CREATE UNIQUE INDEX "PhoneNumberCampaign_phoneNumber_campaignId_key" ON "PhoneNumberCampaign"("phoneNumber", "campaignId");
 
+-- CreateIndex
+CREATE UNIQUE INDEX "BitrixIntegration_userId_key" ON "BitrixIntegration"("userId");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "BitrixIntegration_bitrixWebhookId_key" ON "BitrixIntegration"("bitrixWebhookId");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "AmoCrmIntegration_userId_key" ON "AmoCrmIntegration"("userId");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "AmoCrmIntegration_amoCrmWebhookId_key" ON "AmoCrmIntegration"("amoCrmWebhookId");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "TelegramSession_phoneNumber_key" ON "TelegramSession"("phoneNumber");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "WhatsappSession_phoneNumber_key" ON "WhatsappSession"("phoneNumber");
+
 -- AddForeignKey
 ALTER TABLE "Admin" ADD CONSTRAINT "Admin_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
@@ -218,3 +280,9 @@ ALTER TABLE "CampaignMailing" ADD CONSTRAINT "CampaignMailing_userId_fkey" FOREI
 
 -- AddForeignKey
 ALTER TABLE "PhoneNumberCampaign" ADD CONSTRAINT "PhoneNumberCampaign_campaignId_fkey" FOREIGN KEY ("campaignId") REFERENCES "CampaignMailing"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "BitrixIntegration" ADD CONSTRAINT "BitrixIntegration_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "AmoCrmIntegration" ADD CONSTRAINT "AmoCrmIntegration_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE RESTRICT ON UPDATE CASCADE;

@@ -2,11 +2,12 @@
 
 const prisma = require('../utils/prisma');
 const logger = require('../../utils/logger');
+const { getUserByTgId } = require('./userRepo');
 
 async function createCampaignMailing(telegramId, name) {
   try {
     // Ищем пользователя по telegram_id
-    const user = await prisma.user.findUnique({ where: { telegramId: BigInt(telegramId) } });
+    const user = await getUserByTgId(telegramId);
     if (!user) {
       throw new Error(`User with Telegram ID ${telegramId} not found`);
     }
@@ -31,6 +32,7 @@ async function setCampaignMessage(id, message) {
     throw error;
   }
 }
+
 async function getCampaignMailing(id) {
   try {
     return await prisma.campaignMailing.findUnique({
@@ -53,10 +55,14 @@ async function getCampaignMailingByName(name) {
   }
 }
 
-async function listCampaignMailings(userId) {
+async function listCampaignMailings(telegramId) {
+  const user = await getUserByTgId(telegramId);
+  if (!user) {
+    throw new Error(`User with Telegram ID ${telegramId} not found`);
+  }
   try {
     return await prisma.campaignMailing.findMany({
-      where: { userId }
+      where: { userId: user.id }
     });
   } catch (error) {
     logger.error('Error listing campaign mailings:', error);
@@ -64,10 +70,14 @@ async function listCampaignMailings(userId) {
   }
 }
 
-async function getActiveCampaign() {
+async function getActiveCampaign(telegramId) {
+  const user = await getUserByTgId(telegramId);
+  if (!user) {
+    throw new Error(`User with Telegram ID ${telegramId} not found`);
+  }
   try {
     return await prisma.campaignMailing.findFirst({
-      where: { isActive: true }
+      where: { userId: user.id, isActive: true }
     });
   } catch (error) {
     logger.error('Error getting active campaign:', error);
@@ -157,14 +167,29 @@ async function detachPhoneNumber(campaignId, phoneNumber) {
 
 async function getCampaignPhoneNumbers(campaignId) {
   try {
-    return await prisma.phoneNumberCampaign.findMany({
+    logger.info(`Attempting to get phone numbers for campaign ${campaignId}`);
+    
+    if (!prisma.phoneNumberCampaign) {
+      logger.error('prisma.phoneNumberCampaign is undefined');
+      throw new Error('Invalid Prisma configuration: PhoneNumberCampaign model not found');
+    }
+    
+    if (typeof prisma.phoneNumberCampaign.findMany !== 'function') {
+      logger.error('prisma.phoneNumberCampaign.findMany is not a function');
+      throw new Error('Invalid Prisma configuration: findMany method not found');
+    }
+    
+    const result = await prisma.phoneNumberCampaign.findMany({
       where: { campaignId },
       include: {
-        phoneNumber: true
+        campaign: true
       }
     });
+    
+    logger.info(`Retrieved ${result.length} phone numbers for campaign ${campaignId}`);
+    return result;
   } catch (error) {
-    logger.error('Error getting campaign phone numbers:', error);
+    logger.error(`Error getting campaign phone numbers for campaign ${campaignId}:`, error.message);
     throw error;
   }
 }
@@ -176,19 +201,33 @@ async function toggleCampaignActivity(id, isActive) {
       throw new Error('Cannot activate campaign without attached phone numbers');
     }
 
-    // Проверяем, что все прикрепленные номера аутентифицированы
-    const unauthenticatedNumbers = phoneNumbers.filter(p => !p.phoneNumber.isAuthenticated);
-    if (unauthenticatedNumbers.length > 0) {
-      throw new Error('Cannot activate campaign with unauthenticated phone numbers');
-    }
+    await checkPhoneNumbersAuthentication(phoneNumbers);
 
-    return await prisma.campaignMailing.update({
+    const updatedCampaign = await prisma.campaignMailing.update({
       where: { id },
       data: { isActive, updatedAt: new Date() }
     });
+
+    logger.info(`Campaign ${id} activity toggled to ${isActive}`);
+    return updatedCampaign;
   } catch (error) {
-    logger.error('Error toggling campaign activity:', error);
+    logger.error(`Error toggling campaign activity for campaign ${id}:`, error.message);
     throw error;
+  }
+}
+
+async function checkPhoneNumbersAuthentication(phoneNumbers) {
+  const unauthenticatedNumbers = await prisma.phoneNumber.findMany({
+    where: {
+      phoneNumber: {
+        in: phoneNumbers.map(pn => pn.phoneNumber)
+      },
+      isAuthenticated: false
+    }
+  });
+
+  if (unauthenticatedNumbers.length > 0) {
+    throw new Error('Cannot activate campaign with unauthenticated phone numbers');
   }
 }
 

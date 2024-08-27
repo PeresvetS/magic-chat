@@ -84,26 +84,33 @@ module.exports = {
     }
   },
 
-  '/list_phones': async (bot, msg) => {
+'/list_phones': async (bot, msg) => {
+  try {
     const user = await userService.getUserByTgId(msg.from.id);
+    if (!user) {
+      bot.sendMessage(msg.chat.id, 'Пользователь не найден.');
+      return;
+    }
     const userId = user.id;
     logger.info(`Listphones command called by user ${userId}`);
-    try {
-      const phoneNumbers = await getUserPhoneNumbers(userId);
-      logger.info(`Retrieved ${phoneNumbers.length} phone numbers for user ${userId}`);
-      if (phoneNumbers.length === 0) {
-        bot.sendMessage(msg.chat.id, 'У вас нет добавленных номеров телефонов.');
-      } else {
-        const phoneList = phoneNumbers.map(phone => 
-          `${phone.phone_number}${phone.is_authenticated ? '' : ' (не аутентифицирован, используйте /add_phone)'}`
-        ).join('\n');
-        bot.sendMessage(msg.chat.id, `Ваши номера телефонов:\n${phoneList}`);
-      }
-    } catch (error) {
-      logger.error(`Error listing phone numbers for user ${userId}:`, error);
-      bot.sendMessage(msg.chat.id, `Ошибка при получении списка номеров: ${error.message}`);
-    }
-  },
+    
+    const phoneNumbers = await getUserPhoneNumbers(userId);
+    logger.info(`Retrieved ${phoneNumbers.length} phone numbers for user ${userId}`);
+    
+    if (phoneNumbers.length === 0) {
+      bot.sendMessage(msg.chat.id, 'У вас нет добавленных номеров телефонов.');
+      return;
+    } 
+    const phoneList = phoneNumbers.map(phone => 
+      `${phone.phoneNumber} ${phone.isAuthenticated ? 'аунтифицирован' : ' (не аутентифицирован, используйте /add_phone)'}`
+    ).join('\n');
+    bot.sendMessage(msg.chat.id, `Ваши номера телефонов:\n${phoneList}`);
+
+  } catch (error) {
+    logger.error(`Error listing phone numbers:`, error);
+    bot.sendMessage(msg.chat.id, `Ошибка при получении списка номеров: ${error.message}`);
+  }
+},
 
   '/phone_stats ([+]?[0-9]+)': async (bot, msg, match) => {
     const [, phoneNumber] = match;
@@ -125,6 +132,7 @@ module.exports = {
       let message = `Информация о номере ${phoneNumber}:\n`;
       message += `Премиум: ${info.isPremium ? 'Да' : 'Нет'}\n`;
       message += `Забанен: ${info.isBanned ? 'Да' : 'Нет'}\n`;
+      message += `Аутентифицирован: ${info.isAuthenticated ? 'Да' : 'Нет'}\n`;
       if (info.is_banned) {
         message += `Тип бана: ${info.banType}\n`;
       }

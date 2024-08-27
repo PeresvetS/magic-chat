@@ -12,6 +12,7 @@ const subscriptionCommands = require('./commands/subscriptionCommands');
 const { TelegramSessionService } = require('../../services/telegram');
 const logger = require('../../utils/logger');
 const { setPhoneAuthenticated } = require('../../services/phone').phoneNumberService;
+const crmSettingsCommands = require('./commands/crmSettingsCommands');
 
 function createUserBot() {
   const bot = new TelegramBot(config.USER_BOT_TOKEN, { polling: false });
@@ -21,7 +22,8 @@ function createUserBot() {
     // parsingCommands,
     helpCommands,
     subscriptionCommands,
-    mailingCommands
+    mailingCommands,
+    crmSettingsCommands
   ];
 
   commandModules.forEach(module => {
@@ -29,28 +31,23 @@ function createUserBot() {
       if (command !== 'messageHandler') {
         bot.onText(new RegExp(`^${command}`), async (msg, match) => {
           try {
-            const user = await userService.getUserByTgId(msg.from.id);
+            const userInfo = await userService.getUserInfo(msg.from.id);
 
-            if (!user) {
+            if (!userInfo || !userInfo.isSubscribed) {
+              logger.info(`User ${user.id} does not have an active subscription`);
               bot.sendMessage(msg.chat.id, 'У вас нет активной подписки. Обратитесь к администратору для её оформления.');
               return;
             }
-
-            const userInfo = await userService.getUserInfo(user.id);
             
-            logger.info(`Received command ${command} from user ${user.id}`);
+            logger.info(`Received command ${command} from user ${userInfo.id}`);
             
             if (userInfo.isBanned) {
               bot.sendMessage(msg.chat.id, 'Вы забанены администратором.');
               return;
             }
 
-            if (await checkSubscription(user.id)) {
-              await handler(bot, msg, match);
-            } else {
-              logger.info(`User ${user.id} does not have an active subscription`);
-              bot.sendMessage(msg.chat.id, 'У вас нет активной подписки. Обратитесь к администратору для продления.');
-            }
+            await handler(bot, msg, match);
+              
           } catch (error) {
             logger.error(`Error executing command ${command}:`, error);
             bot.sendMessage(msg.chat.id, `Произошла ошибка при выполнении команды: ${error.message}`);
@@ -65,34 +62,28 @@ function createUserBot() {
     if (msg.text.startsWith('/')) return; // Игнорируем команды
     
     try {
-      const user = await userService.getUserByTgId(msg.from.id);
+      const userInfo = await userService.getUserInfo(msg.from.id);
       
-      if (!user) {
+      if (!userInfo || !userInfo.isSubscribed) {
         bot.sendMessage(msg.chat.id, 'У вас нет активной подписки. Обратитесь к администратору для её оформления.');
         return;
       }
 
-      const userInfo = await userService.getUserInfo(user.id);
-      
       if (userInfo.isBanned) {
         bot.sendMessage(msg.chat.id, 'Вы забанены администратором.');
         return;
+     }
+
+      if (mailingCommands.messageHandler) {
+        await mailingCommands.messageHandler(bot, msg);
       }
 
-      if (await checkSubscription(user.id)) {
-        // Вызываем обработчик сообщений из модуля mailingCommands
-        if (mailingCommands.messageHandler) {
-          await mailingCommands.messageHandler(bot, msg);
-        }
-      } else {
-        logger.info(`User ${user.id} does not have an active subscription`);
-        bot.sendMessage(msg.chat.id, 'У вас нет активной подписки. Обратитесь к администратору для продления.');
-      }
     } catch (error) {
       logger.error('Error handling message:', error);
       bot.sendMessage(msg.chat.id, 'Произошла ошибка при обработке сообщения.');
     }
   });
+
 
   bot.on('callback_query', async (query) => {
     const [action, authType, phoneNumber] = query.data.split('_');

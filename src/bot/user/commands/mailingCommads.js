@@ -85,7 +85,7 @@ module.exports = {
       const campaign = await getCampaignByName(campaignName, bot, msg.chat.id);
 
       const status = campaign.isActive ? 'активна' : 'неактивна';
-      bot.sendMessage(msg.chat.id, `Кампания: ${campaign.name}\nСтатус: ${status}\nСообщение:\n${campaign.message || 'Не установлено'}`);
+      bot.sendMessage(msg.chat.id, `Кампания: ${campaign.name}\nСтатус: ${status}\nПриоритетная платформа: ${campaign.platformPriority}\n\nСообщение:\n${campaign.message || 'Не установлено'}`);
     } catch (error) {
       logger.error('Error getting campaign:', error);
       bot.sendMessage(msg.chat.id, 'Произошла ошибка при получении информации о кампании.');
@@ -94,7 +94,7 @@ module.exports = {
 
   '/list_mc': async (bot, msg) => {
     try {
-      const campaigns = await campaignsMailingService.listCampaignMailings(msg.from.id);
+      const campaigns = await campaignsMailingService.listCampaigns(msg.from.id);
       if (campaigns.length === 0) {
         bot.sendMessage(msg.chat.id, 'У вас нет созданных кампаний.');
         return;
@@ -117,7 +117,7 @@ module.exports = {
     }
 
     try {
-      const activeCampaign = await campaignsMailingService.getActiveCampaign();
+      const activeCampaign = await campaignsMailingService.getActiveCampaign(msg.chat.id);
       if (!activeCampaign) {
         bot.sendMessage(msg.chat.id, 'Нет активной кампании для рассылки.');
         return;
@@ -128,7 +128,7 @@ module.exports = {
         return;
       }
 
-      const result = await distributionService.distributeMessage(activeCampaign.id, activeCampaign.message, phoneNumber, priorityPlatform);
+      const result = await distributionService.distributeMessage(activeCampaign.id, activeCampaign.message, phoneNumber, priorityPlatform || activeCampaign.platformPriority);
       if (result.telegram && result.telegram.success) {
         bot.sendMessage(msg.chat.id, `Тестовое сообщение успешно отправлено в Telegram на номер ${phoneNumber}`);
       } 
@@ -150,7 +150,7 @@ module.exports = {
   '/send_manual_mc ([^\\s]+) ([+]?[0-9]+)(?:\\s(telegram|whatsapp|tgwa))?': async (bot, msg, match) => {
     const [, campaignName, phoneNumber, priorityPlatform] = match;
 
-    if (!campaignName || !phoneNumber) {
+    if (!campaignName || !phoneNumber) {  
       bot.sendMessage(msg.chat.id, 'Пожалуйста, укажите название кампании и номер телефона. Например: /send_manual_mc МояКампания +79123456789');
       return;
     }
@@ -167,7 +167,7 @@ module.exports = {
         return;
       }
 
-      const result = await distributionService.distributeMessage(campaign.id, campaign.message, phoneNumber, priorityPlatform);
+      const result = await distributionService.distributeMessage(campaign.id, campaign.message, phoneNumber, priorityPlatform || campaign.priorityPlatform);
       if (result.telegram && result.telegram.success) {
         bot.sendMessage(msg.chat.id, `Сообщение успешно отправлено в Telegram на номер ${phoneNumber}`);
       } 
@@ -190,7 +190,7 @@ module.exports = {
   '/set_platform_priority_mc ([^\\s]+)(?:\\s(telegram|whatsapp|tgwa))?': async (bot, msg, match) => {
     const [, campaignName, platformPriority] = match;
     if (!campaignName || !platformPriority) {
-      bot.sendMessage(msg.chat.id, 'Пожалуйста, укажите название кампании и приоритет платформы. Например: /setplatformpriority МояКампания telegram');
+      bot.sendMessage(msg.chat.id, 'Пожалуйста, укажите название кампании и приоритет платформы. Например: /set_platform_priority МояКампания telegram');
       return;
     }
 
@@ -215,9 +215,10 @@ module.exports = {
   },
 
   
-  '/attach_phone_mc ([^\\s]+) ([+]?[0-9]+) (telegram|whatsapp)': async (bot, msg, match) => {
-    const [, campaignName, phoneNumber, platform] = match;
+  '/attach_phone_mc ([^\\s]+) ([+]?[0-9]+) (telegram|whatsapp|tgwa)': async (bot, msg, match) => {
 
+    const [, campaignName, phoneNumber, platform] = match;
+    logger.info('Attaching phone number to campaign:', campaignName, phoneNumber, platform);
     if (!campaignName || !phoneNumber || !platform) {
       bot.sendMessage(msg.chat.id, 'Пожалуйста, укажите название кампании, номер телефона и платформу. Например: /attach_phone_mc МояКампания +79123456789 telegram');
       return;
@@ -270,6 +271,53 @@ module.exports = {
       } else {
         bot.sendMessage(msg.chat.id, 'Произошла ошибка при изменении статуса кампании.');
       }
+    }
+  },
+
+  '/list_phones_mc ([^\\s]+)': async (bot, msg, match) => {
+    const [, campaignName] = match;
+
+    if (!campaignName) {
+      bot.sendMessage(msg.chat.id, 'Пожалуйста, укажите название кампании. Например: /list_phones_mc МояКампания');
+      return;
+    }
+
+    try {
+      const campaign = await getCampaignByName(campaignName, bot, msg.chat.id);
+      if (!campaign) return;
+
+      const phoneNumbers = await campaignsMailingService.getCampaignPhoneNumbers(campaign.id);
+      if (phoneNumbers.length === 0) {
+        bot.sendMessage(msg.chat.id, `У кампании "${campaignName}" нет прикрепленных номеров.`);
+        return;
+      }
+
+      const phoneList = phoneNumbers.map(p => `${p.phoneNumber} (${p.platform})`).join('\n');
+      bot.sendMessage(msg.chat.id, `Номера, прикрепленные к кампании "${campaignName}":\n${phoneList}`);
+    } catch (error) {
+      logger.error('Error listing campaign phone numbers:', error);
+      bot.sendMessage(msg.chat.id, 'Произошла ошибка при получении списка номеров кампании.');
+    }
+  },
+
+  
+  '/detach_phone_mc ([^\\s]+) ([+]?[0-9]+)': async (bot, msg, match) => {
+    const [, campaignName, phoneNumber] = match;
+
+    if (!campaignName || !phoneNumber) {
+      bot.sendMessage(msg.chat.id, 'Пожалуйста, укажите название кампании и номер телефона. Например: /detach_phone_mc МояКампания +79123456789');
+      return;
+    }
+
+    try {
+      const campaign = await getCampaignByName(campaignName, bot, msg.chat.id);
+      if (!campaign) return;
+
+      await campaignsMailingService.detachPhoneNumber(campaign.id, phoneNumber);
+      bot.sendMessage(msg.chat.id, `Номер ${phoneNumber} успешно откреплен от кампании "${campaignName}".`);
+    } catch (error) {
+      logger.error('Error detaching phone number from campaign:', error);
+      bot.sendMessage(msg.chat.id, 'Произошла ошибка при откреплении номера от кампании.');
     }
   },
   

@@ -8,9 +8,9 @@ const { getUserSubscriptionInfo } = require('./subscriptionService');
 
 async function getUserInfo(telegramId) {
   try {
-    const user = await userRepo.getUserById(telegramId);
+    const user = await userRepo.getUserByTgId(telegramId);
     if (!user) {
-      throw new Error(`User with ID ${id} not found`);
+      throw new Error(`User with ID ${telegramId} not found`);
     }
     const phoneNumbers = await getUserPhoneNumbers(user.id);
     const limits = await getLimits(user.id);
@@ -18,7 +18,7 @@ async function getUserInfo(telegramId) {
 
     return {
       id: user.id,
-      telegramId: user.telegramId,
+      telegramId: user.telegramId.toString(),
       username: user.username,
       firstName: user.firstName,
       lastName: user.lastName,
@@ -26,7 +26,8 @@ async function getUserInfo(telegramId) {
       registeredAt: user.registeredAt,
       phoneNumbers: phoneNumbers,
       limits: limits,
-      subscription: subscription
+      subscription: subscription,
+      isSubscribed: new Date() < subscription?.endDate,
     };
   } catch (error) {
     logger.error('Error getting user info:', error);
@@ -81,7 +82,7 @@ async function unbanUser(userIdentifier) {
 
 async function updateUserBanStatus(telegramId, isBanned) {
   try {
-    const user = await userRepo.getUserById(telegramId);
+    const user = await userRepo.getUserByTgId(telegramId);
     if (!user) {
       throw new Error(`User with ID ${id} not found`);
     }

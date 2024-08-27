@@ -1,6 +1,7 @@
 // src/services/campaign/src/campaignsMailingService.js
 
 const { campaignsMailingRepo } = require('../../../db');
+const { phoneNumberService } = require('../../phone');
 const logger = require('../../../utils/logger');
 
 class CampaignMailingService {
@@ -49,7 +50,7 @@ class CampaignMailingService {
     }
   }
 
-  async listCampaign(userId) {
+  async listCampaigns(userId) {
     try {
       return await campaignsMailingRepo.listCampaignMailings(userId);
     } catch (error) {
@@ -58,9 +59,9 @@ class CampaignMailingService {
     }
   }
 
-  async getActiveCampaign() {
+  async getActiveCampaign(telegramId) {
     try {
-      return await campaignsMailingRepo.getActiveCampaign();
+      return await campaignsMailingRepo.getActiveCampaign(telegramId);
     } catch (error) {
       logger.error('Error in getActiveCampaign service:', error);
       throw error;
@@ -87,7 +88,7 @@ class CampaignMailingService {
         throw new Error('Phone number is not authenticated');
       }
 
-      return await campaignMailingRepo.attachPhoneNumber(campaignId, phoneNumber, platform);
+      return await campaignsMailingRepo.attachPhoneNumber(campaignId, phoneNumber, platform);
     } catch (error) {
       logger.error('Error in attachPhoneNumber service:', error);
       throw error;

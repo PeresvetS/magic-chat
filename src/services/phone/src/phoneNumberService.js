@@ -34,7 +34,9 @@ async function addPhoneNumber(userId, phoneNumber, isPremium = false) {
 async function getUserPhoneNumbers(userId) {
   logger.info(`Getting phone numbers for user ${userId}`);
   try {
-    return await phoneNumberRepo.getPhoneNumbers(userId);
+    const phoneNumbers = await phoneNumberRepo.getPhoneNumbers(userId);
+    logger.info(`Retrieved ${phoneNumbers.length} phone numbers for user ${userId}`);
+    return phoneNumbers;
   } catch (error) {
     logger.error(`Error getting phone numbers for user ${userId}:`, error);
     throw error;

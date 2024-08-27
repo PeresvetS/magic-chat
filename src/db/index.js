@@ -1,5 +1,6 @@
 // src/db/index.js
 
+const crmRepo = require('./repositories/crmRepo');
 const userRepo = require('./repositories/userRepo');
 const leadsRepo = require('./repositories/leadsRepo');
 const adminsRepo = require('./repositories/adminsRepo');
@@ -8,10 +9,12 @@ const phoneNumberRepo = require('./repositories/phoneNumberRepo');
 const parsedUsersRepo = require('./repositories/parsedUsersRepo');
 const messageStatsRepo = require('./repositories/messageStatsRepo');
 const subscriptionsRepo = require('./repositories/subscriptionsRepo');
+const telegramSessionsRepo = require('./repositories/telegramSessionsRepo');
 const campaignsMailingRepo = require('./repositories/campaignsMailingRepo');
 const campaignsParsingRepo = require('./repositories/campaignsParsingRepo');
 
 module.exports = {
+  crmRepo,
   userRepo,
   leadsRepo,
   adminsRepo,
@@ -20,6 +23,7 @@ module.exports = {
   phoneNumberRepo,
   messageStatsRepo,
   subscriptionsRepo,
+  telegramSessionsRepo,
   campaignsMailingRepo,
   campaignsParsingRepo,
 };

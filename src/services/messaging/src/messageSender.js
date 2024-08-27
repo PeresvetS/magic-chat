@@ -66,6 +66,7 @@ async function validatePhoneNumber(phoneNumber) {
 }
 
 async function handleSendMessageError(error, userId, message, phoneNumber) {
+  const { TelegramSessionService } = require('../../telegram/');
   logger.error(`Error sending message from ${phoneNumber} to ${userId}: ${error.message}`);
   
   if (error.message.includes('FLOOD_WAIT')) {

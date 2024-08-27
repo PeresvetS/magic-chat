@@ -1,41 +1,40 @@
 // src/services/maiiling/src/messageDistributionService.js
 
 const messageSenderService = require('./messageSenderService');
-const messagingPlatformChecker = require('./messagingPlatformChecker');
+const MessagingPlatformChecker = require('./MessagingPlatformChecker');
 const logger = require('../../../utils/logger');
 const { campaignsMailingService } = require('../../campaign');
-const { campaignsMailingRepo } = require('../../../db');
 
 class MessageDistributionService {
-  async distributeMessage(phoneNumber, message, priorityPlatform = null) {
+  async distributeMessage(campaignId, message, phoneNumber, priorityPlatform = null) {
+    const strPhoneNumber = String(phoneNumber);
     try {
-      const platforms = await messagingPlatformChecker.choosePlatform(phoneNumber, priorityPlatform);
+      const platforms = await MessagingPlatformChecker.choosePlatform(campaignId, strPhoneNumber, priorityPlatform);
 
       let results = {
-        phoneNumber,
+        strPhoneNumber,
         telegram: null,
         whatsapp: null,
         tgwa: null,
       };
-
       switch (platforms) {
         case 'telegram':
-          results.telegram = await messageSenderService.sendTelegramMessage(phoneNumber, message);
+          results.telegram = await messageSenderService.sendTelegramMessage(campaignId, strPhoneNumber, message);
           break;
         case 'whatsapp':
-          results.whatsapp = await messageSenderService.sendWhatsAppMessage(phoneNumber, message);
+          results.whatsapp = await messageSenderService.sendWhatsAppMessage(strPhoneNumber, message);
           break;
         case 'tgwa':
-          results.tgwa = await messageSenderService.sendTgAndWa(phoneNumber, message);
+          results.tgwa = await messageSenderService.sendTgAndWa(strPhoneNumber, message);
           break;
         default:
-          logger.warn(`No messaging platforms available for ${phoneNumber}`);
+          logger.warn(`No messaging platforms available for ${strPhoneNumber}`);
           break;
       }
 
       return results;
     } catch (error) {
-      logger.error(`Error distributing message to ${phoneNumber}:`, error);
+      logger.error(`Error distributing message to ${strPhoneNumber}:`, error);
       throw error;
     }
   }
@@ -58,8 +57,9 @@ class MessageDistributionService {
   }
 
   async sendMessageToLead(lead) {
+    
   // Проверяем наличие активной кампании и отправляем сообщение, если она есть
-    const activeCampaign = await campaignsMailingService.getActiveCampaign();
+    const activeCampaign = await campaignsMailingService.getActiveCampaign(telegramId);
     if (activeCampaign && activeCampaign.message) {
       try {
         const result = await this.distributeMessage(activeCampaign.id, activeCampaign.message, lead.phone, activeCampaign.priorityPlatform);

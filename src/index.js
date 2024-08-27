@@ -8,11 +8,15 @@ const adminBot = require('./bot/admin');
 const userBot = require('./bot/user');
 const logger = require('./utils/logger');
 const { TelegramSessionService } = require('./services/telegram');
-const bitrix24WebhookRouter = require('./api/routes/bitrix24Webhook');
+const webhookRouter = require('./api/routes/webhooks');
 
 const app = express();
 
-app.use('/api/bitrix24', bitrix24WebhookRouter);
+// Middleware для парсинга JSON
+app.use(express.json());
+
+// Роуты для webhook'ов от CRM систем
+app.use('/api/webhook', webhookRouter);
 
 async function main() {
   try {

@@ -9,6 +9,7 @@ const phoneManagementCommands = require('./commands/phoneManagementCommands');
 const limitCommands = require('./commands/limitCommands');
 const statsCommands = require('./commands/statsCommands');
 const helpCommands = require('./commands/helpCommands');
+const crmSettingsCommands = require('./commands/crmSettingsCommands');
 const logger = require('../../utils/logger');
 
 function createAdminBot() {
@@ -18,9 +19,10 @@ function createAdminBot() {
     subscriptionCommands,
     userManagementCommands,
     phoneManagementCommands,
+    crmSettingsCommands,
     limitCommands,
     statsCommands,
-    helpCommands
+    helpCommands,
   ];
 
   commandModules.forEach(module => {

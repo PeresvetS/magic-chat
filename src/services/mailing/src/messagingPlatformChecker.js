@@ -1,56 +1,30 @@
-// src/services/mailling/src/messagingPlatformChecker.js
+// src/services/mailing/src/messagingPlatformChecker.js
 
-const { TelegramClient } = require("telegram");
-const { Api } = require("telegram/tl");
-const { StringSession } = require("telegram/sessions");
-const config = require('../../../config');
 const logger = require('../../../utils/logger');
-const { getClient } = require('../../auth/authService');
 const { gePlatformPriority } = require('../../../db').campaignsMailingRepo;
+const TelegramChecker = require('./TelegramChecker');
 
 class MessagingPlatformChecker {
   constructor() {
-    this.telegramClient = null;
+    this.telegramChecker = TelegramChecker;
   }
 
   async initialize() {
     try {
-      this.telegramClient = getClient();
+      await this.telegramChecker.initialize();
     } catch (error) {
-      logger.error('Error initializing Telegram client:', error);
-      throw new Error('Telegram client is not authenticated. Please authenticate first.');
+      logger.error('Error initializing Telegram checker:', error);
+      throw new Error('Failed to initialize Telegram checker.');
     }
   }
 
   async checkTelegram(phoneNumber) {
-    if (!this.telegramClient) {
-      await this.initialize();
-    }
-
-    try {
-      const result = await this.telegramClient.invoke(
-        new Api.contacts.ResolvePhone({
-          phone: phoneNumber
-        })
-      );
-
-      if (result.users && result.users.length > 0) {
-        logger.info(`Telegram account found for number: ${phoneNumber}`);
-        return true;
-      } else {
-        logger.info(`No Telegram account found for number: ${phoneNumber}`);
-        return false;
-      }
-    } catch (error) {
-      logger.error(`Error checking Telegram for number ${phoneNumber}:`, error);
-      return false;
-    }
+    logger.info(`Checking Telegram for number ${phoneNumber}`);
+    return await this.telegramChecker.checkTelegram(phoneNumber);
   }
 
   async checkWhatsApp(phoneNumber) {
-    // Примечание: Проверка WhatsApp может потребовать использования стороннего API
-    // или специфических методов, которые могут нарушать условия использования WhatsApp.
-    // Здесь мы оставим заглушку для будущей реализации.
+    // Implementation for WhatsApp check
     logger.warn('WhatsApp checking is not implemented yet');
     return false;
   }
@@ -68,36 +42,34 @@ class MessagingPlatformChecker {
     }
   }
 
-  async choosePlatform(phoneNumber, priorityPlatform = null) {
-      if (!phoneNumber) {
-        throw new Error('Phone number is required');
-      } 
-      else if (typeof phoneNumber !== 'string') {
-        throw new Error('Phone number must be a string');
-      }
-      if (!priorityPlatform) {
-        priorityPlatform = await gePlatformPriority(phoneNumber);
-        logger.info(`No priority platform provided. Got from DB ${priorityPlatform}.`);
-      }
+  async choosePlatform(campaignId,phoneNumber, priorityPlatform = null) {
+    logger.info(`Choosing messaging platform for ${phoneNumber} with priority ${priorityPlatform}`);
+    
+    if (!phoneNumber || typeof phoneNumber !== 'string') {
+      throw new Error('Invalid phone number');
+    }
 
-      if (priorityPlatform !== 'telegram' && priorityPlatform !== 'whatsapp' && priorityPlatform !== 'tgwa') {
-        throw new Error('Invalid priority platform');
-      }
+    if (!['telegram', 'whatsapp', 'tgwa'].includes(priorityPlatform)) {
+      logger.warn('Invalid priority platform, getting from DB');
+      priorityPlatform = await gePlatformPriority(campaignId);
+    }
 
-      if (priorityPlatform === 'telegram' && checkPlatforms(phoneNumber, 'telegram')) {
-        return 'telegram';
-      } 
-      else if (priorityPlatform === 'whatsapp' && checkPlatforms(phoneNumber, 'whatsapp')) {
-        return 'whatsapp';
-      } 
-      else if (priorityPlatform === 'tgwa' && checkPlatforms(phoneNumber, 'tgwa')) {
-        return 'tgwa';
-      }
-      else {
-        return 'none';
-      }
+    const telegramAvailable = await this.checkTelegram(phoneNumber);
+    const whatsappAvailable = await this.checkWhatsApp(phoneNumber);
+
+    if (priorityPlatform === 'telegram' && telegramAvailable) return 'telegram';
+    if (priorityPlatform === 'whatsapp' && whatsappAvailable) return 'whatsapp';
+    if (priorityPlatform === 'tgwa' && telegramAvailable && whatsappAvailable) return 'tgwa';
+
+    if (telegramAvailable) return 'telegram';
+    if (whatsappAvailable) return 'whatsapp';
+
+    return 'none';
   }
 
+  async disconnect() {
+    await this.telegramChecker.disconnect();
+  }
 }
 
 module.exports = new MessagingPlatformChecker();

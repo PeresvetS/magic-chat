@@ -1,6 +1,8 @@
 // src/bot/admin/commands/phoneManagementCommands.js
 
 const { updatePhoneNumberStatus, setPhoneNumberLimit, getPhoneNumberInfo } = require('../../../services/phone').phoneNumberService;
+const { TelegramSessionService } = require('../../../services/telegram');
+const config = require('../../../config');
 
 module.exports = {
   '/ban_phone ([+]?[0-9]+) (temporary|permanent)': async (bot, msg, match) => {
@@ -41,6 +43,7 @@ module.exports = {
       message += `Пользователь: ${info.id}\n`;
       message += `Премиум: ${info.isPremium ? 'Да' : 'Нет'}\n`;
       message += `Забанен: ${info.isBanned ? 'Да' : 'Нет'}\n`;
+      message += `Аутентифицирован: ${info.isAuthenticated ? 'Да' : 'Нет'}\n`;
       if (info.is_banned) {
         message += `Тип бана: ${info.banType}\n`;
       }
@@ -58,5 +61,39 @@ module.exports = {
     } catch (error) {
       bot.sendMessage(msg.chat.id, `Ошибка при получении информации о номере: ${error.message}`);
     }
-  }
+  },
+
+  '/authorize_main_phone': async (bot, msg) => {
+    try {
+      const mainPhoneNumber = config.MAIN_PHONE_NUMBER;
+      if (!mainPhoneNumber) {
+        throw new Error('MAIN_PHONE_NUMBER not set in configuration');
+      }
+
+      bot.sendMessage(msg.chat.id, `Начинаем процесс авторизации для номера ${mainPhoneNumber}. Следуйте инструкциям.`);
+
+      await TelegramSessionService.authorizeMainClient(
+        async () => {
+          await bot.sendMessage(msg.chat.id, 'Введите код авторизации, полученный в Telegram:');
+          return new Promise((resolve) => {
+            bot.once('message', (codeMsg) => {
+              resolve(codeMsg.text.trim());
+            });
+          });
+        },
+        async () => {
+          await bot.sendMessage(msg.chat.id, 'Введите пароль 2FA (если требуется):');
+          return new Promise((resolve) => {
+            bot.once('message', (passwordMsg) => {
+              resolve(passwordMsg.text.trim());
+            });
+          });
+        }
+      );
+
+      bot.sendMessage(msg.chat.id, `Основной номер ${mainPhoneNumber} успешно авторизован.`);
+    } catch (error) {
+      bot.sendMessage(msg.chat.id, `Ошибка при авторизации основного номера: ${error.message}`);
+    }
+  },
 };
