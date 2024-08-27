@@ -17,7 +17,7 @@ const myFormat = printf(({ level, message, timestamp, ...metadata }) => {
 
 // Конфигурация для ротации файлов с общими логами
 const fileRotateTransport = new winston.transports.DailyRotateFile({
-  filename: 'logs/combined-%DATE%.log',
+  filename: 'temp/logs/combined-%DATE%.log',
   datePattern: 'YYYY-MM-DD',
   maxSize: '20m',
   maxFiles: '14d',
@@ -29,7 +29,7 @@ const fileRotateTransport = new winston.transports.DailyRotateFile({
 
 // Конфигурация для ротации файлов с ошибками
 const errorFileRotateTransport = new winston.transports.DailyRotateFile({
-  filename: 'logs/error-%DATE%.log',
+  filename: 'temp/logs/error-%DATE%.log',
   datePattern: 'YYYY-MM-DD',
   maxSize: '20m',
   maxFiles: '14d',

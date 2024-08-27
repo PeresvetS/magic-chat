@@ -1,14 +1,14 @@
 // src/services/mailing/src/messageSenderService.js
 
 const logger = require('../../../utils/logger');
-const { phoneNumberRepo, campaignsMailingRepo } = require('../../../db');
-const TelegramSessionService = require('../../telegram');
+const { phoneNumberRepo, campaignsMailingRepo, dialogRepo } = require('../../../db');
+const { TelegramSessionService } = require('../../telegram');
 
 class MessageSenderService {
   constructor() {
     this.limits = {
-      telegram: 40,
-      whatsapp: 100  // Пример лимита для WhatsApp, уточните реальное значение
+      telegram: 40, // определять через БД
+      whatsapp: 100  // Пример лимита для WhatsApp,
     };
   }
 
@@ -27,31 +27,35 @@ class MessageSenderService {
   
 
   async sendTelegramMessage(campaignId, phoneRecipientNumber, message) {
-    logger.info(`Sending message with campaign ID ${campaignId}`);
+    logger.info(`Отправка сообщения с ID кампании ${campaignId}`);
     try {
+      const userId = await this.getCampaigUserId(campaignId);
+      logger.info(`Отправка рассылки от пользователя ID с ${userId}`);
       const phoneSenderNumber = await this.getCampaignSenderNumber(campaignId);
+
       if (!phoneSenderNumber) {
-        throw new Error(`Invalid campaign ID or missing sender phone number for campaign ${campaignId}`);
+        throw new Error(`Недействительный ID кампании или отсутствует номер отправителя для кампании ${campaignId}`);
       }
-      
-      logger.info(`Sending message to ${phoneRecipientNumber} via Telegram from ${phoneSenderNumber}`);
+
+      logger.info(`Отправка сообщения на ${phoneRecipientNumber} через Telegram с ${phoneSenderNumber}`);
 
       const client = await this.initialize(phoneSenderNumber);
 
       if (!await this.checkDailyLimit(phoneSenderNumber, 'telegram')) {
-        logger.warn(`Telegram daily limit reached for phone number: ${phoneSenderNumber}`);
-        return { success: false, error: 'Daily limit reached' };
+        logger.warn(`Достигнут дневной лимит Telegram для номера телефона: ${phoneSenderNumber}`);
+        return { success: false, error: 'Достигнут дневной лимит' };
       }
 
-      const user = await client.getEntity(phoneRecipientNumber);
-      const result = await client.sendMessage(user, { message: message });
+      const recipient = await client.getEntity(phoneRecipientNumber);
+      const result = await client.sendMessage(recipient, { message: message });
 
-      await this.updateMessageCount(phoneSenderNumber, 'telegram');
-
-      logger.info(`Message sent to ${phoneRecipientNumber} via Telegram from ${phoneSenderNumber}`);
+      const isNewContact = await this.isNewContact(userId, recipient.id, 'telegram');
+      await this.updateMessageCount(phoneSenderNumber, isNewContact, 'telegram');
+      await this.saveDialog(userId, recipient.id, 'telegram', '', message);
+      logger.info(`Сообщение отправлено на ${phoneRecipientNumber} через Telegram с ${phoneSenderNumber}`);
       return { success: true, messageId: result.id };
     } catch (error) {
-      logger.error(`Error sending Telegram message for campaign ${campaignId} to ${phoneRecipientNumber}:`, error);
+      logger.error(`Ошибка отправки сообщения Telegram для кампании ${campaignId} на ${phoneRecipientNumber}:`, error);
       return { success: false, error: error.message };
     }
   }
@@ -87,23 +91,62 @@ class MessageSenderService {
   async checkDailyLimit(phoneNumber, platform) {
     try {
       const phoneNumberInfo = await phoneNumberRepo.getPhoneNumberInfo(phoneNumber);
-      
+
       if (!phoneNumberInfo) {
         return true; // Если записи нет, считаем что лимит не достигнут
       }
-      
-      return phoneNumberInfo[`${platform}MessagesSentToday`] < this.limits[platform];
+
+      switch (platform) {
+        case 'telegram':
+          return phoneNumberInfo.telegramContactsReachedToday < this.limits.telegram;
+        case 'whatsapp':
+          return phoneNumberInfo.whatsappContactsReachedToday < this.limits.whatsapp;
+        default:
+          throw new Error(`Invalid platform: ${platform}`);
+      }
     } catch (error) {
       logger.error(`Error checking daily limit for ${platform}:`, error);
       throw error;
     }
   }
 
-  async updateMessageCount(phoneNumber, platform) {
+  async updateMessageCount(phoneSenderNumber, isNewContact, platform) {
     try {
-      await phoneNumberRepo.updatePhoneNumberStats(phoneNumber, null, false);
+      await phoneNumberRepo.updatePhoneNumberStats(phoneSenderNumber, isNewContact, platform);
     } catch (error) {
-      logger.error(`Error updating message count for ${platform}:`, error);
+      logger.error(`Ошибка обновления счетчика сообщений для ${platform}:`, error);
+      throw error;
+    }
+  }
+
+  async saveDialog(userId, contactId, platform, userRequest, assistantResponse) {
+    try {
+      await dialogRepo.saveMessage(userId, Number(contactId), platform, userRequest, assistantResponse);
+    } catch (error) {
+      logger.error(`Ошибка сохранения диалога:`, error);
+      throw error;
+    }
+  }
+
+  async getCampaigUserId(campaignId) {
+    try {
+      const userId = await campaignsMailingRepo.getCampaigUserId(campaignId);
+      if (!userId) {
+        throw new Error(`Campaign with ID ${campaignId} not found`);
+      }
+      return userId;
+    } catch (error) {
+      logger.error(`Error getting campaign user ID for campaign ${campaignId}:`, error);
+      throw error;
+    }
+  }
+
+  async isNewContact(userId, contactId, platform) {
+    try {
+      const existingDialog = await dialogRepo.getDialog(userId, Number(contactId), platform);
+      return !existingDialog;
+    } catch (error) {
+      logger.error(`Ошибка при проверке, является ли контакт новым:`, error);
       throw error;
     }
   }

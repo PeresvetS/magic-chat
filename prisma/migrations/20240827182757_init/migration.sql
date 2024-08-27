@@ -54,8 +54,10 @@ CREATE TABLE "PhoneNumber" (
     "banType" TEXT,
     "isPremium" BOOLEAN NOT NULL DEFAULT false,
     "isAuthenticated" BOOLEAN NOT NULL DEFAULT false,
-    "contactsReachedToday" INTEGER NOT NULL DEFAULT 0,
-    "contactsReachedTotal" INTEGER NOT NULL DEFAULT 0,
+    "telegramContactsReachedToday" INTEGER NOT NULL DEFAULT 0,
+    "telegramContactsReachedTotal" INTEGER NOT NULL DEFAULT 0,
+    "whatsappContactsReachedToday" INTEGER NOT NULL DEFAULT 0,
+    "whatsappContactsReachedTotal" INTEGER NOT NULL DEFAULT 0,
     "dailyLimit" INTEGER NOT NULL DEFAULT 40,
     "totalLimit" INTEGER,
     "maxInactivityTime" INTEGER NOT NULL DEFAULT 3600,
@@ -212,6 +214,29 @@ CREATE TABLE "WhatsappSession" (
     CONSTRAINT "WhatsappSession_pkey" PRIMARY KEY ("id")
 );
 
+-- CreateTable
+CREATE TABLE "Dialog" (
+    "id" SERIAL NOT NULL,
+    "userId" INTEGER NOT NULL,
+    "contactId" INTEGER NOT NULL,
+    "platform" TEXT NOT NULL,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "Dialog_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "Message" (
+    "id" SERIAL NOT NULL,
+    "dialogId" INTEGER NOT NULL,
+    "userRequest" TEXT NOT NULL,
+    "assistantResponse" TEXT NOT NULL,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "Message_pkey" PRIMARY KEY ("id")
+);
+
 -- CreateIndex
 CREATE UNIQUE INDEX "User_telegramId_key" ON "User"("telegramId");
 
@@ -257,6 +282,9 @@ CREATE UNIQUE INDEX "TelegramSession_phoneNumber_key" ON "TelegramSession"("phon
 -- CreateIndex
 CREATE UNIQUE INDEX "WhatsappSession_phoneNumber_key" ON "WhatsappSession"("phoneNumber");
 
+-- CreateIndex
+CREATE UNIQUE INDEX "Dialog_userId_contactId_platform_key" ON "Dialog"("userId", "contactId", "platform");
+
 -- AddForeignKey
 ALTER TABLE "Admin" ADD CONSTRAINT "Admin_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
@@ -286,3 +314,6 @@ ALTER TABLE "BitrixIntegration" ADD CONSTRAINT "BitrixIntegration_userId_fkey" F
 
 -- AddForeignKey
 ALTER TABLE "AmoCrmIntegration" ADD CONSTRAINT "AmoCrmIntegration_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "Message" ADD CONSTRAINT "Message_dialogId_fkey" FOREIGN KEY ("dialogId") REFERENCES "Dialog"("id") ON DELETE RESTRICT ON UPDATE CASCADE;

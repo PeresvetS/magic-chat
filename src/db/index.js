@@ -3,6 +3,7 @@
 const crmRepo = require('./repositories/crmRepo');
 const userRepo = require('./repositories/userRepo');
 const leadsRepo = require('./repositories/leadsRepo');
+const dialogRepo = require('./repositories/dialogRepo');
 const adminsRepo = require('./repositories/adminsRepo');
 const userLimitsRepo = require('./repositories/userLimitsRepo');
 const phoneNumberRepo = require('./repositories/phoneNumberRepo');
@@ -17,6 +18,7 @@ module.exports = {
   crmRepo,
   userRepo,
   leadsRepo,
+  dialogRepo,
   adminsRepo,
   userLimitsRepo,
   parsedUsersRepo,

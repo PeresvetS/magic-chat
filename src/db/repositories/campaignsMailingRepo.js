@@ -194,6 +194,20 @@ async function getCampaignPhoneNumbers(campaignId) {
   }
 }
 
+
+async function getCampaigUserId(campaignId) {
+  try {
+    const campaign = await prisma.campaignMailing.findUnique({ where: { id: campaignId } });
+    if (!campaign) {
+      throw new Error(`Campaign with ID ${campaignId} not found`);
+    }
+    return campaign.userId;
+  } catch (error) {
+    logger.error(`Error getting user ID for campaign ${campaignId}:`, error.message);
+    throw error;
+  }
+}
+
 async function toggleCampaignActivity(id, isActive) {
   try {
     const phoneNumbers = await getCampaignPhoneNumbers(id);
@@ -244,5 +258,6 @@ module.exports = {
   attachPhoneNumber,
   detachPhoneNumber,
   getCampaignPhoneNumbers,
-  toggleCampaignActivity
+  toggleCampaignActivity,
+  getCampaigUserId
 };

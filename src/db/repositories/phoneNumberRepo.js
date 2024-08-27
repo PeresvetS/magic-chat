@@ -139,31 +139,21 @@ async function updatePhoneNumberStatus(phoneNumber, isBanned, banType = null) {
   }
 }
 
-async function updatePhoneNumberStats(phoneNumber, userId, isNewContact) {
+async function updatePhoneNumberStats(phoneNumber, isNewContact, platform) {
   try {
-    return await prisma.$transaction(async (prisma) => {
-      if (isNewContact) {
-        await prisma.phoneNumberContact.create({
-          data: {
-            phoneNumber: phoneNumber,
-            userId: userId.toString()
-          }
-        });
-      }
+    const updateData = {
+      [`${platform}ContactsReachedToday`]: { increment: isNewContact ? 1 : 0  },
+      [`${platform}ContactsReachedTotal`]: { increment: isNewContact ? 1 : 0 },
+      [`${platform}MessagesSentToday`]: { increment: 1 },
+      [`${platform}MessagesSentTotal`]: { increment: 1 },
+    };
 
-      return await prisma.phoneNumber.update({
-        where: { phoneNumber: phoneNumber },
-        data: {
-          messagesSentToday: { increment: 1 },
-          messagesSentTotal: { increment: 1 },
-          contactsReachedToday: { increment: isNewContact ? 1 : 0 },
-          contactsReachedTotal: { increment: isNewContact ? 1 : 0 },
-          updatedAt: new Date()
-        }
-      });
+    return await prisma.phoneNumber.update({
+      where: { phoneNumber },
+      data: updateData
     });
   } catch (error) {
-    logger.error(`Error updating phone number stats for ${phoneNumber}:`, error);
+    logger.error('Ошибка обновления статистики номера телефона:', error);
     throw error;
   }
 }

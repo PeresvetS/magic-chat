@@ -65,8 +65,10 @@
     banType                     String?
     isPremium                   Boolean   @default(false)
     isAuthenticated             Boolean   @default(false)
-    contactsReachedToday        Int       @default(0)
-    contactsReachedTotal        Int       @default(0)
+    telegramContactsReachedToday        Int       @default(0)
+    telegramContactsReachedTotal        Int       @default(0)
+    whatsappContactsReachedToday        Int       @default(0)
+    whatsappContactsReachedTotal        Int       @default(0)
     dailyLimit                  Int       @default(40)
     totalLimit                  Int?
     maxInactivityTime           Int       @default(3600)
@@ -198,4 +200,26 @@
     session     String
     createdAt   DateTime @default(now())
     updatedAt   DateTime @updatedAt
+  }
+
+  model Dialog {
+    id        Int      @id @default(autoincrement())
+    userId    Int
+    contactId Int
+    contactPhone String
+    platform  String
+    messages  Message[]
+    createdAt DateTime @default(now())
+    updatedAt DateTime @updatedAt
+
+    @@unique([userId, contactId, platform])
+  }
+
+  model Message {
+    id            Int      @id @default(autoincrement())
+    dialog        Dialog   @relation(fields: [dialogId], references: [id])
+    dialogId      Int
+    userRequest   String
+    assistantResponse String
+    createdAt     DateTime @default(now())
   }
