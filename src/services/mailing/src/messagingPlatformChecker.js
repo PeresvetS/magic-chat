@@ -3,15 +3,19 @@
 const logger = require('../../../utils/logger');
 const { gePlatformPriority } = require('../../../db').campaignsMailingRepo;
 const TelegramChecker = require('./TelegramChecker');
+const WhatsAppChecker = require('./WhatsAppChecker');
 
 class MessagingPlatformChecker {
   constructor() {
     this.telegramChecker = TelegramChecker;
+    this.whatsappChecker = WhatsAppChecker;
   }
 
   async initialize() {
     try {
       await this.telegramChecker.initialize();
+      await this.whatsappChecker.initialize();
+
     } catch (error) {
       logger.error('Error initializing Telegram checker:', error);
       throw new Error('Failed to initialize Telegram checker.');
@@ -24,25 +28,54 @@ class MessagingPlatformChecker {
   }
 
   async checkWhatsApp(phoneNumber) {
-    // Implementation for WhatsApp check
-    logger.warn('WhatsApp checking is not implemented yet');
-    return false;
+    logger.info(`Checking WhatsApp for number ${phoneNumber}`);
+    return await this.whatsappChecker.checkWhatsApp(phoneNumber);
   }
 
-  async checkPlatforms(phoneNumber, platform) {
+  async checkPlatforms(phoneNumber, platform, mode = 'one') {
+
+    let telegramAvailable;
+    let whatsappAvailable;
+
     switch (platform) {
-      case 'telegram':
-        return await this.checkTelegram(phoneNumber);
-      case 'whatsapp':
-        return await this.checkWhatsApp(phoneNumber);
-      case 'tgwa':
-        return await this.checkTelegram(phoneNumber) && await this.checkWhatsApp(phoneNumber);
+      case 'telegram': {
+
+        telegramAvailable = await this.checkTelegram(phoneNumber);
+        if (telegramAvailable) return 'telegram';
+
+        if (mode === 'both') { 
+          whatsappAvailable = await this.checkWhatsApp(phoneNumber);
+          if (whatsappAvailable) return 'whatsapp';
+        } 
+        return 'none';
+      }
+
+      case 'whatsapp': {
+
+        whatsappAvailable = await this.checkWhatsApp(phoneNumber);
+        if (whatsappAvailable) return 'whatsapp';
+
+        if (mode === 'both') { 
+          telegramAvailable = await this.checkTelegram(phoneNumber);
+          if (telegramAvailable) return 'telegram';
+        } 
+        return 'none';
+      }
+
+      case 'tgwa': {
+
+        telegramAvailable = await this.checkTelegram(phoneNumber);
+        whatsappAvailable = await this.checkWhatsApp(phoneNumber);
+        if (telegramAvailable && whatsappAvailable) return 'tgwa';
+        return 'none';
+      }
+      
       default:
         throw new Error('Invalid platform');
     }
   }
 
-  async choosePlatform(campaignId,phoneNumber, priorityPlatform = null) {
+  async choosePlatform(campaignId, phoneNumber, priorityPlatform = null, mode = 'one') {
     logger.info(`Choosing messaging platform for ${phoneNumber} with priority ${priorityPlatform}`);
     
     if (!phoneNumber || typeof phoneNumber !== 'string') {
@@ -54,17 +87,7 @@ class MessagingPlatformChecker {
       priorityPlatform = await gePlatformPriority(campaignId);
     }
 
-    const telegramAvailable = await this.checkTelegram(phoneNumber);
-    const whatsappAvailable = await this.checkWhatsApp(phoneNumber);
-
-    if (priorityPlatform === 'telegram' && telegramAvailable) return 'telegram';
-    if (priorityPlatform === 'whatsapp' && whatsappAvailable) return 'whatsapp';
-    if (priorityPlatform === 'tgwa' && telegramAvailable && whatsappAvailable) return 'tgwa';
-
-    if (telegramAvailable) return 'telegram';
-    if (whatsappAvailable) return 'whatsapp';
-
-    return 'none';
+    return await this.checkPlatforms(phoneNumber, priorityPlatform, mode);
   }
 
   async disconnect() {

@@ -9,31 +9,95 @@ const { phoneNumberService } = require('../../phone');
 class WhatsAppSessionService {
   constructor() {
     this.clients = new Map();
+    this.tempDir = path.join(process.cwd(), 'temp');
+    this.sessionDir = path.join(this.tempDir, '.wwebjs_auth');
+    this.cacheDir = path.join(this.tempDir, '.wwebjs_cache');
   }
+
+  async createOrGetSession(phoneNumber) {
+    logger.info(`Creating or getting WhatsApp session for ${phoneNumber}`);
+
+    if (this.clients.has(phoneNumber)) {
+      const client = this.clients.get(phoneNumber);
+      if (client.isReady) {
+        logger.info(`Existing ready client found for ${phoneNumber}`);
+        return client;
+      }
+    }
+
+    const cleanPhoneNumber = phoneNumber.replace(/[^a-zA-Z0-9_-]/g, '');
+    const sessionData = await whatsappSessionsRepo.getSession(phoneNumber);
+
+    let client;
+    if (sessionData) {
+      client = new Client({
+        session: sessionData,
+        authStrategy: new LocalAuth({ clientId: cleanPhoneNumber }),
+        dataPath: this.sessionDir,
+        puppeteer: {
+          args: ['--no-sandbox', '--disable-setuid-sandbox'],
+          headless: true,
+          userDataDir: this.cacheDir
+        }
+      });
+    } else {
+      client = new Client({
+        authStrategy: new LocalAuth({ clientId: cleanPhoneNumber }),
+        puppeteer: {
+          args: ['--no-sandbox', '--disable-setuid-sandbox'],
+          headless: true
+        }
+      });
+    }
+
+    this.clients.set(phoneNumber, client);
+
+    await this.initializeClient(client, phoneNumber);
+
+    return client;
+  }
+
+  async initializeClient(client, phoneNumber) {
+    return new Promise((resolve, reject) => {
+      client.on('ready', () => {
+        logger.info(`WhatsApp client ready for ${phoneNumber}`);
+        client.isReady = true;
+        resolve(client);
+      });
+
+      client.on('authenticated', async (session) => {
+        logger.info(`WhatsApp client authenticated for ${phoneNumber}`);
+        if (session) {
+          logger.debug(`Session data for ${phoneNumber}:`, JSON.stringify(session));
+          try {
+            await this.saveSession(phoneNumber, session);
+          } catch (error) {
+            logger.error(`Error saving session for ${phoneNumber}:`, error);
+          }
+        } else {
+          logger.warn(`No session data provided for ${phoneNumber} during authentication`);
+        }
+      });
+
+      client.on('auth_failure', (msg) => {
+        logger.error(`WhatsApp authentication failed for ${phoneNumber}: ${msg}`);
+        this.clients.delete(phoneNumber);
+        reject(new Error('WhatsApp authentication failed'));
+      });
+
+      client.initialize().catch(error => {
+        logger.error(`Error initializing WhatsApp client for ${phoneNumber}:`, error);
+        this.clients.delete(phoneNumber);
+        reject(error);
+      });
+    });
+  }
+
 
   async generateQRCode(phoneNumber) {
     logger.info(`Generating QR code for WhatsApp number ${phoneNumber}`);
-    
-    const cleanPhoneNumber = phoneNumber.replace(/[^a-zA-Z0-9_-]/g, '');
-    
-    if (this.clients.has(phoneNumber)) {
-      logger.info(`Existing client found for ${phoneNumber}, destroying it`);
-      const existingClient = this.clients.get(phoneNumber);
-      await existingClient.destroy();
-      this.clients.delete(phoneNumber);
-    }
 
-    const client = new Client({
-      authStrategy: new LocalAuth({ clientId: cleanPhoneNumber }),
-      puppeteer: {
-        args: ['--no-sandbox', '--disable-setuid-sandbox'],
-        headless: true,
-        timeout: 60000
-      }
-    });
-    
-    this.clients.set(phoneNumber, client);
-    logger.info(`New WhatsApp client created and set for ${phoneNumber}`);
+    const client = await this.createOrGetSession(phoneNumber);
 
     return new Promise((resolve, reject) => {
       let qrGenerated = false;
@@ -50,36 +114,16 @@ class WhatsAppSessionService {
         }
       });
 
-      client.on('ready', () => {
-        logger.info(`WhatsApp client ready for ${phoneNumber}`);
-      });
-
-      client.on('authenticated', () => {
-        logger.info(`WhatsApp client authenticated for ${phoneNumber}`);
-      });
-
-      client.on('auth_failure', (msg) => {
-        logger.error(`WhatsApp authentication failed for ${phoneNumber}: ${msg}`);
-        this.clients.delete(phoneNumber);
-        reject(new Error('WhatsApp authentication failed'));
-      });
-
-      client.initialize().catch(error => {
-        logger.error(`Error initializing WhatsApp client for ${phoneNumber}:`, error);
-        this.clients.delete(phoneNumber);
-        reject(error);
-      });
-
       // Добавляем таймаут на случай, если QR код не будет сгенерирован
       setTimeout(() => {
         if (!qrGenerated) {
           logger.error(`QR code generation timed out for ${phoneNumber}`);
-          this.clients.delete(phoneNumber);
           reject(new Error('QR code generation timed out'));
         }
-      }, 60000); // 30 секунд таймаут
+      }, 60000); // 60 секунд таймаут
     });
   }
+
 
 
   async waitForAuthentication(phoneNumber, callback) {
@@ -126,10 +170,15 @@ class WhatsAppSessionService {
     }
   }
 
-  async saveSession(phoneNumber, client) {
+  async saveSession(phoneNumber, session) {
     try {
-      const session = await client.getState();
-      await whatsappSessionsRepo.saveSession(phoneNumber, session);
+      if (!session) {
+        logger.warn(`Attempt to save undefined or null session for ${phoneNumber}`);
+        return;
+      }
+      const sessionString = typeof session === 'object' ? JSON.stringify(session) : session;
+      await whatsappSessionsRepo.saveSession(phoneNumber, sessionString);
+      logger.info(`WhatsApp session saved for ${phoneNumber}`);
     } catch (error) {
       logger.error(`Error saving WhatsApp session for ${phoneNumber}:`, error);
     }

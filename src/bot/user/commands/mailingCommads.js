@@ -136,7 +136,7 @@ module.exports = {
         bot.sendMessage(msg.chat.id, `Тестовое сообщение успешно отправлено в WhatsApp на номер ${phoneNumber}`);
       } 
       else if (result.tgwa && result.tgwa.success) {
-        bot.sendMessage(msg.chat.id, `Тестовое сообщение успешно отправлено в Telegram и WhatsApp на номер ${phoneNumber}`);
+        bot.sendMessage(msg.chat.id, `Тестовое сообщение успешно отправлено в Telegram и/или WhatsApp на номер ${phoneNumber}`);
       }
       else {
         bot.sendMessage(msg.chat.id, `Не удалось отправить тестовое сообщение на номер ${phoneNumber}. Проверьте, доступен ли этот номер в мессенджерах.`);
@@ -175,7 +175,7 @@ module.exports = {
         bot.sendMessage(msg.chat.id, `Сообщение успешно отправлено в WhatsApp на номер ${phoneNumber}`);
       }
       else if (result.tgwa && result.tgwa.success) {
-        bot.sendMessage(msg.chat.id, `Сообщение успешно отправлено в Telegram и WhatsApp на номер ${phoneNumber}`);
+        bot.sendMessage(msg.chat.id, `Сообщение успешно отправлено в Telegram и/или WhatsApp на номер ${phoneNumber}`);
       } 
       else {
         bot.sendMessage(msg.chat.id, `Не удалось отправить сообщение на номер ${phoneNumber}. Проверьте, доступен ли этот номер в мессенджерах.`);

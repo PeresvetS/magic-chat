@@ -27,7 +27,7 @@ class TelegramSessionService {
 
       const allSessions = await telegramSessionsRepo.getAllSessions();
       for (const sessionData of allSessions) {
-        if (sessionData.phoneNumber !== config.MAIN_PHONE_NUMBER) {
+        if (sessionData.phoneNumber !== config.MAIN_TG_PHONE_NUMBER) {
           await this.createSession(sessionData.phoneNumber);
         }
       }
@@ -39,7 +39,7 @@ class TelegramSessionService {
   }
 
   async initializeMainClient() {
-    const sessionData = await telegramSessionsRepo.getSession(config.MAIN_PHONE_NUMBER);
+    const sessionData = await telegramSessionsRepo.getSession(config.MAIN_TG_PHONE_NUMBER);
     if (sessionData) {
       const stringSession = new StringSession(sessionData.session);
       this.mainClient = new TelegramClient(stringSession, config.API_ID, config.API_HASH, {
@@ -71,7 +71,7 @@ class TelegramSessionService {
     }
 
     await this.mainClient.start({
-      phoneNumber: async () => config.MAIN_PHONE_NUMBER,
+      phoneNumber: async () => config.MAIN_TG_PHONE_NUMBER,
       password: get2FAPassword,
       phoneCode: getAuthCode,
       onError: (err) => {
@@ -82,7 +82,7 @@ class TelegramSessionService {
 
     logger.info('Main Telegram client successfully authorized');
     const sessionString = this.mainClient.session.save();
-    await telegramSessionsRepo.saveSession(config.MAIN_PHONE_NUMBER, sessionString);
+    await telegramSessionsRepo.saveSession(config.MAIN_TG_PHONE_NUMBER, sessionString);
   }
 
 
@@ -427,7 +427,7 @@ class TelegramSessionService {
   }
 
   async createOrGetSession(phoneNumber) {
-    if (phoneNumber === config.MAIN_PHONE_NUMBER) {
+    if (phoneNumber === config.MAIN_TG_PHONE_NUMBER) {
       return this.getMainClient();
     }
 

@@ -224,8 +224,8 @@ model WhatsappAccount {
   model Dialog {
     id        Int      @id @default(autoincrement())
     userId    Int
-    contactId Int
-    contactPhone String
+    contactId    String 
+    contactPhone String?
     platform  String
     messages  Message[]
     createdAt DateTime @default(now())

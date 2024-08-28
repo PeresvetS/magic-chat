@@ -5,10 +5,16 @@ const logger = require('../../utils/logger');
 
 async function saveSession(phoneNumber, session) {
   try {
+    if (!session) {
+      throw new Error('Session data is undefined or null');
+    }
+
+    const sessionString = typeof session === 'string' ? session : JSON.stringify(session);
+
     await prisma.whatsappSession.upsert({
       where: { phoneNumber },
-      update: { session: JSON.stringify(session) },
-      create: { phoneNumber, session: JSON.stringify(session) }
+      update: { session: sessionString },
+      create: { phoneNumber, session: sessionString }
     });
     logger.info(`WhatsApp session saved for ${phoneNumber}`);
   } catch (error) {

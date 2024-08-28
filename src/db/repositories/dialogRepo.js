@@ -9,7 +9,7 @@ async function getDialog(userId, contactId, platform) {
       where: {
         userId_contactId_platform: {
           userId,
-          contactId,
+          contactId: contactId.toString(),
           platform
         }
       }

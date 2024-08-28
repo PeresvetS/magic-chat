@@ -1,0 +1,3 @@
+-- AlterTable
+ALTER TABLE "Dialog" ALTER COLUMN "contactId" SET DATA TYPE TEXT,
+ALTER COLUMN "contactPhone" DROP NOT NULL;

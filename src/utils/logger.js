@@ -48,7 +48,7 @@ const logger = winston.createLogger({
     splat(),
     myFormat
   ),
-  defaultMeta: { service: 'telegram-service' },
+  defaultMeta: { service: 'tg-wa-service' },
   transports: [
     fileRotateTransport,
     errorFileRotateTransport

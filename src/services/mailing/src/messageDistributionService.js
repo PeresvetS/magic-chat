@@ -6,11 +6,11 @@ const logger = require('../../../utils/logger');
 const { campaignsMailingService } = require('../../campaign');
 
 class MessageDistributionService {
-  async distributeMessage(campaignId, message, phoneNumber, priorityPlatform = 'telegram') {
+  async distributeMessage(campaignId, message, phoneNumber, priorityPlatform = 'telegram', mode = 'both') {
     const strPhoneNumber = String(phoneNumber);
     try {
-      const platforms = await MessagingPlatformChecker.choosePlatform(campaignId, strPhoneNumber, priorityPlatform);
-
+      const platforms = await MessagingPlatformChecker.choosePlatform(campaignId, strPhoneNumber, priorityPlatform, mode);
+      logger.info(`Distributing message to ${strPhoneNumber} with platforms ${platforms}`);
       let results = {
         strPhoneNumber,
         telegram: null,
@@ -22,7 +22,7 @@ class MessageDistributionService {
           results.telegram = await messageSenderService.sendTelegramMessage(campaignId, strPhoneNumber, message);
           break;
         case 'whatsapp':
-          results.whatsapp = await messageSenderService.sendWhatsAppMessage(strPhoneNumber, message);
+          results.whatsapp = await messageSenderService.sendWhatsAppMessage(campaignId, strPhoneNumber, message);
           break;
         case 'tgwa':
           results.tgwa = await messageSenderService.sendTgAndWa(strPhoneNumber, message);
@@ -43,7 +43,7 @@ class MessageDistributionService {
     const results = [];
     for (const contact of contacts) {
       try {
-        const result = await this.distributeMessage(campaignId, message, contact.phoneNumber, priorityPlatform);
+        const result = await this.distributeMessage(campaignId, message, contact.phoneNumber, priorityPlatform, mode = 'both');
         results.push(result);
       } catch (error) {
         logger.error(`Error in bulk distribution for ${contact.phoneNumber}:`, error);
@@ -62,7 +62,7 @@ class MessageDistributionService {
     const activeCampaign = await campaignsMailingService.getActiveCampaign(telegramId);
     if (activeCampaign && activeCampaign.message) {
       try {
-        const result = await this.distributeMessage(activeCampaign.id, activeCampaign.message, lead.phone, activeCampaign.priorityPlatform);
+        const result = await this.distributeMessage(activeCampaign.id, activeCampaign.message, lead.phone, activeCampaign.priorityPlatform, mode = 'both');
         if (result.telegram && result.telegram.success) {
           logger.info(`Автоматическое сообщение отправлено в Telegram для лида ${lead.id}`);
         } 
@@ -70,7 +70,7 @@ class MessageDistributionService {
           logger.info(`Автоматическое сообщение отправлено в WhatsApp для лида ${lead.id}`);
         } 
         else if (result.tgwa && result.tgwa.success) {
-          logger.info(`Автоматическое сообщение отправлено в Telegram и WhatsApp для лида ${lead.id}`);
+          logger.info(`Автоматическое сообщение отправлено в Telegram и/или WhatsApp для лида ${lead.id}`);
         }
         else {
           logger.warn(`Не удалось отправить автоматическое сообщение для лида ${lead.id}`);

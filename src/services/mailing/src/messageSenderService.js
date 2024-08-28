@@ -3,6 +3,7 @@
 const logger = require('../../../utils/logger');
 const { phoneNumberRepo, campaignsMailingRepo, dialogRepo } = require('../../../db');
 const { TelegramSessionService } = require('../../telegram');
+const { WhatsAppSessionService } = require('../../whatsapp');
 
 class MessageSenderService {
   constructor() {
@@ -12,7 +13,7 @@ class MessageSenderService {
     };
   }
 
-  async initialize(phoneSenderNumber) {
+  async initializeTelegram(phoneSenderNumber) {
     try {
       const session = await TelegramSessionService.createOrGetSession(phoneSenderNumber);
       if (!session.isUserAuthorized()) {
@@ -21,6 +22,25 @@ class MessageSenderService {
       return session;
     } catch (error) {
       logger.error(`Error initializing Telegram client for ${phoneSenderNumber}:`, error);
+      throw error;
+    }
+  }
+
+  async initializeWhatsApp(phoneSenderNumber) {
+    try {
+      const client = await WhatsAppSessionService.createOrGetSession(phoneSenderNumber);
+      if (!client.isReady) {
+        logger.warn(`WhatsApp client for ${phoneSenderNumber} is not ready. Waiting for ready state.`);
+        await new Promise((resolve) => {
+          client.on('ready', () => {
+            logger.info(`WhatsApp client for ${phoneSenderNumber} is now ready.`);
+            resolve();
+          });
+        });
+      }
+      return client;
+    } catch (error) {
+      logger.error(`Error initializing WhatsApp client for ${phoneSenderNumber}:`, error);
       throw error;
     }
   }
@@ -39,7 +59,7 @@ class MessageSenderService {
 
       logger.info(`Отправка сообщения на ${phoneRecipientNumber} через Telegram с ${phoneSenderNumber}`);
 
-      const client = await this.initialize(phoneSenderNumber);
+      const client = await this.initializeTelegram(phoneSenderNumber);
 
       if (!await this.checkDailyLimit(phoneSenderNumber, 'telegram')) {
         logger.warn(`Достигнут дневной лимит Telegram для номера телефона: ${phoneSenderNumber}`);
@@ -76,16 +96,58 @@ class MessageSenderService {
     }
   }
 
-  async sendWhatsAppMessage(phoneNumber, message) {
-    // Реализация отправки WhatsApp сообщений будет добавлена позже
-    logger.warn('WhatsApp sending is not implemented yet');
-    return { success: false, error: 'Not implemented' };
+  async sendWhatsAppMessage(campaignId, phoneRecipientNumber, message) {
+    logger.info(`Отправка сообщения с ID кампании ${campaignId}`);
+    try {
+      const userId = await this.getCampaigUserId(campaignId);
+      logger.info(`Отправка рассылки от пользователя ID с ${userId}`);
+      const phoneSenderNumber = await this.getCampaignSenderNumber(campaignId, 'whatsapp');
+
+      if (!phoneSenderNumber) {
+        throw new Error(`Недействительный ID кампании или отсутствует номер отправителя для кампании ${campaignId}`);
+      }
+
+      logger.info(`Отправка сообщения на ${phoneRecipientNumber} через WhatsApp с ${phoneSenderNumber}`);
+
+      const client = await this.initializeWhatsApp(phoneSenderNumber);
+
+      if (!await this.checkDailyLimit(phoneSenderNumber, 'whatsapp')) {
+        logger.warn(`Достигнут дневной лимит WhatsApp для номера телефона: ${phoneSenderNumber}`);
+        return { success: false, error: 'Достигнут дневной лимит' };
+      }
+
+      const formattedNumber = this.formatPhoneNumber(phoneRecipientNumber);
+      logger.info(`Форматированный номер для отправки WhatsApp: ${formattedNumber}`);
+
+      const chat = await client.getChatById(formattedNumber);
+      const result = await chat.sendMessage(message);
+
+      const isNewContact = await this.isNewContact(userId, formattedNumber, 'whatsapp');
+      await this.updateMessageCount(phoneSenderNumber, isNewContact, 'whatsapp');
+      await this.saveDialog(userId, formattedNumber, 'whatsapp', '', message, phoneRecipientNumber);
+      logger.info(`Сообщение отправлено на ${phoneRecipientNumber} через WhatsAp  p с ${phoneSenderNumber}`);
+      return { success: true, messageId: result.id._serialized };
+    } catch (error) {
+      logger.error(`Ошибка отправки сообщения WhatsApp для кампании ${campaignId} на ${phoneRecipientNumber}:`, error);
+      return { success: false, error: error.message };
+    }
   }
 
-  async sendTgAndWa(phoneNumber, message) { 
-     // Реализация отправки Telegram и WhatsApp сообщений будет добавлена позже
-     logger.warn('Telegram and WhatsApp sending is not implemented yet');
-     return { success: false, error: 'Not implemented' };
+  async sendTgAndWa(campaignId, phoneRecipientNumber, message) {
+    const telegramResult = await this.sendTelegramMessage(campaignId, phoneRecipientNumber, message);
+    const whatsappResult = await this.sendWhatsAppMessage(campaignId, phoneRecipientNumber, message);
+
+    if (!telegramResult.success && !whatsappResult.success) {
+      return {
+        success: false,
+        error: telegramResult.error || whatsappResult.error,
+      };
+    }
+
+    return {
+      success: true,
+      messageId: telegramResult.messageId || whatsappResult.messageId,
+    };
   }
 
   async checkDailyLimit(phoneNumber, platform) {
@@ -149,12 +211,19 @@ class MessageSenderService {
 
   async isNewContact(userId, contactId, platform) {
     try {
-      const existingDialog = await dialogRepo.getDialog(userId, Number(contactId), platform);
+      const existingDialog = await dialogRepo.getDialog(userId, contactId, platform);
       return !existingDialog;
     } catch (error) {
       logger.error(`Ошибка при проверке, является ли контакт новым:`, error);
       throw error;
     }
+  }
+
+  formatPhoneNumber(phoneNumber) {
+    // Удаляем все нецифровые символы
+    const cleaned = phoneNumber.replace(/\D/g, '');
+    // Добавляем "@c.us" в конец номера
+    return `${cleaned}@c.us`;
   }
 }
 
