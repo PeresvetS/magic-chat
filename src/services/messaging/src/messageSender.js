@@ -21,7 +21,7 @@ async function sendMessage(userId, message, phoneNumber) {
     }));
 
     logger.info(`Message sent successfully from ${phoneNumber} to ${userId}: ${safeStringify(result)}`);
-    await updatePhoneNumberStats(phoneNumber, userId);
+    await updatePhoneNumberStats(phoneNumber, 'telegram');
 
     return result;
   } catch (error) {

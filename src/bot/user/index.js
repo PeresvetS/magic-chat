@@ -10,9 +10,11 @@ const mailingCommands = require('./commands/mailingCommads');
 const helpCommands = require('./commands/helpCommands');
 const subscriptionCommands = require('./commands/subscriptionCommands');
 const { TelegramSessionService } = require('../../services/telegram');
+const { WhatsAppSessionService } = require('../../services/whatsapp');
 const logger = require('../../utils/logger');
 const { setPhoneAuthenticated } = require('../../services/phone').phoneNumberService;
 const crmSettingsCommands = require('./commands/crmSettingsCommands');
+const { ftruncateSync } = require('fs');
 
 function createUserBot() {
   const bot = new TelegramBot(config.USER_BOT_TOKEN, { polling: false });
@@ -86,38 +88,38 @@ function createUserBot() {
 
 
   bot.on('callback_query', async (query) => {
-    const [action, authType, phoneNumber] = query.data.split('_');
+    const [action, authType, phoneNumber, platform] = query.data.split('_');
     logger.info(`Received callback query: ${query.data}`);
-  
-    if (action === 'auth') {
-      if (authType === 'code') {
-        try {
-          logger.info(`Authenticating session for phone number ${phoneNumber}`);
-          await TelegramSessionService.authenticateSession(phoneNumber, bot, query.message.chat.id);
-          await setPhoneAuthenticated(phoneNumber, true);
-          bot.sendMessage(query.message.chat.id, `Номер телефона ${phoneNumber} успешно аутентифицирован.`);
-        } catch (error) {
-          logger.error(`Error authenticating session for phone number ${phoneNumber}:`, error);
-          bot.answerCallbackQuery(query.id, { text: `Ошибка при аутентификации номера: ${error.message}` });
-        }
-      } else if (authType === 'qr') {
-        try {
-          logger.info(`Generating QR code for phone number ${phoneNumber}`);
-          await TelegramSessionService.generateQRCode(phoneNumber, bot, query.message.chat.id);
-          // Обработка успешной аутентификации через QR-код теперь происходит внутри метода generateQRCode
-        } catch (error) {
-          logger.error(`Error generating QR code for phone number ${phoneNumber}:`, error);
-          bot.answerCallbackQuery(query.id, { text: `Ошибка при генерации QR-кода: ${error.message}` });
-        }
-      }
+
+    if (action !== 'auth') {
+      return;
     }
+
+    switch (platform) {
+
+      case 'telegram':
+        await tryTelegramAuth(bot, query, phoneNumber, authType);
+        break;
+      case 'whatsapp':
+        await tryWhatsappAuth(bot, query, phoneNumber, authType);
+        break;
+      default:
+        bot.answerCallbackQuery(query.id, 'Неизвестная платформа');
+        break;
+        
+    }
+
   });
 
   bot.on('polling_error', (error) => {
     logger.error('Polling error:', error);
-    if (error.code === 'ETELEGRAM' && error.message.includes('terminated by other getUpdates request')) {
-      logger.warn('Another instance is running. Shutting down...');
-      bot.stopPolling();
+    if (error.code === 'ETELEGRAM' && error.message.includes('Bad Gateway')) {
+      logger.warn('Telegram API временно недоступен. Переподключение...');
+      bot.stopPolling().then(() => {
+        setTimeout(() => {
+          bot.startPolling();
+        }, 5000); // Попытка переподключения через 5 секунд
+      });
     }
   });
 
@@ -135,5 +137,71 @@ function createUserBot() {
     }
   };
 }
+
+
+async function tryTelegramAuth(bot, query, phoneNumber, authType) {
+  if (authType === 'code') {
+    try {
+      logger.info(`Authenticating Telegram session for phone number ${phoneNumber}`);
+      await TelegramSessionService.authenticateSession(phoneNumber, bot, query.message.chat.id);
+      await setPhoneAuthenticated(phoneNumber, 'telegram', true);
+      bot.sendMessage(query.message.chat.id, `Номер телефона ${phoneNumber} успешно аутентифицирован в Telegram.`);
+    } catch (error) {
+      logger.error(`Error authenticating Telegram session for phone number ${phoneNumber}:`, error);
+      bot.answerCallbackQuery(query.id, { text: `Ошибка при аутентификации номера в Telegram: ${error.message}` });
+    }
+  } else if (authType === 'qr') {
+    try {
+      logger.info(`Generating QR code for Telegram phone number ${phoneNumber}`);
+      await TelegramSessionService.generateQRCode(phoneNumber, bot, query.message.chat.id);
+      // Обработка успешной аутентификации через QR-код происходит внутри метода generateQRCode
+    } catch (error) {
+      logger.error(`Error generating QR code for Telegram phone number ${phoneNumber}:`, error);
+      bot.answerCallbackQuery(query.id, { text: `Ошибка при генерации QR-кода для Telegram: ${error.message}` });
+    }
+  }
+}
+
+async function tryWhatsappAuth(bot, query, phoneNumber, authType) {
+  if (authType === 'qr') {
+    await bot.answerCallbackQuery(query.id);
+    try {
+      logger.info(`Starting WhatsApp authentication process for ${phoneNumber}`);
+      
+      const qrCode = await WhatsAppSessionService.generateQRCode(phoneNumber);
+      logger.info(`QR code generated for ${phoneNumber}`);
+      
+      await bot.sendPhoto(query.message.chat.id, Buffer.from(qrCode, 'base64'), {
+        caption: 'Пожалуйста, отсканируйте этот QR-код в приложении WhatsApp для подключения. У вас есть 5 минут на сканирование.'
+      });
+      logger.info(`QR code sent to user for ${phoneNumber}`);
+
+      // Добавляем небольшую задержку перед ожиданием аутентификации
+      await new Promise(resolve => setTimeout(resolve, 5000));
+
+      await WhatsAppSessionService.waitForAuthentication(phoneNumber, async (isAuthenticated) => {
+        if (isAuthenticated) {
+          await bot.sendMessage(query.message.chat.id, `Номер телефона ${phoneNumber} успешно аутентифицирован в WhatsApp.`);
+        } else {
+          await bot.sendMessage(query.message.chat.id, `Не удалось аутентифицировать номер ${phoneNumber} в WhatsApp. Попробуйте еще раз.`);
+        }
+      });
+      logger.info(`Authentication process completed for ${phoneNumber}`);
+    } catch (error) {
+      logger.error(`Error in WhatsApp authentication process for ${phoneNumber}:`, error);
+      let errorMessage = 'Произошла ошибка при аутентификации WhatsApp. Попробуйте ещё раз.';
+      if (error.message.includes('timeout')) {
+        errorMessage = 'Время ожидания аутентификации истекло. Пожалуйста, попробуйте еще раз.';
+      } else if (error.message.includes('auth_failure')) {
+        errorMessage = 'Ошибка аутентификации WhatsApp. Пожалуйста, убедитесь, что вы правильно отсканировали QR-код.';
+      } else if (error.message.includes('No WhatsApp client found')) {
+        errorMessage = 'Ошибка инициализации клиента WhatsApp. Пожалуйста, попробуйте еще раз.';
+      }
+      await bot.sendMessage(query.message.chat.id, errorMessage);
+    }
+  }
+}
+
+
 
 module.exports = createUserBot();

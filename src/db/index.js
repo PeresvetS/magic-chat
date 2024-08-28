@@ -10,9 +10,11 @@ const phoneNumberRepo = require('./repositories/phoneNumberRepo');
 const parsedUsersRepo = require('./repositories/parsedUsersRepo');
 const messageStatsRepo = require('./repositories/messageStatsRepo');
 const subscriptionsRepo = require('./repositories/subscriptionsRepo');
+const whatsappSessionsRepo = require('./repositories/whatsappSessionsRepo');
 const telegramSessionsRepo = require('./repositories/telegramSessionsRepo');
 const campaignsMailingRepo = require('./repositories/campaignsMailingRepo');
 const campaignsParsingRepo = require('./repositories/campaignsParsingRepo');
+
 
 module.exports = {
   crmRepo,
@@ -25,6 +27,7 @@ module.exports = {
   phoneNumberRepo,
   messageStatsRepo,
   subscriptionsRepo,
+  whatsappSessionsRepo,
   telegramSessionsRepo,
   campaignsMailingRepo,
   campaignsParsingRepo,

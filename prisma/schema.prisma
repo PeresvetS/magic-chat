@@ -57,28 +57,47 @@
   }
 
   model PhoneNumber {
-    id                          Int       @id @default(autoincrement())
-    phoneNumber                 String    @unique
-    user                        User?     @relation(fields: [userId], references: [id])
-    userId                      Int?
-    isBanned                    Boolean   @default(false)
-    banType                     String?
-    isPremium                   Boolean   @default(false)
-    isAuthenticated             Boolean   @default(false)
-    telegramContactsReachedToday        Int       @default(0)
-    telegramContactsReachedTotal        Int       @default(0)
-    whatsappContactsReachedToday        Int       @default(0)
-    whatsappContactsReachedTotal        Int       @default(0)
-    dailyLimit                  Int       @default(40)
-    totalLimit                  Int?
-    maxInactivityTime           Int       @default(3600)
-    createdAt                   DateTime  @default(now())
-    updatedAt                   DateTime  @updatedAt
-    telegramMessagesSentToday   Int       @default(0)
-    telegramMessagesSentTotal   Int       @default(0)
-    whatsappMessagesSentToday   Int       @default(0)
-    whatsappMessagesSentTotal   Int       @default(0)
-  }
+  id              Int       @id @default(autoincrement())
+  phoneNumber     String    @unique
+  user            User?     @relation(fields: [userId], references: [id])
+  userId          Int?
+  isBanned        Boolean   @default(false)
+  banType         String?
+  maxInactivityTime Int     @default(3600)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  telegramAccount TelegramAccount?
+  whatsappAccount WhatsappAccount?
+}
+
+model TelegramAccount {
+  id                    Int         @id @default(autoincrement())
+  phoneNumber           PhoneNumber @relation(fields: [phoneNumberId], references: [id])
+  phoneNumberId         Int         @unique
+  isPremium             Boolean     @default(false)
+  isAuthenticated       Boolean     @default(false)
+  contactsReachedToday  Int         @default(0)
+  contactsReachedTotal  Int         @default(0)
+  dailyLimit            Int         @default(40)
+  totalLimit            Int         @default(40)
+  messagesSentToday     Int         @default(0)
+  messagesSentTotal     Int         @default(0)
+}
+
+
+model WhatsappAccount {
+  id                    Int         @id @default(autoincrement())
+  phoneNumber           PhoneNumber @relation(fields: [phoneNumberId], references: [id])
+  phoneNumberId         Int         @unique
+  isAuthenticated       Boolean     @default(false)
+  accountType           String      @default("regular")
+  contactsReachedToday  Int         @default(0)
+  contactsReachedTotal  Int         @default(0)
+  dailyLimit            Int         @default(100)
+  totalLimit            Int         @default(100)
+  messagesSentToday     Int         @default(0)
+  messagesSentTotal     Int         @default(0)
+}
 
   model CampaignParsing {
     id                  Int          @id @default(autoincrement())

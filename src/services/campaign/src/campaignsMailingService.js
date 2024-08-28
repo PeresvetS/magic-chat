@@ -41,15 +41,6 @@ class CampaignMailingService {
     }
   }
 
-  async getCampaignByName(name) {
-    try {
-      return await campaignsMailingRepo.getCampaignMailingByName(name);
-    } catch (error) {
-      logger.error('Error in getCampaignMailingByName service:', error);
-      throw error;
-    }
-  }
-
   async listCampaigns(userId) {
     try {
       return await campaignsMailingRepo.listCampaignMailings(userId);
@@ -84,8 +75,11 @@ class CampaignMailingService {
       if (!phoneInfo) {
         throw new Error('Phone number does not exist');
       }
-      if (!phoneInfo.isAuthenticated) {
-        throw new Error('Phone number is not authenticated');
+      if (platform === 'telegram' && !phoneInfo.telegramAccount?.isAuthenticated) {
+        throw new Error('Phone number is not authenticated for Telegram');
+      }
+      if (platform === 'whatsapp' && !phoneInfo.whatsappAccount?.isAuthenticated) {
+        throw new Error('Phone number is not authenticated for WhatsApp');
       }
 
       return await campaignsMailingRepo.attachPhoneNumber(campaignId, phoneNumber, platform);
@@ -109,15 +103,6 @@ class CampaignMailingService {
       return await campaignsMailingRepo.getCampaignPhoneNumbers(campaignId);
     } catch (error) {
       logger.error('Error in getCampaignPhoneNumbers service:', error);
-      throw error;
-    }
-  }
-
-  async toggleCampaignActivity(id, isActive) {
-    try {
-      return await campaignsMailingRepo.toggleCampaignActivity(id, isActive);
-    } catch (error) {
-      logger.error('Error in toggleCampaignActivity service:', error);
       throw error;
     }
   }

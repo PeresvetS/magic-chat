@@ -31,15 +31,28 @@ async function getCurrentUsage(userId, limitType) {
   try {
     switch (limitType) {
       case 'parsing':
-        return prisma.parsedUser.count({ where: { userId: userId } });
+        return prisma.parsedUser.count({ where: { campaignParsing: { userId: userId } } });
       case 'phones':
-        return prisma.phoneNumber.count({ where: { userId: userId, isActive: true } });
+        return prisma.phoneNumber.count({ where: { userId: userId }, include: {
+          telegramAccount: true,
+          whatsappAccount: true
+        } });
       case 'campaigns':
-        return prisma.parsingCampaign.count({ where: { userId: userId } });
+        return prisma.campaignParsing.count({ where: { userId: userId } });
       case 'contacts':
-        return prisma.parsedUser.count({ where: { userId: userId, isProcessed: true } });
+        return prisma.parsedUser.count({ 
+          where: { 
+            campaignParsing: { userId: userId },
+            isProcessed: true 
+          } 
+        });
       case 'leads':
-        return prisma.parsedUser.count({ where: { userId: userId, processingStatus: 'lead' } });
+        return prisma.parsedUser.count({ 
+          where: { 
+            campaignParsing: { userId: userId },
+            processingStatus: 'lead' 
+          } 
+        });
       default:
         throw new Error(`Unknown limit type: ${limitType}`);
     }

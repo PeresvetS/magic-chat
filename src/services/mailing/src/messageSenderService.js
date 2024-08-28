@@ -31,7 +31,7 @@ class MessageSenderService {
     try {
       const userId = await this.getCampaigUserId(campaignId);
       logger.info(`Отправка рассылки от пользователя ID с ${userId}`);
-      const phoneSenderNumber = await this.getCampaignSenderNumber(campaignId);
+      const phoneSenderNumber = await this.getCampaignSenderNumber(campaignId, 'telegram');
 
       if (!phoneSenderNumber) {
         throw new Error(`Недействительный ID кампании или отсутствует номер отправителя для кампании ${campaignId}`);
@@ -51,7 +51,7 @@ class MessageSenderService {
 
       const isNewContact = await this.isNewContact(userId, recipient.id, 'telegram');
       await this.updateMessageCount(phoneSenderNumber, isNewContact, 'telegram');
-      await this.saveDialog(userId, recipient.id, 'telegram', '', message);
+      await this.saveDialog(userId, recipient.id, 'telegram', '', message , phoneRecipientNumber);
       logger.info(`Сообщение отправлено на ${phoneRecipientNumber} через Telegram с ${phoneSenderNumber}`);
       return { success: true, messageId: result.id };
     } catch (error) {
@@ -60,18 +60,18 @@ class MessageSenderService {
     }
   }
 
-  async getCampaignSenderNumber(campaignId) {
+  async getCampaignSenderNumber(campaignId, platform = 'telegram') {
     try {
       const phoneNumbers = await campaignsMailingRepo.getCampaignPhoneNumbers(campaignId);
-      const phoneSenderNumber = phoneNumbers.find(pn => pn.platform === 'telegram')?.phoneNumber;
+      const phoneSenderNumber = phoneNumbers.find(pn => pn.platform === platform)?.phoneNumber;
 
       if (!phoneSenderNumber) {
-        throw new Error(`No Telegram sender phone number found for campaign ${campaignId}`);
+        throw new Error(`No ${platform} sender phone number found for campaign ${campaignId}`);
       }
 
       return phoneSenderNumber;
     } catch (error) {
-      logger.error(`Error getting campaign info for campaign ${campaignId}:`, error);
+      logger.error(`Error getting campaign sender number for campaign ${campaignId}:`, error);
       throw error;
     }
   }
@@ -98,9 +98,15 @@ class MessageSenderService {
 
       switch (platform) {
         case 'telegram':
-          return phoneNumberInfo.telegramContactsReachedToday < this.limits.telegram;
+          if (!phoneNumberInfo.telegramAccount) {
+            throw new Error(`No Telegram account found for phone number ${phoneNumber}`);
+          }
+          return phoneNumberInfo.telegramAccount.contactsReachedToday < phoneNumberInfo.telegramAccount.dailyLimit;
         case 'whatsapp':
-          return phoneNumberInfo.whatsappContactsReachedToday < this.limits.whatsapp;
+          if (!phoneNumberInfo.whatsappAccount) {
+            throw new Error(`No WhatsApp account found for phone number ${phoneNumber}`);
+          }
+          return phoneNumberInfo.whatsappAccount.contactsReachedToday < phoneNumberInfo.whatsappAccount.dailyLimit;
         default:
           throw new Error(`Invalid platform: ${platform}`);
       }
@@ -119,9 +125,9 @@ class MessageSenderService {
     }
   }
 
-  async saveDialog(userId, contactId, platform, userRequest, assistantResponse) {
+  async saveDialog(userId, contactId, platform, userRequest, assistantResponse, phoneRecipientNumber) {
     try {
-      await dialogRepo.saveMessage(userId, Number(contactId), platform, userRequest, assistantResponse);
+      await dialogRepo.saveMessage(userId, Number(contactId), platform, userRequest, assistantResponse, phoneRecipientNumber);
     } catch (error) {
       logger.error(`Ошибка сохранения диалога:`, error);
       throw error;

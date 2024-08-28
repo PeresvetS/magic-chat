@@ -8,6 +8,7 @@ const adminBot = require('./bot/admin');
 const userBot = require('./bot/user');
 const logger = require('./utils/logger');
 const { TelegramSessionService } = require('./services/telegram');
+const { WhatsAppSessionService } = require('./services/whatsapp');
 const webhookRouter = require('./api/routes/webhooks');
 
 const app = express();
@@ -23,6 +24,7 @@ async function main() {
     logger.info('Main function started');
     // Инициализация сессий Telegram
     await TelegramSessionService.initializeSessions();
+    await WhatsAppSessionService.initializeSessions();
 
     // Инициализация ботов
     logger.info('Initializing bots...');
@@ -71,6 +73,15 @@ async function main() {
         logger.info('All Telegram sessions disconnected');
       } catch (error) {
         logger.error('Error disconnecting Telegram sessions:', error);
+      }
+
+      try {
+        for (const [phoneNumber] of WhatsAppSessionService.clients) {
+          await WhatsAppSessionService.disconnectSession(phoneNumber);
+        }
+        logger.info('All WhatsApp sessions disconnected');
+      } catch (error) {
+        logger.error('Error disconnecting WhatsApp sessions:', error);
       }
 
       // Освобождение блокировки

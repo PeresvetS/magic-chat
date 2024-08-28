@@ -52,23 +52,43 @@ CREATE TABLE "PhoneNumber" (
     "userId" INTEGER,
     "isBanned" BOOLEAN NOT NULL DEFAULT false,
     "banType" TEXT,
-    "isPremium" BOOLEAN NOT NULL DEFAULT false,
-    "isAuthenticated" BOOLEAN NOT NULL DEFAULT false,
-    "telegramContactsReachedToday" INTEGER NOT NULL DEFAULT 0,
-    "telegramContactsReachedTotal" INTEGER NOT NULL DEFAULT 0,
-    "whatsappContactsReachedToday" INTEGER NOT NULL DEFAULT 0,
-    "whatsappContactsReachedTotal" INTEGER NOT NULL DEFAULT 0,
-    "dailyLimit" INTEGER NOT NULL DEFAULT 40,
-    "totalLimit" INTEGER,
     "maxInactivityTime" INTEGER NOT NULL DEFAULT 3600,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
-    "telegramMessagesSentToday" INTEGER NOT NULL DEFAULT 0,
-    "telegramMessagesSentTotal" INTEGER NOT NULL DEFAULT 0,
-    "whatsappMessagesSentToday" INTEGER NOT NULL DEFAULT 0,
-    "whatsappMessagesSentTotal" INTEGER NOT NULL DEFAULT 0,
 
     CONSTRAINT "PhoneNumber_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "TelegramAccount" (
+    "id" SERIAL NOT NULL,
+    "phoneNumberId" INTEGER NOT NULL,
+    "isPremium" BOOLEAN NOT NULL DEFAULT false,
+    "isAuthenticated" BOOLEAN NOT NULL DEFAULT false,
+    "contactsReachedToday" INTEGER NOT NULL DEFAULT 0,
+    "contactsReachedTotal" INTEGER NOT NULL DEFAULT 0,
+    "dailyLimit" INTEGER NOT NULL DEFAULT 40,
+    "totalLimit" INTEGER NOT NULL DEFAULT 40,
+    "messagesSentToday" INTEGER NOT NULL DEFAULT 0,
+    "messagesSentTotal" INTEGER NOT NULL DEFAULT 0,
+
+    CONSTRAINT "TelegramAccount_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "WhatsappAccount" (
+    "id" SERIAL NOT NULL,
+    "phoneNumberId" INTEGER NOT NULL,
+    "isAuthenticated" BOOLEAN NOT NULL DEFAULT false,
+    "accountType" TEXT NOT NULL DEFAULT 'regular',
+    "contactsReachedToday" INTEGER NOT NULL DEFAULT 0,
+    "contactsReachedTotal" INTEGER NOT NULL DEFAULT 0,
+    "dailyLimit" INTEGER NOT NULL DEFAULT 100,
+    "totalLimit" INTEGER NOT NULL DEFAULT 100,
+    "messagesSentToday" INTEGER NOT NULL DEFAULT 0,
+    "messagesSentTotal" INTEGER NOT NULL DEFAULT 0,
+
+    CONSTRAINT "WhatsappAccount_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
@@ -219,6 +239,7 @@ CREATE TABLE "Dialog" (
     "id" SERIAL NOT NULL,
     "userId" INTEGER NOT NULL,
     "contactId" INTEGER NOT NULL,
+    "contactPhone" TEXT NOT NULL,
     "platform" TEXT NOT NULL,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
@@ -251,6 +272,12 @@ CREATE UNIQUE INDEX "UserLimits_userId_key" ON "UserLimits"("userId");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "PhoneNumber_phoneNumber_key" ON "PhoneNumber"("phoneNumber");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "TelegramAccount_phoneNumberId_key" ON "TelegramAccount"("phoneNumberId");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "WhatsappAccount_phoneNumberId_key" ON "WhatsappAccount"("phoneNumberId");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "PhoneNumberContact_phoneNumber_userId_key" ON "PhoneNumberContact"("phoneNumber", "userId");
@@ -296,6 +323,12 @@ ALTER TABLE "UserLimits" ADD CONSTRAINT "UserLimits_userId_fkey" FOREIGN KEY ("u
 
 -- AddForeignKey
 ALTER TABLE "PhoneNumber" ADD CONSTRAINT "PhoneNumber_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "TelegramAccount" ADD CONSTRAINT "TelegramAccount_phoneNumberId_fkey" FOREIGN KEY ("phoneNumberId") REFERENCES "PhoneNumber"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "WhatsappAccount" ADD CONSTRAINT "WhatsappAccount_phoneNumberId_fkey" FOREIGN KEY ("phoneNumberId") REFERENCES "PhoneNumber"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "CampaignParsing" ADD CONSTRAINT "CampaignParsing_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE RESTRICT ON UPDATE CASCADE;

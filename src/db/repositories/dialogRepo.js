@@ -20,7 +20,7 @@ async function getDialog(userId, contactId, platform) {
   }
 }
 
-async function saveMessage(userId, contactId, platform, userRequest, assistantResponse) {
+async function saveMessage(userId, contactId, platform, userRequest, assistantResponse, contactPhone) {
   try {
     let dialog = await getDialog(userId, contactId, platform);
 
@@ -29,6 +29,7 @@ async function saveMessage(userId, contactId, platform, userRequest, assistantRe
         data: {
           userId,
           contactId,
+          contactPhone,
           platform
         }
       });

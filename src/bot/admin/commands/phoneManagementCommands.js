@@ -26,9 +26,9 @@ module.exports = {
   },
 
   '/set_phone_limit ([+]?[0-9]+) (\\d+) (\\d+)?': async (bot, msg, match) => {
-    const [, phoneNumber, dailyLimit, totalLimit] = match;
+    const [, phoneNumber, platform, dailyLimit, totalLimit] = match;
     try {
-      await setPhoneNumberLimit(phoneNumber, parseInt(dailyLimit), totalLimit ? parseInt(totalLimit) : null);
+      await setPhoneNumberLimit(phoneNumber, platform, parseInt(dailyLimit), totalLimit ? parseInt(totalLimit) : null);
       bot.sendMessage(msg.chat.id, `Установлены лимиты для номера ${phoneNumber}: ежедневный - ${dailyLimit}, общий - ${totalLimit || 'не установлен'}.`);
     } catch (error) {
       bot.sendMessage(msg.chat.id, `Ошибка при установке лимитов: ${error.message}`);
@@ -41,9 +41,9 @@ module.exports = {
       const info = await getPhoneNumberInfo(phoneNumber);
       let message = `Детальная информация о номере ${phoneNumber}:\n`;
       message += `Пользователь: ${info.id}\n`;
-      message += `Премиум: ${info.isPremium ? 'Да' : 'Нет'}\n`;
+      message += `Премиум: ${info.isTelegramPremium ? 'Да' : 'Нет'}\n`;
       message += `Забанен: ${info.isBanned ? 'Да' : 'Нет'}\n`;
-      message += `Аутентифицирован: ${info.isAuthenticated ? 'Да' : 'Нет'}\n`;
+      message += `Аутентифицирован: ${info.isTelegramAuthenticated ? 'Да' : 'Нет'}\n`;
       if (info.is_banned) {
         message += `Тип бана: ${info.banType}\n`;
       }

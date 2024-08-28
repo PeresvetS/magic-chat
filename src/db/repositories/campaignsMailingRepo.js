@@ -111,17 +111,21 @@ async function gePlatformPriority(id) {
 
 async function attachPhoneNumber(campaignId, phoneNumber, platform) {
   try {
-    // Проверяем, существует ли номер телефона и аутентифицирован ли он
-    const existingPhoneNumber = await prisma.phoneNumber.findUnique({
-      where: { phoneNumber }
+    const phoneNumberRecord = await prisma.phoneNumber.findUnique({
+      where: { phoneNumber },
+      include: { telegramAccount: true, whatsappAccount: true }
     });
 
-    if (!existingPhoneNumber) {
+    if (!phoneNumberRecord) {
       throw new Error('Phone number does not exist');
     }
 
-    if (!existingPhoneNumber.isAuthenticated) {
-      throw new Error('Phone number is not authenticated');
+    if (platform === 'telegram' && !phoneNumberRecord.telegramAccount?.isAuthenticated) {
+      throw new Error('Phone number is not Telegram authenticated');
+    }
+
+    if (platform === 'whatsapp' && !phoneNumberRecord.whatsappAccount?.isAuthenticated) {
+      throw new Error('Phone number is not WhatsApp authenticated');
     }
 
     // Проверяем, не прикреплен ли уже этот номер к другой активной кампании
@@ -149,13 +153,14 @@ async function attachPhoneNumber(campaignId, phoneNumber, platform) {
   }
 }
 
-async function detachPhoneNumber(campaignId, phoneNumber) {
+async function detachPhoneNumber(campaignId, phoneNumber, platform) {
   try {
     return await prisma.phoneNumberCampaign.delete({
       where: {
         phoneNumber_campaignId: {
           phoneNumber,
-          campaignId
+          campaignId,
+          platform,
         }
       }
     });
@@ -231,13 +236,14 @@ async function toggleCampaignActivity(id, isActive) {
 }
 
 async function checkPhoneNumbersAuthentication(phoneNumbers) {
-  const unauthenticatedNumbers = await prisma.phoneNumber.findMany({
-    where: {
-      phoneNumber: {
-        in: phoneNumbers.map(pn => pn.phoneNumber)
-      },
-      isAuthenticated: false
+  const unauthenticatedNumbers = phoneNumbers.filter(pn => {
+    if (pn.platform === 'telegram' && !pn.phoneNumber.telegramAccount?.isAuthenticated) {
+      return true;
     }
+    if (pn.platform === 'whatsapp' && !pn.phoneNumber.whatsappAccount?.isAuthenticated) {
+      return true;
+    }
+    return false;
   });
 
   if (unauthenticatedNumbers.length > 0) {

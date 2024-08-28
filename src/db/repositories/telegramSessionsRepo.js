@@ -6,7 +6,7 @@ const logger = require('../../utils/logger');
 async function getSession(phoneNumber) {
   try {
     return await prisma.telegramSession.findUnique({
-      where: { phoneNumber: phoneNumber }
+      where: { phoneNumber }
     });
   } catch (error) {
     logger.error('Error getting Telegram session from database', error);

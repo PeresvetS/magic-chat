@@ -302,7 +302,7 @@ class TelegramSessionService {
 
   async handleSuccessfulAuthentication(phoneNumber, bot, chatId) {
     try {
-      await setPhoneAuthenticated(phoneNumber, true);
+      await setPhoneAuthenticated(phoneNumber, 'telegram', true);
       logger.info(`Authentication successful for ${phoneNumber}. Updated database.`);
       await bot.sendMessage(chatId, `Номер телефона ${phoneNumber} успешно аутентифицирован.`);
     } catch (error) {

@@ -6,7 +6,7 @@ const logger = require('../../../utils/logger');
 const { campaignsMailingService } = require('../../campaign');
 
 class MessageDistributionService {
-  async distributeMessage(campaignId, message, phoneNumber, priorityPlatform = null) {
+  async distributeMessage(campaignId, message, phoneNumber, priorityPlatform = 'telegram') {
     const strPhoneNumber = String(phoneNumber);
     try {
       const platforms = await MessagingPlatformChecker.choosePlatform(campaignId, strPhoneNumber, priorityPlatform);
