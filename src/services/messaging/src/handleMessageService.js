@@ -11,6 +11,7 @@ logger.info('HandleMessageService loaded');
 logger.info('TelegramBotStateManager:', TelegramBotStateManager ? 'Loaded' : 'Not loaded');
 logger.info('WhatsAppBotStateManager:', WhatsAppBotStateManager ? 'Loaded' : 'Not loaded');
 
+
 async function processIncomingMessage(phoneNumber, event, platform = 'telegram') {
   try {
     const { senderId, messageText } = extractMessageInfo(event, platform);

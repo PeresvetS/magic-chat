@@ -48,10 +48,11 @@ module.exports = {
       } else if (platform === 'whatsapp') {
         const keyboard = {
           inline_keyboard: [
-            [{ text: 'Сканировать QR-код', callback_data: `auth_qr_${phoneNumber}_whatsapp` }]
+            [{ text: 'Сканировать QR-код', callback_data: `auth_qr_${phoneNumber}_whatsapp` }],
+            [{ text: 'Использовать номер телефона', callback_data: `auth_phone_${phoneNumber}_whatsapp` }]
           ]
         };
-        bot.sendMessage(msg.chat.id, `Номер ${phoneNumber} успешно ${result.isNew ? 'добавлен' : 'обновлен'}. Нажмите кнопку ниже для получения QR-кода WhatsApp. Его генерация может занять до 1 минуты:`, {
+        bot.sendMessage(msg.chat.id, `Номер ${phoneNumber} успешно ${result.isNew ? 'добавлен' : 'обновлен'}. Выберите способ WhatsApp аутентификации:`, {
           reply_markup: JSON.stringify(keyboard)
         });
       }
