@@ -31,8 +31,13 @@ class MessageSenderService {
       const client = await WhatsAppSessionService.createOrGetSession(phoneSenderNumber);
       if (!client.isReady) {
         logger.warn(`WhatsApp client for ${phoneSenderNumber} is not ready. Waiting for ready state.`);
-        await new Promise((resolve) => {
+        await new Promise((resolve, reject) => {
+          const readyTimeout = setTimeout(() => {
+            reject(new Error(`Timeout waiting for WhatsApp client to be ready for ${phoneSenderNumber}`));
+          }, 30000); // 30 секунд таймаут
+  
           client.on('ready', () => {
+            clearTimeout(readyTimeout);
             logger.info(`WhatsApp client for ${phoneSenderNumber} is now ready.`);
             resolve();
           });

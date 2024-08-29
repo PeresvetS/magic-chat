@@ -1,9 +1,13 @@
 // src/services/whatsapp/index.js
 
-const WhatsAppSessionService = require('./src/WhatsAppSessionService');
-const WhatsAppMainSessionService = require('./src/WhatsAppMainSessionService');
+const botStateManager = require('./managers/botStateManager');
+const onlineStatusManager = require('./managers/onlineStatusManager');
+const WhatsAppSessionService = require('./services/WhatsAppSessionService');
+const WhatsAppMainSessionService = require('./services/WhatsAppMainSessionService');
 
 module.exports = {
+    botStateManager,
+    onlineStatusManager,
     WhatsAppSessionService,
-    WhatsAppMainSessionService
+    WhatsAppMainSessionService: new WhatsAppMainSessionService(),
 };

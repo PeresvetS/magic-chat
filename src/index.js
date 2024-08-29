@@ -26,6 +26,11 @@ async function main() {
     await TelegramSessionService.initializeSessions();
     await WhatsAppSessionService.initializeSessions();
 
+    WhatsAppSessionService.onMessage(async (message) => {
+      const phoneNumber = message.from.split('@')[0];
+      await handleMessageService.processIncomingMessage(phoneNumber, message, 'whatsapp');
+    });
+
     // Инициализация ботов
     logger.info('Initializing bots...');
     adminBot.launch();

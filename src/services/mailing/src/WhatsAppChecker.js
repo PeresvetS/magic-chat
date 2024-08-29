@@ -6,7 +6,7 @@ const WhatsAppMainSessionService = require('../../whatsapp').WhatsAppMainSession
 class WhatsAppChecker {
   constructor() {
     this.client = null;
-    this.whatsAppMainSessionService = new WhatsAppMainSessionService();
+    this.whatsAppMainSessionService = WhatsAppMainSessionService;
   }
 
   async initialize() {
@@ -16,31 +16,7 @@ class WhatsAppChecker {
       if (!this.client) {
         throw new Error('Failed to get main WhatsApp client');
       }
-      
-    //   // Проверяем, что клиент готов к использованию с таймаутом
-    //   await this.waitForClientReady();
     }
-  }
-
-  async waitForClientReady(timeout = 30000) {
-    logger.info('Checking if WhatsApp client is ready');
-    if (this.client.isReady) {
-      logger.info('WhatsApp client is already ready');
-      return;
-    }
-
-    logger.info('Waiting for WhatsApp client to be ready');
-    return new Promise((resolve, reject) => {
-      const timer = setTimeout(() => {
-        reject(new Error('Timeout waiting for WhatsApp client to be ready'));
-      }, timeout);
-
-      this.client.once('ready', () => {
-        clearTimeout(timer);
-        logger.info('WhatsApp client is now ready');
-        resolve();
-      });
-    });
   }
 
   formatPhoneNumber(phoneNumber) {

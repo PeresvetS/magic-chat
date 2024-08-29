@@ -1,4 +1,5 @@
 // src/services/whatsapp/src/WhatsAppMainSessionService.js
+
 const { Client, LocalAuth } = require('whatsapp-web.js');
 const qrcode = require('qrcode');
 const logger = require('../../../utils/logger');
@@ -10,7 +11,6 @@ class WhatsAppMainSessionService {
     this.mainClient = null;
     this.tempDir = path.join(process.cwd(), 'temp');
     this.sessionDir = path.join(this.tempDir, '.wwebjs_auth');
-    this.cacheDir = path.join(this.tempDir, '.wwebjs_cache');
   }
 
   cleanPhoneNumber(phoneNumber) {
@@ -37,8 +37,7 @@ class WhatsAppMainSessionService {
       }),
       puppeteer: {
         args: ['--no-sandbox', '--disable-setuid-sandbox'],
-        headless: true,
-        userDataDir: this.cacheDir
+        headless: true
       }
     });
 
@@ -78,7 +77,6 @@ class WhatsAppMainSessionService {
       });
     });
   }
-
 
   async getMainClient() {
     if (!this.mainClient || !this.mainClient.isReady) {

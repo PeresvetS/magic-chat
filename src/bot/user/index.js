@@ -167,17 +167,18 @@ async function tryWhatsappAuth(bot, query, phoneNumber, authType) {
     await bot.answerCallbackQuery(query.id);
     try {
       logger.info(`Starting WhatsApp authentication process for ${phoneNumber}`);
-      
+
       const qrCode = await WhatsAppSessionService.generateQRCode(phoneNumber);
+      logger.info(`QR code received: ${qrCode.substring(0, 20)}...`); // Выводим первые 20 символов QR-кода
+      if (!qrCode) {
+        throw new Error('Failed to generate QR code');
+      }
       logger.info(`QR code generated for ${phoneNumber}`);
-      
+
       await bot.sendPhoto(query.message.chat.id, Buffer.from(qrCode, 'base64'), {
         caption: 'Пожалуйста, отсканируйте этот QR-код в приложении WhatsApp для подключения. У вас есть 5 минут на сканирование.'
       });
       logger.info(`QR code sent to user for ${phoneNumber}`);
-
-      // Добавляем небольшую задержку перед ожиданием аутентификации
-      await new Promise(resolve => setTimeout(resolve, 5000));
 
       await WhatsAppSessionService.waitForAuthentication(phoneNumber, async (isAuthenticated) => {
         if (isAuthenticated) {
@@ -194,8 +195,8 @@ async function tryWhatsappAuth(bot, query, phoneNumber, authType) {
         errorMessage = 'Время ожидания аутентификации истекло. Пожалуйста, попробуйте еще раз.';
       } else if (error.message.includes('auth_failure')) {
         errorMessage = 'Ошибка аутентификации WhatsApp. Пожалуйста, убедитесь, что вы правильно отсканировали QR-код.';
-      } else if (error.message.includes('No WhatsApp client found')) {
-        errorMessage = 'Ошибка инициализации клиента WhatsApp. Пожалуйста, попробуйте еще раз.';
+      } else if (error.message.includes('Failed to generate QR code')) {
+        errorMessage = 'Не удалось сгенерировать QR-код. Пожалуйста, попробуйте еще раз.';
       }
       await bot.sendMessage(query.message.chat.id, errorMessage);
     }
