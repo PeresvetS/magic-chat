@@ -18,6 +18,8 @@ class TelegramSessionService {
     this.mainClient = null;
     this.startConnectionCheck();
     this.startAuthorizationCheck();
+    this.RETRY_ATTEMPTS = 3;
+    this.RETRY_DELAY = 5000; 
   }
 
   async initializeSessions() {
@@ -86,42 +88,57 @@ class TelegramSessionService {
   }
 
 
+  // async reauthorizeSession(phoneNumber) {
+  //   logger.info(`Attempting to reauthorize session for ${phoneNumber}`);
+  //   try {
+  //     await this.disconnectSession(phoneNumber);
+  //     const client = new TelegramClient(new StringSession(''), config.API_ID, config.API_HASH, {
+  //       connectionRetries: 3,
+  //       deviceModel: 'MacBookPro16,1',
+  //       systemVersion: 'macOS 11.2.3',
+  //       appVersion: '5.3.1',
+  //       langCode: 'ru',
+  //     });
+  
+  //     await client.start({
+  //       phoneNumber: async () => phoneNumber,
+  //       password: async () => {
+  //         const password = await this.get2FAPasswordFromUser(phoneNumber);
+  //         if (!password) throw new Error('2FA password is empty');
+  //         return password;
+  //       },
+  //       phoneCode: async () => {
+  //         const code = await this.getAuthCodeFromUser(phoneNumber);
+  //         if (!code) throw new Error('Authentication code is empty');
+  //         return code;
+  //       },
+  //       onError: (err) => {
+  //         logger.error('Reauthorization error:', err);
+  //         throw err;
+  //       },
+  //     });
+  
+  //     const sessionString = client.session.save();
+  //     await telegramSessionsRepo.saveSession(phoneNumber, sessionString);
+  //     this.sessions.set(phoneNumber, client);
+  //     return client;
+  //   } catch (error) {
+  //     logger.error(`Failed to reauthorize session for ${phoneNumber}:`, error);
+  //     throw error;
+  //   }
+  // }
+
   async reauthorizeSession(phoneNumber) {
     logger.info(`Attempting to reauthorize session for ${phoneNumber}`);
     try {
-      await this.disconnectSession(phoneNumber);
-      const client = new TelegramClient(new StringSession(''), config.API_ID, config.API_HASH, {
-        connectionRetries: 3,
-        deviceModel: 'MacBookPro16,1',
-        systemVersion: 'macOS 11.2.3',
-        appVersion: '5.3.1',
-        langCode: 'ru',
-      });
-  
-      await client.start({
-        phoneNumber: async () => phoneNumber,
-        password: async () => {
-          const password = await this.get2FAPasswordFromUser(phoneNumber);
-          if (!password) throw new Error('2FA password is empty');
-          return password;
-        },
-        phoneCode: async () => {
-          const code = await this.getAuthCodeFromUser(phoneNumber);
-          if (!code) throw new Error('Authentication code is empty');
-          return code;
-        },
-        onError: (err) => {
-          logger.error('Reauthorization error:', err);
-          throw err;
-        },
-      });
-  
-      const sessionString = client.session.save();
-      await telegramSessionsRepo.saveSession(phoneNumber, sessionString);
-      this.sessions.set(phoneNumber, client);
-      return client;
+      // Вместо автоматического запроса кода, выбросьте специальное исключение
+      throw new Error('MANUAL_REAUTH_REQUIRED');
     } catch (error) {
-      logger.error(`Failed to reauthorize session for ${phoneNumber}:`, error);
+      if (error.message === 'MANUAL_REAUTH_REQUIRED') {
+        logger.warn(`Manual reauthorization required for ${phoneNumber}`);
+        // Здесь можно добавить логику для уведомления администратора
+        // или сохранения информации о необходимости ручной переавторизации
+      }
       throw error;
     }
   }
@@ -192,7 +209,7 @@ class TelegramSessionService {
       // Добавляем обработчик входящих сообщений
       client.addEventHandler(
         async (event) => {
-          await processIncomingMessage(phoneNumber, event, client);
+          await processIncomingMessage(phoneNumber, event, 'telegram');
         },
         new NewMessage({})
       );

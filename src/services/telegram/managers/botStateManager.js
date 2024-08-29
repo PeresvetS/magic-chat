@@ -5,54 +5,74 @@ const logger = require('../../../utils/logger');
 const { delay, safeStringify } = require('../../../utils/helpers');
 const OnlineStatusManager = require('./onlineStatusManager');
 const sessionManager = require('./sessionManager');
+const { telegramSessionsRepo } = require('../../../db');
 
 class BotStateManager {
   constructor() {
     this.state = 'offline';
     this.newMessage = true;
+    this.firstMessage = true;
     this.typingTimer = null;
     this.offlineTimer = null;
     this.messageBuffer = [];
     this.peer = null;
     this.processingMessage = false;
+    this.hasNewMessage = new Map();
+    this.interruptedResponses = new Set();
+    this.currentResponsePromise = null;
+    this.preOnlineComplete = new Map();
+  }
+
+  async getSession(phoneNumber) {
+    let session = await sessionManager.getOrCreateSession(phoneNumber);
+    if (!session || !session.connected) {
+      logger.warn(`Session for ${phoneNumber} is not connected. Attempting to reauthorize...`);
+      session = await sessionManager.reauthorizeSession(phoneNumber);
+    }
+    return session;
   }
 
   async setOffline(phoneNumber, userId) {
     this.state = 'offline';
     clearTimeout(this.typingTimer);
     clearTimeout(this.offlineTimer);
-    const session = await sessionManager.getOrCreateSession(phoneNumber);
+    const session = await this.getSession(phoneNumber);
     await OnlineStatusManager.setOffline(userId, session);
     logger.info(`Bot set to offline for user ${userId}`);
   }
 
   async setPreOnline(phoneNumber, userId) {
     this.state = 'pre-online';
-    if (this.newMessage === true) {
-      await delay(Math.random() * 14000 + 1000); // 1-15 seconds delay
-      const session = await sessionManager.getOrCreateSession(phoneNumber);
+    this.preOnlineComplete.set(userId, false);
+    if (this.newMessage) {
+      await delay(Math.random() * 8000 + 2000); // 2-10 seconds delay
+      const session = await this.getSession(phoneNumber);
       await OnlineStatusManager.setOnline(userId, session);
-      await delay(Math.random() * 4000 + 1000); // 1-5 seconds delay
+      await delay(Math.random() * 5000 + 2000); // 2-7 seconds delay
       await this.markMessagesAsRead(phoneNumber, userId);
+      await delay(Math.random() * 1500 + 1500); // 1.5-3 seconds delay
       await this.setTyping(phoneNumber, userId);
       this.newMessage = false;
     }
+    this.preOnlineComplete.set(userId, true);
   }
 
   async setOnline(phoneNumber, userId) {
     this.state = 'online';
-    const session = await sessionManager.getOrCreateSession(phoneNumber);
-    await OnlineStatusManager.setOnline(userId, session);
-    await this.markMessagesAsRead(phoneNumber, userId);
-    this.resetOfflineTimer(phoneNumber, userId);
-    logger.info(`Bot set to online for user ${userId}`);
+      if (this.newMessage) {
+      }
+      const session = await this.getSession(phoneNumber);
+      await OnlineStatusManager.setOnline(userId, session);
+      await this.markMessagesAsRead(phoneNumber, userId);
+      this.resetOfflineTimer(phoneNumber, userId);
+      logger.info(`Bot set to online for user ${userId}`);
   }
 
   async setTyping(phoneNumber, userId) {
     this.state = 'typing';
     clearTimeout(this.offlineTimer);
     await this.markMessagesAsRead(phoneNumber, userId);
-    await this.typing(phoneNumber, userId);
+    await this.simulateTyping(phoneNumber, userId);
   }
 
   resetOfflineTimer(phoneNumber, userId) {
@@ -73,18 +93,34 @@ class BotStateManager {
   }
 
   async typing(phoneNumber, userId) {
-    const { peer, session } = await this.getCorrectPeer(phoneNumber, userId);
-    await session.invoke(new Api.messages.SetTyping({
-      peer: peer,
-      action: new Api.SendMessageTypingAction()
-    }));
+    try {
+      const { peer, session } = await this.getCorrectPeer(phoneNumber, userId);
+      await session.invoke(new Api.messages.SetTyping({
+        peer: peer,
+        action: new Api.SendMessageTypingAction()
+      }));
+    } catch (error) {
+      logger.error(`Error in typing method for ${phoneNumber}, ${userId}: ${error}`);
+      if (error.message.includes('AUTH_KEY_UNREGISTERED')) {
+        await sessionManager.reauthorizeSession(phoneNumber);
+      }
+    }
   }
-
+  
   async simulateTyping(phoneNumber, userId) {
-    const typingDuration = Math.random() * 6000 + 4000; // 4-10 seconds
+    let timeTyping;
+    if (this.firstMessage) {
+      timeTyping = 1000;
+      this.firstMessage = false;
+    } else {
+      timeTyping = 6000;
+    }
+
+    const typingDuration = Math.random() * timeTyping + 2000; // 2-8 seconds
+    logger.info(`Simulating typing with ${timeTyping} for ${typingDuration}ms`);
     let elapsedTime = 0;
-    const typingInterval = 3000; 
-    
+    const typingInterval = 2000; 
+
     while (elapsedTime < typingDuration) {
       try {
         await this.typing(phoneNumber, userId);
@@ -99,85 +135,136 @@ class BotStateManager {
     }
   }
 
-async getCorrectPeer(phoneNumber, userId) {
-  try {
-    if (this.peer !== null) {
-      logger.info('peer is reused');
-      return this.peer;
+  async getCorrectPeer(phoneNumber, userId) {
+    try {
+      if (this.peer !== null) {
+        logger.info('peer is reused');
+        return this.peer;
+      }
+      const session = await this.getSession(phoneNumber);
+      logger.info(`Session checked for ${phoneNumber}`);
+
+      const dialogs = await session.getDialogs();
+      const dialog = dialogs.find(d => d.entity && d.entity.id.toString() === userId.toString());
+      if (dialog) {
+        logger.info(`Dialog found: ${safeStringify(dialog.inputEntity)}`);
+        this.peer = { peer: dialog.inputEntity, session };
+        return this.peer;
+      }
+
+      throw new Error('User or dialog not found');
+    } catch (error) {
+      logger.error(`Error in getCorrectPeer: ${error.message}`);
+      if (error.message.includes('AUTH_KEY_UNREGISTERED') || error.message === 'Session is not connected') {
+        logger.info(`Attempting to reauthorize session for ${phoneNumber}`);
+        await sessionManager.reauthorizeSession(phoneNumber);
+        return this.getCorrectPeer(phoneNumber, userId);
+      }
+      throw error;
     }
-    const session = await sessionManager.getOrCreateSession(phoneNumber);
-    logger.info(`Session checked for ${phoneNumber}`);
-    
-    const dialogs = await session.getDialogs();
-    const dialog = dialogs.find(d => d.entity && d.entity.id.toString() === userId.toString());
-    if (dialog) {
-      logger.info(`Dialog found: ${safeStringify(dialog.inputEntity)}`);
-      this.peer = dialog.inputEntity;
-      return { peer: this.peer, session };
-    }
-    
-    throw new Error('User or dialog not found');
-  } catch (error) {
-    logger.error(`Error in getCorrectPeer: ${error.message}`);
-    if (error.message.includes('AUTH_KEY_UNREGISTERED')) {
-      logger.info(`Attempting to reauthorize session for ${phoneNumber}`);
-      await sessionManager.reauthorizeSession(phoneNumber);
-      return this.getCorrectPeer(phoneNumber, userId);
-    }
-    throw error;
   }
-}
 
   async handleIncomingMessage(phoneNumber, userId, message) {
+    logger.info(`Начало обработки сообщения для пользователя ${userId}: ${message}`);
+  
     this.messageBuffer.push(message);
-    
+    this.hasNewMessage.set(userId, true);
+  
     if (this.processingMessage) {
-      // Если обработка уже идет, просто добавляем сообщение в буфер
+      logger.info(`Сообщение добавлено в буфер для пользователя ${userId}`);
       return null;
     }
-
+  
     this.processingMessage = true;
     let status = this.state;
-
+  
     if (this.state === 'offline' && OnlineStatusManager.isOnline(userId)) {
       status = 'pre-online';
     }
-
+  
     this.resetOfflineTimer(phoneNumber, userId);
-
-    switch (status) {
-      case 'offline':
-        await this.setPreOnline(phoneNumber, userId);
-        break;
-      case 'pre-online':
-        await this.setPreOnline(phoneNumber, userId);
-        break;
-      case 'online':
-        await this.setTyping(phoneNumber, userId);
-        break;
-      case 'typing':
-        await this.handleTypingState(phoneNumber, userId);
-        break;
+  
+    try {
+      switch (status) {
+        case 'offline':
+        case 'pre-online':
+          await this.setPreOnline(phoneNumber, userId);
+          break;
+        case 'online':
+        case 'typing':
+          break;
+      }
+  
+      // Ждем завершения setPreOnline
+      while (!this.preOnlineComplete.get(userId)) {
+        await new Promise(resolve => setTimeout(resolve, 100));
+      }
+  
+      await this.handleTypingState(phoneNumber, userId);
+  
+      const combinedMessage = this.messageBuffer.join('\n');
+      this.messageBuffer = [];
+      this.processingMessage = false;
+      this.hasNewMessage.set(userId, false);
+      
+      logger.info(`Завершена обработка сообщения для пользователя ${userId}`);
+      return combinedMessage;
+    } catch (error) {
+      logger.error(`Ошибка при обработке сообщения для пользователя ${userId}: ${error.message}`);
+      this.processingMessage = false;
+      throw error;
     }
-    
-    const combinedMessage = this.messageBuffer.join('\n');
-    this.messageBuffer = [];
-    this.processingMessage = false;
-    return combinedMessage;
   }
 
-  async handleTypingState(phoneNumber, userId) {
-    await delay(Math.random() * 5000 + 1000); // 1-5 sec
+  interruptCurrentResponse(userId) {
+    logger.info(`Прерывание ответа для пользователя ${userId}`);
+    this.interruptedResponses.add(userId);
+  }
 
-    await this.simulateTyping(phoneNumber, userId);
 
-    let userIsTyping = await this.checkUserTyping(phoneNumber, userId);
-    while (userIsTyping) {
-      await delay(3000); 
-      userIsTyping = await this.checkUserTyping(phoneNumber, userId);
+  isResponseInterrupted(userId) {
+    return this.interruptedResponses.has(userId);
+  }
+
+  setCurrentResponsePromise(promise) {
+    this.currentResponsePromise = promise;
+  }
+
+  clearInterruption(userId) {
+    this.interruptedResponses.delete(userId);
+  }
+
+async handleTypingState(phoneNumber, userId) {
+  const maxWaitTime = 100000; // максимальное время ожидания в миллисекундах
+  const checkInterval = 1000; // интервал проверки в миллисекундах
+  let totalWaitTime = 0;
+
+  while (totalWaitTime < maxWaitTime) {
+    const userIsTyping = await this.checkUserTyping(phoneNumber, userId);
+    if (!userIsTyping) {
+      // Если пользователь не печатает, подождем еще немного и проверим снова
+      await delay(checkInterval);
+      totalWaitTime += checkInterval;
+      
+      // Если пользователь все еще не печатает, считаем, что он закончил
+      if (!await this.checkUserTyping(phoneNumber, userId)) {
+        break;
+      }
+    } else {
+      // Сбрасываем счетчик, если пользователь снова начал печатать
+      totalWaitTime = 0;
     }
+    
+    await delay(checkInterval);
+    totalWaitTime += checkInterval;
+  }
 
-    await delay(Math.random() * 5000 + 1000); // Wait another 1-4 seconds
+  // Добавим небольшую задержку после того, как пользователь закончил печатать
+  await delay(1000);
+}
+
+  checkForNewMessages(userId) {
+    return this.hasNewMessage.get(userId) || false;
   }
 
   async checkUserTyping(phoneNumber, userId) {

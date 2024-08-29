@@ -1,49 +1,69 @@
 // src/services/messaging/src/handleMessageService.js
 
 const logger = require('../../../utils/logger');
-const { safeStringify } = require('../../../utils/helpers');
-const { processMessage } = require('./messageProcessor');
-const BotStateManager = require('../../telegram/managers/botStateManager');
 const { sendResponse } = require('./messageSender');
+const { processMessage } = require('./messageProcessor');
+const { safeStringify } = require('../../../utils/helpers');
+const TelegramBotStateManager = require('../../telegram/managers/botStateManager');
+const WhatsAppBotStateManager = require('../../whatsapp/managers/botStateManager');
 
-async function processIncomingMessage(phoneNumber, event) {
+logger.info('HandleMessageService loaded');
+logger.info('TelegramBotStateManager:', TelegramBotStateManager ? 'Loaded' : 'Not loaded');
+logger.info('WhatsAppBotStateManager:', WhatsAppBotStateManager ? 'Loaded' : 'Not loaded');
+
+async function processIncomingMessage(phoneNumber, event, platform = 'telegram') {
   try {
-    const { senderId, messageText } = extractMessageInfo(event);
+    const { senderId, messageText } = extractMessageInfo(event, platform);
     if (!senderId || !messageText) return;
 
-    logger.info(`Processing message for ${phoneNumber}: senderId=${senderId}, text=${messageText}`);
+    logger.info(`Обработка ${platform} сообщения для ${phoneNumber}: senderId=${senderId}, text=${messageText}`);
+
+    const BotStateManager = platform === 'whatsapp' ? WhatsAppBotStateManager : TelegramBotStateManager;
 
     const combinedMessage = await BotStateManager.handleIncomingMessage(phoneNumber, senderId, messageText);
-    if (!combinedMessage) return;
+    if (!combinedMessage) {
+      logger.info(`Сообщение добавлено в буфер для пользователя ${senderId}`);
+      return;
+    }
 
     const response = await processMessage(senderId, combinedMessage, phoneNumber);
     if (response) {
-      await sendResponse(senderId, response, phoneNumber);
+      logger.info(`Отправка ответа пользователю ${senderId}: ${response}`);
+      await sendResponse(senderId, response, phoneNumber, platform);
     } else {
-      logger.warn(`No response generated for message from ${senderId}`);
+      logger.warn(`Не сгенерирован ответ для ${platform} сообщения от ${senderId}`);
     }
 
-    logger.info(`Processed message for ${phoneNumber} from ${senderId}: ${safeStringify(messageText)}`);
+    logger.info(`Обработано ${platform} сообщение для ${phoneNumber} от ${senderId}: ${safeStringify(messageText)}`);
   } catch (error) {
-    logger.error(`Error processing incoming message for ${phoneNumber}:`, error);
+    logger.error(`Ошибка при обработке входящего ${platform} сообщения для ${phoneNumber}:`, error);
   }
 }
 
-function extractMessageInfo(event) {
-  const message = event.message;
-  if (!message) {
-    logger.warn(`Event does not contain a message`);
-    return {};
-  }
 
-  let senderId = null;
-  if (message.fromId) {
-    senderId = message.fromId.userId ? message.fromId.userId.toString() : null;
-  } else if (message.peerId) {
-    senderId = message.peerId.userId ? message.peerId.userId.toString() : null;
-  }
+function extractMessageInfo(event, platform) {
+  if (platform === 'whatsapp') {
+    if (!event.body) {
+      logger.warn(`WhatsApp event does not contain a message body`);
+      return {};
+    }
+    return { senderId: event.from, messageText: event.body };
+  } else {
+    const message = event.message;
+    if (!message) {
+      logger.warn(`Telegram event does not contain a message`);
+      return {};
+    }
 
-  return { senderId, messageText: message.text };
+    let senderId = null;
+    if (message.fromId) {
+      senderId = message.fromId.userId ? message.fromId.userId.toString() : null;
+    } else if (message.peerId) {
+      senderId = message.peerId.userId ? message.peerId.userId.toString() : null;
+    }
+
+    return { senderId, messageText: message.text };
+  }
 }
 
 module.exports = { processIncomingMessage };

@@ -1,9 +1,9 @@
 // services/messaging/src/messageProcessor.js
 
+const logger = require('../../../utils/logger');
 const { generateResponse } = require('../../gpt/gptService');
 const ContextManager = require('../../langchain/contextManager');
 const { countTokensForMessages } = require('../../tokenizer/tokenizer');
-const logger = require('../../../utils/logger');
 const { saveMessageStats, saveDialogToFile } = require('../../../utils/messageUtils');
 
 const contextManagers = new Map();
