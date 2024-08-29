@@ -72,6 +72,9 @@ class MessageSenderService {
       }
 
       const recipient = await client.getEntity(phoneRecipientNumber);
+      if (!recipient) {
+        throw new Error(`Не удалось найти пользователя ${phoneRecipientNumber} в Telegram`);
+      }
       const result = await client.sendMessage(recipient, { message: message });
 
       const isNewContact = await this.isNewContact(userId, recipient.id, 'telegram');

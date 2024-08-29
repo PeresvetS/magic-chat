@@ -28,7 +28,7 @@ async function saveMessage(userId, contactId, platform, userRequest, assistantRe
       dialog = await prisma.dialog.create({
         data: {
           userId,
-          contactId,
+          contactId: contactId.toString(),
           contactPhone,
           platform
         }

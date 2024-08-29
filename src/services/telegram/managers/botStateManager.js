@@ -5,13 +5,11 @@ const logger = require('../../../utils/logger');
 const { delay, safeStringify } = require('../../../utils/helpers');
 const OnlineStatusManager = require('./onlineStatusManager');
 const sessionManager = require('./sessionManager');
-const { telegramSessionsRepo } = require('../../../db');
 
 class BotStateManager {
   constructor() {
     this.state = 'offline';
     this.newMessage = true;
-    this.firstMessage = true;
     this.typingTimer = null;
     this.offlineTimer = null;
     this.messageBuffer = [];
@@ -50,8 +48,9 @@ class BotStateManager {
       await OnlineStatusManager.setOnline(userId, session);
       await delay(Math.random() * 5000 + 2000); // 2-7 seconds delay
       await this.markMessagesAsRead(phoneNumber, userId);
-      await delay(Math.random() * 1500 + 1500); // 1.5-3 seconds delay
-      await this.setTyping(phoneNumber, userId);
+      // await delay(Math.random() * 1500 + 1500); // 1.5-3 seconds delay
+      // await this.setTyping(phoneNumber, userId);
+      this.state = 'typing';
       this.newMessage = false;
     }
     this.preOnlineComplete.set(userId, true);
@@ -108,16 +107,8 @@ class BotStateManager {
   }
   
   async simulateTyping(phoneNumber, userId) {
-    let timeTyping;
-    if (this.firstMessage) {
-      timeTyping = 1000;
-      this.firstMessage = false;
-    } else {
-      timeTyping = 6000;
-    }
-
-    const typingDuration = Math.random() * timeTyping + 2000; // 2-8 seconds
-    logger.info(`Simulating typing with ${timeTyping} for ${typingDuration}ms`);
+    const typingDuration = Math.random() * 6000 + 2000; // 2-8 seconds
+    logger.info(`Simulating typing with ${6000} for ${typingDuration}ms`);
     let elapsedTime = 0;
     const typingInterval = 2000; 
 
