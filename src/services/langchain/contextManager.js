@@ -9,7 +9,7 @@ class ContextManager {
   constructor() {
     const model = new ChatOpenAI({ 
       temperature: 0, 
-      modelName: "gpt-4o-mini", // Убедитесь, что используете доступную вам модель
+      modelName: "gpt-4o-mini",
       openAIApiKey: config.OPENAI_API_KEY 
     });
     this.memory = new ConversationSummaryMemory({

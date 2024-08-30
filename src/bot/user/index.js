@@ -1,22 +1,26 @@
 // src/bot/user/index.js
 
-const TelegramBot = require('node-telegram-bot-api');
-const config = require('../../config');
-const { checkSubscription } = require('../../middleware/checkSubscription');
-const phoneCommands = require('./commands/phoneCommands');
-const { userService } = require('../../services/user');
-// const parsingCommands = require('./commands/parsingCommands');
-const mailingCommands = require('./commands/mailingCommads');
-const helpCommands = require('./commands/helpCommands');
-const subscriptionCommands = require('./commands/subscriptionCommands');
-const { TelegramSessionService } = require('../../services/telegram');
-const { WhatsAppSessionService } = require('../../services/whatsapp');
-const logger = require('../../utils/logger');
-const { setPhoneAuthenticated } = require('../../services/phone').phoneNumberService;
-const crmSettingsCommands = require('./commands/crmSettingsCommands');
+const path = require('path');
 const qrcode = require('qrcode');
 const fs = require('fs').promises;
-const path = require('path');
+const TelegramBot = require('node-telegram-bot-api');
+
+const config = require('../../config');
+const logger = require('../../utils/logger');
+const { userService } = require('../../services/user');
+const { TelegramSessionService } = require('../../services/telegram');
+const { WhatsAppSessionService } = require('../../services/whatsapp');
+const { checkSubscription } = require('../../middleware/checkSubscription');
+const { setPhoneAuthenticated } = require('../../services/phone').phoneNumberService;
+
+
+const helpCommands = require('./commands/helpCommands');
+const phoneCommands = require('./commands/phoneCommands');
+const promptCommands = require('./commands/promptCommands');
+const mailingCommands = require('./commands/mailingCommads');
+// const parsingCommands = require('./commands/parsingCommands');
+const crmSettingsCommands = require('./commands/crmSettingsCommands');
+const subscriptionCommands = require('./commands/subscriptionCommands');
 
 
 function createUserBot() {

@@ -91,6 +91,7 @@ class WhatsAppMainSessionService {
         logger.info(`Main WhatsApp client (${mainPhoneNumber}) loading: ${percent}% - ${message}`);
       });
 
+      logger.info(`Starting WhatsAppMain client initialization for ${mainPhoneNumber}`);
       this.mainClient.initialize().catch(error => {
         clearTimeout(initTimeout);
         logger.error(`Error initializing main WhatsApp client (${mainPhoneNumber}):`, error);

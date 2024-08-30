@@ -80,7 +80,7 @@ const promptService = {
       logger.error('Error listing prompts:', error);
       throw error;
     }
-  }
+  },
 };
 
 module.exports = promptService;

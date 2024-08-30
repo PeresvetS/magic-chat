@@ -288,21 +288,48 @@
     }
   }
 
+  async function getCampaignById(id) {
+    try {
+      return await prisma.campaignMailing.findUnique({ where: { id } });
+    } catch (error) {
+      logger.error(`Error getting campaign by ID ${id}:`, error.message);
+      throw error;
+    }
+  }
+
+  async function setCampaignPrompt(id, promptId) {
+    try {
+      const updatedCampaign = await prisma.campaignMailing.update({
+        where: { id },
+        data: { promptId, updatedAt: new Date() }
+      });
+      logger.info(`Prompt set for campaign: ${id}`);
+      return updatedCampaign; 
+    } catch (error) {
+      logger.error(`Error setting prompt for campaign ${id}:`, error);
+      throw error;
+    }
+  }
+
+
 
   module.exports = {
-    createCampaignMailing,
-    setCampaignMessage,
-    getCampaignMailing,
-    getCampaignMailingByName,
-    listCampaignMailings,
-    getActiveCampaign,
-    setPlatformPriority,
-    getPlatformPriority,
-    attachPhoneNumber,
-    detachPhoneNumber,
-    getCampaignPhoneNumbers,
-    toggleCampaignActivity,
+    getCampaignById,
     getCampaigUserId,
     setCampaignPrompt,
-    getActiveCampaignForPhoneNumber
+    attachPhoneNumber,
+    detachPhoneNumber,
+    setCampaignPrompt,
+    getActiveCampaign,
+    setCampaignMessage,
+    getCampaignMailing,
+    setPlatformPriority,
+    getPlatformPriority,
+    listCampaignMailings,
+    createCampaignMailing,
+    toggleCampaignActivity,
+    getCampaignPhoneNumbers,
+    getCampaignMailingByName,
+    getActiveCampaignForPhoneNumber,
+    checkPhoneNumbersAuthentication
   };

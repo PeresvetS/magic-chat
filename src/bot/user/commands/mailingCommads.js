@@ -217,7 +217,6 @@ module.exports = {
 
   
   '/attach_phone_mc ([^\\s]+) ([+]?[0-9]+) (telegram|whatsapp|tgwa)': async (bot, msg, match) => {
-
     const [, campaignName, phoneNumber, platform] = match;
     logger.info('Attaching phone number to campaign:', campaignName, phoneNumber, platform);
     if (!campaignName || !phoneNumber || !platform) {
@@ -231,7 +230,7 @@ module.exports = {
 
       await campaignsMailingService.attachPhoneNumber(campaign.id, phoneNumber, platform);
       bot.sendMessage(msg.chat.id, `Номер ${phoneNumber} успешно прикреплен к кампании "${campaignName}" для платформы ${platform}.`);
-    
+
     } catch (error) {
       logger.error('Error attaching phone number to campaign:', error);
       if (error.message === 'Phone number does not exist') {
@@ -240,8 +239,8 @@ module.exports = {
       else if (error.message === 'Phone number is not authenticated') {
         bot.sendMessage(msg.chat.id, 'Ошибка: Указанный номер телефона не аутентифицирован.');
       } 
-      else if (error.message === 'Phone number is already attached to an active campaign') {
-        bot.sendMessage(msg.chat.id, 'Ошибка: Указанный номер телефона уже прикреплен к активной кампании.');
+      else if (error.message === 'Phone number is already attached to another campaign') {
+        bot.sendMessage(msg.chat.id, 'Ошибка: Указанный номер телефона уже прикреплен к другой кампании. Открепите его сначала.');
       } 
       else {
         bot.sendMessage(msg.chat.id, 'Произошла ошибка при прикреплении номера к кампании.');

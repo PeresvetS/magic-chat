@@ -4,9 +4,9 @@ const logger = require('../../../utils/logger');
 const { sendResponse } = require('./messageSender');
 const { processMessage } = require('./messageProcessor');
 const { safeStringify } = require('../../../utils/helpers');
-const { getActiveCampaignForPhoneNumber } = require('../../../db').promptRepo;
 const TelegramBotStateManager = require('../../telegram/managers/botStateManager');
 const WhatsAppBotStateManager = require('../../whatsapp/managers/botStateManager');
+const { getActiveCampaignForPhoneNumber } = require('../../campaign').campaignsMailingService;
 
 logger.info('HandleMessageService loaded');
 logger.info('TelegramBotStateManager:', TelegramBotStateManager ? 'Loaded' : 'Not loaded');

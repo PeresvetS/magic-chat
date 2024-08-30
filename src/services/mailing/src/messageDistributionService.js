@@ -16,6 +16,15 @@ class MessageDistributionService {
     logger.info(`Distributing message to ${phoneNumber} with priority ${platformPriority} and mode ${mode}`);
     const strPhoneNumber = String(phoneNumber);
     try {
+      const attachedPhones = await campaignsMailingService.getCampaignPhoneNumbers(campaignId);
+      if (attachedPhones.length === 0) {
+        throw new Error(`Campaign ${campaignId} has no attached phone numbers`);
+      }
+
+      if (!message) {
+        throw new Error(`Campaign ${campaignId} has no message for distribution`);
+      }
+
       const platforms = await MessagingPlatformChecker.choosePlatform(campaignId, strPhoneNumber, platformPriority, mode);
       logger.info(`Distributing message to ${strPhoneNumber} with platforms ${platforms}`);
       let results = {

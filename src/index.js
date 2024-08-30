@@ -27,7 +27,9 @@ async function main() {
     await TelegramSessionService.initializeSessions();
 
     // Инициализация WhatsApp сессий
-    await WhatsAppSessionService.initializeSessions();
+    WhatsAppSessionService.onMessage(async (message, phoneNumber) => {
+      await handleMessageService.processIncomingMessage(phoneNumber, message, 'whatsapp');
+    });
 
     // Инициализация ботов
     logger.info('Initializing bots...');

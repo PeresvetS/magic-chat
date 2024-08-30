@@ -1,28 +1,31 @@
 // src/bot/admin/index.js
 
 const TelegramBot = require('node-telegram-bot-api');
+
 const config = require('../../config');
+const logger = require('../../utils/logger');
 const { isAdmin } = require('../../middleware/adminCheck');
+
+const helpCommands = require('./commands/helpCommands');
+const limitCommands = require('./commands/limitCommands');
+const statsCommands = require('./commands/statsCommands');
+const crmSettingsCommands = require('./commands/crmSettingsCommands');
 const subscriptionCommands = require('./commands/subscriptionCommands');
 const userManagementCommands = require('./commands/userManagementCommands');
 const phoneManagementCommands = require('./commands/phoneManagementCommands');
-const limitCommands = require('./commands/limitCommands');
-const statsCommands = require('./commands/statsCommands');
-const helpCommands = require('./commands/helpCommands');
-const crmSettingsCommands = require('./commands/crmSettingsCommands');
-const logger = require('../../utils/logger');
+
 
 function createAdminBot() {
   const bot = new TelegramBot(config.ADMIN_BOT_TOKEN, { polling: false });
 
   const commandModules = [
+    helpCommands,
+    limitCommands,
+    statsCommands,
+    crmSettingsCommands,
     subscriptionCommands,
     userManagementCommands,
     phoneManagementCommands,
-    crmSettingsCommands,
-    limitCommands,
-    statsCommands,
-    helpCommands,
   ];
 
   commandModules.forEach(module => {

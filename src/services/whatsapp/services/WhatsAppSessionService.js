@@ -29,21 +29,8 @@ class WhatsAppSessionService {
       return this.clients.get(phoneNumber);
     }
 
-    if (this.initializationPromises.has(phoneNumber)) {
-      logger.debug(`Waiting for existing initialization promise for ${phoneNumber}`);
-      return this.initializationPromises.get(phoneNumber);
-    }
-
-    const initializationPromise = this.initializeClient(phoneNumber);
-    this.initializationPromises.set(phoneNumber, initializationPromise);
-
-    try {
-      const client = await initializationPromise;
-      this.clients.set(phoneNumber, client);
-      return client;
-    } finally {
-      this.initializationPromises.delete(phoneNumber);
-    }
+    await this.initializeClient(phoneNumber);
+    return this.clients.get(phoneNumber);
   }
 
   async initializeClient(phoneNumber, retries = 3) {
@@ -56,10 +43,32 @@ class WhatsAppSessionService {
         dataPath: this.sessionDir,
       }),
       puppeteer: {
-        args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-gpu'],
+        args: ['--no-sandbox', '--disable-setuid-sandbox'],
         headless: true,
-        timeout: this.authTimeout
+        handleSIGINT: false,
+        handleSIGTERM: false,
+        handleSIGHUP: false,
+        timeout: 60000,
       }
+    });
+
+    return new Promise((resolve, reject) => {
+      const initTimeout = setTimeout(() => {
+        logger.error(`WhatsApp client initialization timeout for ${phoneNumber}`);
+        client.destroy().catch(e => logger.error(`Error destroying client: ${e}`));
+        reject(new Error('WhatsApp client initialization timeout'));
+      }, this.authTimeout);
+
+      client.on('ready', async () => {
+        clearTimeout(initTimeout);
+        logger.info(`WhatsApp client ready for ${phoneNumber}`);
+        client.isReady = true;
+        await this.saveSession(phoneNumber, client);
+        resolve(client);
+      });
+
+    client.on('authenticated', () => {
+      logger.info(`WhatsApp client authenticated for ${phoneNumber}`);
     });
 
     client.on('qr', async (qr) => {
@@ -70,22 +79,26 @@ class WhatsAppSessionService {
       }
     });
 
-    client.on('ready', () => {
-      logger.info(`WhatsApp client ready for ${phoneNumber}`);
-      client.isReady = true;
-    });
-
-    client.on('authenticated', () => {
-      logger.info(`WhatsApp client authenticated for ${phoneNumber}`);
+    client.on('loading_screen', (percent, message) => {
+      logger.info(`Loading screen for ${phoneNumber}: ${percent}% - ${message}`);
+      lastLoadingPercentage = percent;
     });
 
     client.on('auth_failure', (msg) => {
+      clearTimeout(initTimeout);
       logger.error(`WhatsApp authentication failed for ${phoneNumber}: ${msg}`);
+      client.destroy().catch(e => logger.error(`Error destroying client after auth failure: ${e}`));
+      reject(new Error(`WhatsApp authentication failed: ${msg}`));
     });
+
 
     client.on('disconnected', (reason) => {
       logger.warn(`WhatsApp client disconnected for ${phoneNumber}: ${reason}`);
       this.clients.delete(phoneNumber);
+      if (!client.isReady) {
+        clearTimeout(initTimeout);
+        reject(new Error(`WhatsApp client disconnected during initialization: ${reason}`));
+      }
     });
 
     client.on('message', async (message) => {
@@ -93,18 +106,21 @@ class WhatsAppSessionService {
       await this.handleIncomingMessage(message, phoneNumber);
     });
 
-    try {
-      await client.initialize();
-      await this.saveSession(phoneNumber);
-      return client;
-    } catch (error) {
-      if (retries > 0 && error.message.includes('network')) {
-        logger.warn(`Network error during initialization for ${phoneNumber}. Retrying...`);
-        await new Promise(resolve => setTimeout(resolve, 5000));
-        return this.initializeClient(phoneNumber, retries - 1);
-      }
-      throw error;
-    }
+    logger.info(`Starting WhatsApp client initialization for ${phoneNumber}`);
+      client.initialize().catch(error => {
+        clearTimeout(initTimeout);
+        logger.error(`Error initializing WhatsApp client for ${phoneNumber}:`, error);
+        client.destroy().catch(e => logger.error(`Error destroying client after initialization error: ${e}`));
+        if (retries > 0 && error.message.includes('network')) {
+          logger.warn(`Network error during initialization for ${phoneNumber}. Retrying...`);
+          setTimeout(() => {
+            this.initializeClient(phoneNumber, retries - 1).then(resolve).catch(reject);
+          }, 5000);
+        } else {
+          reject(error);
+        }
+      });
+    });
   }
 
   async saveSession(phoneNumber) {
