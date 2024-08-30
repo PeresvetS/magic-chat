@@ -4,6 +4,7 @@ const logger = require('../../../utils/logger');
 const { sendResponse } = require('./messageSender');
 const { processMessage } = require('./messageProcessor');
 const { safeStringify } = require('../../../utils/helpers');
+const { getActiveCampaignForPhoneNumber } = require('../../../db').promptRepo;
 const TelegramBotStateManager = require('../../telegram/managers/botStateManager');
 const WhatsAppBotStateManager = require('../../whatsapp/managers/botStateManager');
 
@@ -19,6 +20,18 @@ async function processIncomingMessage(phoneNumber, event, platform = 'telegram')
 
     logger.info(`Обработка ${platform} сообщения для ${phoneNumber}: senderId=${senderId}, text=${messageText}`);
 
+    // Проверяем, есть ли активная кампания для этого номера телефона
+    const activeCampaign = await getActiveCampaignForPhoneNumber(phoneNumber);
+    if (!activeCampaign) {
+      logger.info(`Нет активной кампании для номера ${phoneNumber}. Сообщение игнорируется.`);
+      return;
+    }
+
+    if (!activeCampaign.prompt) {
+      logger.warn(`Активная кампания для номера ${phoneNumber} не имеет привязанного промпта. Сообщение игнорируется.`);
+      return;
+    }
+
     const BotStateManager = platform === 'whatsapp' ? WhatsAppBotStateManager : TelegramBotStateManager;
 
     const combinedMessage = await BotStateManager.handleIncomingMessage(phoneNumber, senderId, messageText);
@@ -27,7 +40,8 @@ async function processIncomingMessage(phoneNumber, event, platform = 'telegram')
       return;
     }
 
-    const response = await processMessage(senderId, combinedMessage, phoneNumber);
+    // Используем содержимое промпта кампании при обработке сообщения
+    const response = await processMessage(senderId, combinedMessage, phoneNumber, activeCampaign.prompt.content);
     if (response) {
       logger.info(`Отправка ответа пользователю ${senderId}: ${response}`);
       await sendResponse(senderId, response, phoneNumber, platform);

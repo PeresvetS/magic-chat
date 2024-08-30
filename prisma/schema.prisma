@@ -178,6 +178,8 @@ model WhatsappAccount {
     user      User     @relation(fields: [userId], references: [id])
     userId    Int
     phoneNumbers     PhoneNumberCampaign[]
+    prompt            Prompt?              @relation(fields: [promptId], references: [id])
+    promptId          Int?
   }
 
   model PhoneNumberCampaign {
@@ -243,3 +245,12 @@ model AmoCrmIntegration {
     assistantResponse String
     createdAt     DateTime @default(now())
   }
+
+model Prompt {
+  id              Int               @id @default(autoincrement())
+  name            String            @unique
+  content         String
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+  campaigns       CampaignMailing[]
+}

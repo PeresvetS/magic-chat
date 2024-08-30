@@ -21,6 +21,42 @@
     }
   }
 
+  async function setCampaignPrompt(id, promptId) {
+    try {
+      const updatedCampaign = await prisma.campaignMailing.update({
+        where: { id },
+        data: { promptId, updatedAt: new Date() }
+      });
+      logger.info(`Prompt set for campaign: ${campaignId}`);
+      return updatedCampaign;
+    } catch (error) {
+      logger.error(`Error setting prompt for campaign ${campaignId}:`, error);
+      throw error;
+    }
+  }
+
+  async function getActiveCampaignForPhoneNumber(phoneNumber) {
+    try {
+      return await prisma.campaignMailing.findFirst({
+        where: {
+          isActive: true,
+          phoneNumbers: {
+            some: {
+              phoneNumber: phoneNumber
+            }
+          }
+        },
+        include: {
+          phoneNumbers: true,
+          prompt: true
+        }
+      });
+    } catch (error) {
+      logger.error('Error getting active campaign for phone number:', error);
+      throw error;
+    }
+  }
+
   async function setCampaignMessage(id, message) {
     try {
       return await prisma.campaignMailing.update({
@@ -266,5 +302,7 @@
     detachPhoneNumber,
     getCampaignPhoneNumbers,
     toggleCampaignActivity,
-    getCampaigUserId
+    getCampaigUserId,
+    setCampaignPrompt,
+    getActiveCampaignForPhoneNumber
   };

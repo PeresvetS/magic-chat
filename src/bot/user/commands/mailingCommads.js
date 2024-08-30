@@ -2,6 +2,7 @@
 
 const { distributionService } = require('../../../services/mailing');
 const { campaignsMailingService } = require('../../../services/campaign');
+const { promptService } = require('../../../services/prompt');
 const logger = require('../../../utils/logger');
 
 // Объект для хранения состояния пользователей
@@ -320,6 +321,33 @@ module.exports = {
       bot.sendMessage(msg.chat.id, 'Произошла ошибка при откреплении номера от кампании.');
     }
   },
+
+  '/set_campaign_prompt ([^\\s]+) ([^\\s]+)': async (bot, msg, match) => {
+    const [, campaignName, promptName] = match;
+    if (!campaignName || !promptName) {
+      bot.sendMessage(msg.chat.id, 'Пожалуйста, укажите название кампании и название промпта. Например: /set_campaign_prompt МояКампания МойПромпт');
+      return;
+    }
+
+    try {
+      const campaign = await getCampaignByName(campaignName, bot, msg.chat.id);
+      if (!campaign) return;
+
+      const prompt = await promptService.getPromptByName(promptName);
+      if (!prompt) {
+        bot.sendMessage(msg.chat.id, `Промпт "${promptName}" не найден.`);
+        return;
+      }
+
+      await campaignsMailingService.setCampaignPrompt(campaign.id, prompt.id);
+      bot.sendMessage(msg.chat.id, `Промпт "${promptName}" успешно установлен для кампании "${campaignName}".`);
+    } catch (error) {
+      logger.error('Error setting campaign prompt:', error);
+      bot.sendMessage(msg.chat.id, 'Произошла ошибка при установке промпта для кампании.');
+    }
+  },
+
+  
   
   // Обработчик для всех текстовых сообщений
   messageHandler: async (bot, msg) => {

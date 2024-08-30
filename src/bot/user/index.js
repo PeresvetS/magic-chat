@@ -28,7 +28,8 @@ function createUserBot() {
     helpCommands,
     subscriptionCommands,
     mailingCommands,
-    crmSettingsCommands
+    crmSettingsCommands,
+    promptCommands
   ];
 
   commandModules.forEach(module => {
@@ -65,10 +66,10 @@ function createUserBot() {
   // Обработчик для всех текстовых сообщений
   bot.on('text', async (msg) => {
     if (msg.text.startsWith('/')) return; // Игнорируем команды
-    
+
     try {
       const userInfo = await userService.getUserInfo(msg.from.id);
-      
+
       if (!userInfo || !userInfo.isSubscribed) {
         bot.sendMessage(msg.chat.id, 'У вас нет активной подписки. Обратитесь к администратору для её оформления.');
         return;
@@ -77,10 +78,14 @@ function createUserBot() {
       if (userInfo.isBanned) {
         bot.sendMessage(msg.chat.id, 'Вы забанены администратором.');
         return;
-     }
+      }
 
       if (mailingCommands.messageHandler) {
         await mailingCommands.messageHandler(bot, msg);
+      }
+
+      if (promptCommands.messageHandler) {
+        await promptCommands.messageHandler(bot, msg);
       }
 
     } catch (error) {
