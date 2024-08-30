@@ -68,6 +68,15 @@ class CampaignMailingService {
     }
   }
 
+  async getPlatformPriority(campaignId) {
+    try {
+      return await campaignsMailingRepo.getPlatformPriority(campaignId);
+    } catch (error) {
+      logger.error('Error in getPlatformPriority service:', error);
+      throw error;
+    }
+  }
+
   async attachPhoneNumber(campaignId, phoneNumber, platform) {
     try {
       // Проверяем, существует ли и аутентифицирован ли номер

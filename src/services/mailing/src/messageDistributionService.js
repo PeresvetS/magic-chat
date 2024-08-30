@@ -1,4 +1,4 @@
-// src/services/maiiling/src/messageDistributionService.js
+// src/services/mailing/src/messageDistributionService.js
 
 const messageSenderService = require('./messageSenderService');
 const MessagingPlatformChecker = require('./MessagingPlatformChecker');
@@ -6,10 +6,17 @@ const logger = require('../../../utils/logger');
 const { campaignsMailingService } = require('../../campaign');
 
 class MessageDistributionService {
-  async distributeMessage(campaignId, message, phoneNumber, priorityPlatform = 'telegram', mode = 'both') {
+
+  constructor() {
+    this.lastMessageTimes = new Map();
+    this.RATE_LIMIT_SECONDS = 60; // 1 минута
+  } 
+
+  async distributeMessage(campaignId, message, phoneNumber, platformPriority = 'telegram', mode = 'one') {
+    logger.info(`Distributing message to ${phoneNumber} with priority ${platformPriority} and mode ${mode}`);
     const strPhoneNumber = String(phoneNumber);
     try {
-      const platforms = await MessagingPlatformChecker.choosePlatform(campaignId, strPhoneNumber, priorityPlatform, mode);
+      const platforms = await MessagingPlatformChecker.choosePlatform(campaignId, strPhoneNumber, platformPriority, mode);
       logger.info(`Distributing message to ${strPhoneNumber} with platforms ${platforms}`);
       let results = {
         strPhoneNumber,
@@ -43,7 +50,7 @@ class MessageDistributionService {
     const results = [];
     for (const contact of contacts) {
       try {
-        const result = await this.distributeMessage(campaignId, message, contact.phoneNumber, priorityPlatform, mode = 'both');
+        const result = await this.distributeMessage(campaignId, message, contact.phoneNumber, priorityPlatform, 'both');
         results.push(result);
       } catch (error) {
         logger.error(`Error in bulk distribution for ${contact.phoneNumber}:`, error);
@@ -56,21 +63,33 @@ class MessageDistributionService {
     return results;
   }
 
-  async sendMessageToLead(lead) {
-    
-  // Проверяем наличие активной кампании и отправляем сообщение, если она есть
-    const activeCampaign = await campaignsMailingService.getActiveCampaign(telegramId);
+  async sendMessageToLead(lead, user) {
+    const cacheKey = `${lead.phone}_${user.id}`;
+    const now = Date.now();
+    const lastSentTime = this.lastMessageTimes.get(cacheKey);
+
+    if (lastSentTime && (now - lastSentTime) < this.RATE_LIMIT_SECONDS * 1000) {
+      logger.info(`Сообщение для номера ${lead.phone} уже было отправлено недавно. Пропускаем отправку.`);
+      return;
+    }
+
+    const activeCampaign = await campaignsMailingService.getActiveCampaign(user.telegramId);
     if (activeCampaign && activeCampaign.message) {
       try {
-        const result = await this.distributeMessage(activeCampaign.id, activeCampaign.message, lead.phone, activeCampaign.priorityPlatform, mode = 'both');
+        logger.info(`Отправляем автоматическое сообщение для лида ${lead.phone} в кампанию ${activeCampaign.id} с приоритетом ${activeCampaign.platformPriority} сообщение ${activeCampaign.message}`);
+        const result = await this.distributeMessage(activeCampaign.id, activeCampaign.message, lead.phone, activeCampaign.platformPriority, 'one');
+        
         if (result.telegram && result.telegram.success) {
           logger.info(`Автоматическое сообщение отправлено в Telegram для лида ${lead.id}`);
+          this.lastMessageTimes.set(cacheKey, now);
         } 
         else if (result.whatsapp && result.whatsapp.success) {
           logger.info(`Автоматическое сообщение отправлено в WhatsApp для лида ${lead.id}`);
+          this.lastMessageTimes.set(cacheKey, now);
         } 
         else if (result.tgwa && result.tgwa.success) {
           logger.info(`Автоматическое сообщение отправлено в Telegram и/или WhatsApp для лида ${lead.id}`);
+          this.lastMessageTimes.set(cacheKey, now);
         }
         else {
           logger.warn(`Не удалось отправить автоматическое сообщение для лида ${lead.id}`);
@@ -83,6 +102,14 @@ class MessageDistributionService {
     }
   }
 
+  clearOldEntries() {
+    const now = Date.now();
+    for (const [key, time] of this.lastMessageTimes.entries()) {
+      if (now - time > this.RATE_LIMIT_SECONDS * 1000) {
+        this.lastMessageTimes.delete(key);
+      }
+    }
+  }
 }
 
 module.exports = new MessageDistributionService();

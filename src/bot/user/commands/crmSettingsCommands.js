@@ -4,10 +4,13 @@ const { bitrixService, amoCrmService } = require('../../../services/crm');
 const logger = require('../../../utils/logger');
 
 module.exports = {
-  '/set_bitrix_webhook': async (bot, msg, match) => {
-    const [, webhookId, inboundUrl, outboundToken] = match;
+  '/set_bitrix_webhook (https:\\/\\/.{10,})': async (bot, msg, match) => {
+    const [, inboundUrl] = match;
+
+    logger.info(`Setting Bitrix webhook for user ${msg.from.id}`);
+
     try {
-      await bitrixService.updateIntegration(msg.from.id, webhookId, inboundUrl, outboundToken);
+      await bitrixService.setInboundUrl(msg.from.id, inboundUrl);
       bot.sendMessage(msg.chat.id, 'Bitrix интеграция успешно обновлена.');
     } catch (error) {
       logger.error('Error setting Bitrix integration:', error);
@@ -15,14 +18,45 @@ module.exports = {
     }
   },
 
-  '/set_amocrm_webhook': async (bot, msg, match) => {
-    const [, webhookId, inboundUrl, outboundToken] = match;
+  '/set_amocrm_webhook (https:\\/\\/.{10,})': async (bot, msg, match) => {
+    const [, inboundUrl] = match;
+
+    logger.info(`Setting AmoCRM webhook for user ${msg.from.id}`);
+
     try {
-      await amoCrmService.updateIntegration(msg.from.id, webhookId, inboundUrl, outboundToken);
+      await amoCrmService.setInboundUrl(msg.from.id, inboundUrl);
       bot.sendMessage(msg.chat.id, 'AmoCRM интеграция успешно обновлена.');
     } catch (error) {
       logger.error('Error setting AmoCRM integration:', error);
       bot.sendMessage(msg.chat.id, `Ошибка при установке AmoCRM интеграции: ${error.message}`);
+    }
+  },
+
+  '/set_bitrix_token ([a-zA-Z0-9]{32})': async (bot, msg, match) => {
+    const [, outboundToken] = match;
+
+    logger.info(`Setting Bitrix token for user ${msg.from.id}`);
+
+    try {
+      await bitrixService.setOutboundToken(msg.from.id, outboundToken);
+      bot.sendMessage(msg.chat.id, 'API ключ Bitrix успешно установлен.');
+    } catch (error) {
+      logger.error('Error setting Bitrix API key:', error);
+      bot.sendMessage(msg.chat.id, `Ошибка при установке API ключа Bitrix: ${error.message}`);
+    }
+  },
+
+  '/set_amocrm_token ([a-zA-Z0-9]{32})': async (bot, msg, match) => {
+    const [, outboundToken] = match;
+
+    logger.info(`Setting AmoCRM token for user ${msg.from.id}`);
+
+    try {
+      await amoCrmService.setOutboundToken(msg.from.id, outboundToken);
+      bot.sendMessage(msg.chat.id, 'API ключ AmoCRM успешно установлен.');
+    } catch (error) {
+      logger.error('Error setting AmoCRM API key:', error);
+      bot.sendMessage(msg.chat.id, `Ошибка при установке API ключа AmoCRM: ${error.message}`);
     }
   },
 

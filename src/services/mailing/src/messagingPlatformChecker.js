@@ -1,7 +1,7 @@
 // src/services/mailing/src/messagingPlatformChecker.js
 
 const logger = require('../../../utils/logger');
-const { gePlatformPriority } = require('../../../db').campaignsMailingRepo;
+const { getPlatformPriority } = require('../../../db').campaignsMailingRepo;
 const TelegramChecker = require('./TelegramChecker');
 const WhatsAppChecker = require('./WhatsAppChecker');
 
@@ -75,19 +75,19 @@ class MessagingPlatformChecker {
     }
   }
 
-  async choosePlatform(campaignId, phoneNumber, priorityPlatform = null, mode = 'one') {
-    logger.info(`Choosing messaging platform for ${phoneNumber} with priority ${priorityPlatform}`);
+  async choosePlatform(campaignId, phoneNumber, platformPriority = null, mode = 'one') {
+    logger.info(`Choosing messaging platform for ${phoneNumber} with priority ${platformPriority}`);
     
     if (!phoneNumber || typeof phoneNumber !== 'string') {
       throw new Error('Invalid phone number');
     }
 
-    if (!['telegram', 'whatsapp', 'tgwa'].includes(priorityPlatform)) {
+    if (!['telegram', 'whatsapp', 'tgwa'].includes(platformPriority)) {
       logger.warn('Invalid priority platform, getting from DB');
-      priorityPlatform = await gePlatformPriority(campaignId);
+      platformPriority = await getPlatformPriority(campaignId);
     }
 
-    return await this.checkPlatforms(phoneNumber, priorityPlatform, mode);
+    return await this.checkPlatforms(phoneNumber, platformPriority, mode);
   }
 
   async disconnect() {

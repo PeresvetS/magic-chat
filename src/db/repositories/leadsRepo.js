@@ -3,12 +3,12 @@
 const prisma = require('../utils/prisma');
 const logger = require('../../utils/logger');
 
-async function saveLead({ bitrix_id, name, phone, source, status }) {
+async function saveLead({ bitrix_id, name, phone, source, status, userId }) {
   try {
     const lead = await prisma.lead.upsert({
       where: { bitrixId: bitrix_id },
-      update: { name, phone, source },
-      create: { bitrixId: bitrix_id, name, phone, source, status }
+      update: { name, phone, source, status, userId },
+      create: { bitrixId: bitrix_id, name, phone, source, status, userId }
     });
     logger.info(`Lead saved/updated: ${bitrix_id}`);
     return lead;
@@ -51,7 +51,6 @@ async function markLeadAsSent(id) {
     throw error;
   }
 }
-
 
 module.exports = {
   saveLead,

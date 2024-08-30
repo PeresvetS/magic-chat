@@ -3,6 +3,7 @@
 const express = require('express');
 const cron = require('node-cron');
 const config = require('./config');
+const bodyParser = require('body-parser');
 const { phoneNumberService } = require('./services/phone');
 const adminBot = require('./bot/admin');
 const userBot = require('./bot/user');
@@ -10,14 +11,33 @@ const logger = require('./utils/logger');
 const { TelegramSessionService } = require('./services/telegram');
 const { WhatsAppSessionService } = require('./services/whatsapp');
 const webhookRouter = require('./api/routes/webhooks');
+const requestLogger = require('./api/middleware/requestLogger');
+
 
 const app = express();
 
-// Middleware для парсинга JSON
+app.use(bodyParser.raw({ type: 'application/x-www-form-urlencoded' }));
+
+// Middleware для парсинга JSON и urlencoded данных
 app.use(express.json());
 
+// Middleware для логирования всех входящих запросов
+app.use((req, res, next) => {
+  const rawBody = req.body instanceof Buffer ? req.body.toString('utf8') : 'No raw body';
+  logger.info('Incoming request', {
+      method: req.method,
+      url: req.url,
+      headers: req.headers,
+      body: req.body,
+      rawBody: rawBody
+  });
+  next();
+});
+
+app.use(requestLogger);
+
 // Роуты для webhook'ов от CRM систем
-app.use('/api/webhook', webhookRouter);
+app.use('/api', webhookRouter);
 
 async function main() {
   try {

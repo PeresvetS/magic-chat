@@ -1,5 +1,7 @@
 // src/utils/helpers.js
 
+const logger = require('./logger');
+
 function splitIntoSentences(text) {
   return text.match(/[^\.!\?]+[\.!\?]+/g) || [text];
 }
@@ -8,20 +10,7 @@ async function delay(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
-// function safeStringify(obj) {
-//   const seen = new WeakSet();
-//   return JSON.stringify(obj, (key, value) => {
-//     if (typeof value === "object" && value !== null) {
-//       if (seen.has(value)) {
-//         return "[Circular]";
-//       }
-//       seen.add(value);
-//     }
-//     return value;
-//   });
-// };
-
-// Функция для безопасного логирования объектов
+// Функция для безопасного логирования объектов с поддержкой BigInt
 const safeStringify = (obj) => {
   const cache = new Set();
   return JSON.stringify(obj, (key, value) => {
@@ -31,15 +20,23 @@ const safeStringify = (obj) => {
       }
       cache.add(value);
     }
+    if (typeof value === 'bigint') {
+      return value.toString() + 'n';
+    }
     return value;
   }, 2);
 };
 
-
 const safeJSONParse = (str) => {
   try {
-    return JSON.parse(str);
-  } catch (e) {
+    return JSON.parse(str, (key, value) => {
+      if (typeof value === 'string' && /^\d+n$/.test(value)) {
+        return BigInt(value.slice(0, -1));
+      }
+      return value;
+    });
+  } catch (error) {
+    logger.error('Error parsing JSON', { error: error.message, str });
     return null;
   }
 };
@@ -90,7 +87,7 @@ const parsePHPSerialized = (data) => {
 
 function stringifyWithBigInt(obj) {
   return JSON.stringify(obj, (key, value) =>
-    typeof value === 'bigint' ? value.toString() : value
+    typeof value === 'bigint' ? value.toString() + 'n' : value
   );
 }
 
@@ -101,11 +98,6 @@ function chunkArray(array, size) {
   }
   return chunks;
 }
-
-module.exports = {
-  chunkArray
-};
-
 
 module.exports = {
   splitIntoSentences,

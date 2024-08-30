@@ -26,6 +26,7 @@
     campaignMailings CampaignMailing[]
     bitrixIntegration BitrixIntegration?
     amoCrmIntegration AmoCrmIntegration?
+    leads     Lead[]
   }
 
   model Admin {
@@ -154,15 +155,17 @@ model WhatsappAccount {
     timestamp   DateTime @default(now())
   }
 
-  model Lead {
-    id        Int      @id @default(autoincrement())
-    bitrixId  String   @unique
-    name      String
-    phone     String
-    source    String?
-    status    String
-    createdAt DateTime @default(now())
-  }
+ model Lead {
+  id        Int      @id @default(autoincrement())
+  bitrixId  String   @unique
+  name      String
+  phone     String
+  source    String?
+  status    String
+  createdAt DateTime @default(now())
+  userId    Int      // Добавьте это поле
+  user      User     @relation(fields: [userId], references: [id]) // Добавьте эту связь
+}
 
   model CampaignMailing {
     id        Int      @id @default(autoincrement())
@@ -187,23 +190,21 @@ model WhatsappAccount {
     @@unique([phoneNumber, campaignId])
   }
 
-  model BitrixIntegration {
-    id                 Int    @id @default(autoincrement())
-    user               User   @relation(fields: [userId], references: [id])
-    userId             Int    @unique
-    bitrixWebhookId    String @unique
-    bitrixInboundUrl   String
-    bitrixOutboundToken String
-  }
+ model BitrixIntegration {
+  id                 Int    @id @default(autoincrement())
+  user               User   @relation(fields: [userId], references: [telegramId])
+  userId             BigInt    @unique
+  bitrixInboundUrl   String?
+  bitrixOutboundToken String?
+}
 
-  model AmoCrmIntegration {
-    id                Int    @id @default(autoincrement())
-    user              User   @relation(fields: [userId], references: [id])
-    userId            Int    @unique
-    amoCrmWebhookId   String @unique
-    amoCrmInboundUrl  String
-    amoCrmOutboundToken String
-  }
+model AmoCrmIntegration {
+  id                Int    @id @default(autoincrement())
+  user              User   @relation(fields: [userId], references: [telegramId])
+  userId            BigInt    @unique
+  amoCrmInboundUrl  String?
+  amoCrmOutboundToken String?
+}
 
   model TelegramSession {
     id          Int      @id @default(autoincrement())

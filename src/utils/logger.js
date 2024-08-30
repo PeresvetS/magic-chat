@@ -3,6 +3,7 @@
 const winston = require('winston');
 require('winston-daily-rotate-file');
 const config = require('../config');
+const { safeStringify } = require('./helpers');
 
 const { combine, timestamp, printf, errors, splat } = winston.format;
 
@@ -10,7 +11,7 @@ const { combine, timestamp, printf, errors, splat } = winston.format;
 const myFormat = printf(({ level, message, timestamp, ...metadata }) => {
   let msg = `${timestamp} [${level}] : ${message}`;
   if (Object.keys(metadata).length > 0) {
-    msg += ` ${JSON.stringify(metadata)}`;
+    msg += ` ${safeStringify(metadata)}`;
   }
   return msg;
 });
@@ -54,8 +55,6 @@ const logger = winston.createLogger({
     errorFileRotateTransport
   ],
 });
-
-
 
 logger.add(new winston.transports.Console({
   format: combine(

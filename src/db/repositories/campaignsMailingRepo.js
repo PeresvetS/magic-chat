@@ -97,12 +97,13 @@ async function setPlatformPriority(id, platformPriority) {
   }
 }
 
-async function gePlatformPriority(id) {
+async function getPlatformPriority(id) {
   try {
-    return await prisma.campaignMailing.findUnique({
+    const campaign = await prisma.campaignMailing.findUnique({
       where: { id },
       select: { platformPriority: true }
     });
+    return campaign.platformPriority;
   } catch (error) {
     logger.error('Error getting platform priority:', error);
     throw error;
@@ -220,7 +221,7 @@ async function toggleCampaignActivity(id, isActive) {
       throw new Error('Cannot activate campaign without attached phone numbers');
     }
 
-    await checkPhoneNumbersAuthentication(phoneNumbers);
+    // await checkPhoneNumbersAuthentication(phoneNumbers);
 
     const updatedCampaign = await prisma.campaignMailing.update({
       where: { id },
@@ -260,7 +261,7 @@ module.exports = {
   listCampaignMailings,
   getActiveCampaign,
   setPlatformPriority,
-  gePlatformPriority,
+  getPlatformPriority,
   attachPhoneNumber,
   detachPhoneNumber,
   getCampaignPhoneNumbers,

@@ -2,59 +2,56 @@
 
 const logger = require('../../utils/logger');
 const { crmRepo } = require('../../db/');
-const { safeStringify, parsePHPSerialized, safeJSONParse } = require('../../utils/helpers');
+const { safeStringify } = require('../../utils/helpers');
+const querystring = require('querystring');
 
-// Middleware для проверки токена Bitrix24
 const checkBitrixToken = async (req, res, next) => {
-    const { webhookId } = req.params;
-    const user = await crmRepo.getUserByBitrixWebhookId(webhookId);
+    let rawBody = req.body;
+    if (Buffer.isBuffer(req.body)) {
+        rawBody = req.body.toString('utf8');
+    }
+
+    logger.info('Incoming Bitrix24 webhook request', {
+        headers: req.headers,
+        rawBody: rawBody
+    });
+
+    let parsedBody = querystring.parse(rawBody);
+
+    logger.info('Parsed request body', { parsedBody: safeStringify(parsedBody) });
+
+    // Извлекаем все поля auth из parsedBody
+    const authFields = Object.keys(parsedBody)
+        .filter(key => key.startsWith('auth['))
+        .reduce((acc, key) => {
+            const cleanKey = key.replace('auth[', '').replace(']', '');
+            acc[cleanKey] = parsedBody[key];
+            return acc;
+        }, {});
+
+    logger.info('Extracted authentication data', { auth: safeStringify(authFields) });
+
+    if (!authFields.application_token) {
+        logger.warn('Invalid Bitrix24 application token', { 
+            receivedAuth: safeStringify(authFields)
+        });
+        return res.status(401).json({ error: 'Invalid Bitrix24 application token' });
+    }
+
+    const bitrixOutboundToken = authFields.application_token;
+    logger.info('Attempting to find user with Bitrix token', { token: bitrixOutboundToken });
+
+    const user = await crmRepo.getUserByBitrixToken(bitrixOutboundToken);
 
     if (!user || !user.bitrixIntegration) {
-      logger.warn('Invalid Bitrix webhook ID', { webhookId });
-      return res.status(401).json({ error: 'Invalid Bitrix webhook ID' });
-    }
-
-    let auth;
-    if (typeof req.body.auth === 'string') {
-      auth = safeJSONParse(req.body.auth) || parsePHPSerialized(req.body.auth);
-    } else if (typeof req.body.auth === 'object') {
-      auth = req.body.auth;
-    }
-  
-    if (!auth || auth.application_token !== user.bitrixIntegration.bitrixOutboundToken) {
-      logger.warn('Invalid Bitrix24 application token', { 
-        receivedToken: auth ? auth.application_token : 'undefined',
-        body: safeStringify(req.body)
-      });
-      return res.status(401).json({ error: 'Invalid Bitrix24 application token' });
+        logger.warn('No Bitrix user found', { token: bitrixOutboundToken });
+        return res.status(401).json({ error: 'No Bitrix user found' });
     }
     
+    logger.info('Bitrix user found', { userId: user.id });
     req.user = user;
+    req.parsedBody = parsedBody;  // Передаем parsedBody в req
     next();
 };
 
-// Middleware для проверки токена AmoCRM
-const checkAmoCrmToken = async (req, res, next) => {
-    const { webhookId } = req.params;
-    const user = await crmRepo.getUserByAmoCrmWebhookId(webhookId);
-
-    if (!user || !user.amoCrmIntegration) {
-      logger.warn('Invalid AmoCRM webhook ID', { webhookId });
-      return res.status(401).json({ error: 'Invalid AmoCRM webhook ID' });
-    }
-
-    const amoCrmToken = req.headers['x-auth-token']; // Предполагаемый заголовок для токена AmoCRM
-
-    if (!amoCrmToken || amoCrmToken !== user.amoCrmIntegration.amoCrmOutboundToken) {
-      logger.warn('Invalid AmoCRM token', { 
-        receivedToken: amoCrmToken || 'undefined',
-        body: safeStringify(req.body)
-      });
-      return res.status(401).json({ error: 'Invalid AmoCRM token' });
-    }
-    
-    req.user = user;
-    next();
-};
-
-module.exports = { checkBitrixToken, checkAmoCrmToken };
+module.exports = { checkBitrixToken };
