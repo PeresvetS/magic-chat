@@ -25,10 +25,19 @@ class WhatsAppChecker {
   }
 
 
-  async checkWhatsApp(phoneNumber) {
+  async checkWhatsApp(phoneNumber, retries = 3) {
     logger.info(`Checking WhatsApp for number ${phoneNumber}`);
     try {
-      await this.initialize();
+      try {
+        await this.initialize();
+      } catch (error) {
+        if (retries > 0 && error.message.includes('network')) {
+          logger.warn(`Network error during initialization for ${phoneNumber}. Retrying...`);
+          await new Promise(resolve => setTimeout(resolve, 5000));
+          return this.initializeClient(phoneNumber, retries - 1);
+        }
+        throw error;
+      }
 
       const formattedNumber = this.formatPhoneNumber(phoneNumber);
       logger.info(`Formatted number for WhatsApp check: ${formattedNumber}`);

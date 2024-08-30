@@ -1,5 +1,3 @@
-// src/index.js
-
 const express = require('express');
 const cron = require('node-cron');
 const config = require('./config');
@@ -12,44 +10,24 @@ const { TelegramSessionService } = require('./services/telegram');
 const { WhatsAppSessionService } = require('./services/whatsapp');
 const webhookRouter = require('./api/routes/webhooks');
 const requestLogger = require('./api/middleware/requestLogger');
-
+const { handleMessageService } = require('./services/messaging');
 
 const app = express();
 
 app.use(bodyParser.raw({ type: 'application/x-www-form-urlencoded' }));
-
-// Middleware для парсинга JSON и urlencoded данных
 app.use(express.json());
-
-// Middleware для логирования всех входящих запросов
-app.use((req, res, next) => {
-  const rawBody = req.body instanceof Buffer ? req.body.toString('utf8') : 'No raw body';
-  logger.info('Incoming request', {
-      method: req.method,
-      url: req.url,
-      headers: req.headers,
-      body: req.body,
-      rawBody: rawBody
-  });
-  next();
-});
-
 app.use(requestLogger);
-
-// Роуты для webhook'ов от CRM систем
 app.use('/api', webhookRouter);
 
 async function main() {
   try {
     logger.info('Main function started');
+
     // Инициализация сессий Telegram
     await TelegramSessionService.initializeSessions();
-    await WhatsAppSessionService.initializeSessions();
 
-    WhatsAppSessionService.onMessage(async (message) => {
-      const phoneNumber = message.from.split('@')[0];
-      await handleMessageService.processIncomingMessage(phoneNumber, message, 'whatsapp');
-    });
+    // Инициализация WhatsApp сессий
+    await WhatsAppSessionService.initializeSessions();
 
     // Инициализация ботов
     logger.info('Initializing bots...');
@@ -72,12 +50,10 @@ async function main() {
     async function gracefulShutdown() {
       logger.info('Graceful shutdown initiated');
 
-      // Остановка Express сервера
       server.close(() => {
         logger.info('HTTP server closed');
       });
 
-      // Остановка ботов
       try {
         await adminBot.stop();
         logger.info('Admin bot stopped');
@@ -92,7 +68,6 @@ async function main() {
         logger.error('Error stopping user bot:', error);
       }
 
-      // Отключение всех сессий Telegram
       try {
         await TelegramSessionService.disconnectAllSessions();
         logger.info('All Telegram sessions disconnected');
@@ -109,7 +84,6 @@ async function main() {
         logger.error('Error disconnecting WhatsApp sessions:', error);
       }
 
-      // Освобождение блокировки
       if (typeof global.releaseLock === 'function') {
         global.releaseLock();
       }

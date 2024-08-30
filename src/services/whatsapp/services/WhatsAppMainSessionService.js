@@ -5,12 +5,14 @@ const qrcode = require('qrcode');
 const logger = require('../../../utils/logger');
 const config = require('../../../config');
 const path = require('path');
+const fs = require('fs').promises;
 
 class WhatsAppMainSessionService {
   constructor() {
     this.mainClient = null;
     this.tempDir = path.join(process.cwd(), 'temp');
     this.sessionDir = path.join(this.tempDir, '.wwebjs_auth');
+    this.authTimeout = 600000; // 10 минут
   }
 
   cleanPhoneNumber(phoneNumber) {
@@ -37,17 +39,21 @@ class WhatsAppMainSessionService {
       }),
       puppeteer: {
         args: ['--no-sandbox', '--disable-setuid-sandbox'],
-        headless: true
+        headless: true,
+        handleSIGINT: false,
+        handleSIGTERM: false,
+        handleSIGHUP: false
       }
     });
 
     return new Promise((resolve, reject) => {
       const initTimeout = setTimeout(() => {
-        reject(new Error('WhatsApp client initialization timeout'));
-      }, 60000); // 60 секунд таймаут
+        logger.error(`WhatsApp main client initialization timeout for ${mainPhoneNumber}`);
+        reject(new Error('WhatsApp main client initialization timeout'));
+      }, this.authTimeout);
 
       this.mainClient.on('qr', async (qr) => {
-        logger.info('WhatsApp QR code received for main client');
+        logger.info(`New QR code received for main WhatsApp client (${mainPhoneNumber})`);
         try {
           const qrImageData = await qrcode.toDataURL(qr);
           if (qrCodeCallback) {
@@ -58,21 +64,36 @@ class WhatsAppMainSessionService {
         }
       });
 
-      this.mainClient.on('ready', () => {
+      this.mainClient.on('ready', async () => {
         clearTimeout(initTimeout);
         logger.info(`Main WhatsApp client (${mainPhoneNumber}) is ready`);
+        this.mainClient.isReady = true;
+        await this.saveMainSession(mainPhoneNumber);
         resolve(this.mainClient);
+      });
+
+      this.mainClient.on('authenticated', () => {
+        logger.info(`Main WhatsApp client (${mainPhoneNumber}) authenticated`);
       });
 
       this.mainClient.on('auth_failure', (msg) => {
         clearTimeout(initTimeout);
-        logger.error(`WhatsApp authentication failed for main client (${mainPhoneNumber})`, msg);
+        logger.error(`WhatsApp authentication failed for main client (${mainPhoneNumber}):`, msg);
         reject(new Error('WhatsApp authentication failed'));
+      });
+
+      this.mainClient.on('disconnected', (reason) => {
+        logger.warn(`Main WhatsApp client (${mainPhoneNumber}) disconnected:`, reason);
+        this.mainClient = null;
+      });
+
+      this.mainClient.on('loading_screen', (percent, message) => {
+        logger.info(`Main WhatsApp client (${mainPhoneNumber}) loading: ${percent}% - ${message}`);
       });
 
       this.mainClient.initialize().catch(error => {
         clearTimeout(initTimeout);
-        logger.error('Error during WhatsApp client initialization:', error);
+        logger.error(`Error initializing main WhatsApp client (${mainPhoneNumber}):`, error);
         reject(error);
       });
     });
@@ -105,6 +126,21 @@ class WhatsAppMainSessionService {
       this.mainClient = null;
     }
   }
+
+  async saveMainSession(phoneNumber) {
+    const sessionDir = path.join(this.sessionDir, `session-${phoneNumber}`);
+    try {
+      await fs.access(sessionDir);
+      logger.info(`Main WhatsApp session directory exists for ${phoneNumber}`);
+      // Здесь вы можете добавить дополнительную логику сохранения сессии, если необходимо
+    } catch (error) {
+      if (error.code === 'ENOENT') {
+        logger.warn(`Main WhatsApp session directory does not exist for ${phoneNumber}`);
+      } else {
+        logger.error(`Error checking/saving main WhatsApp session for ${phoneNumber}:`, error);
+      }
+    }
+  }
 }
 
-module.exports = WhatsAppMainSessionService;
+module.exports = new WhatsAppMainSessionService();

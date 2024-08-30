@@ -9,5 +9,5 @@ module.exports = {
     botStateManager,
     onlineStatusManager,
     WhatsAppSessionService,
-    WhatsAppMainSessionService: new WhatsAppMainSessionService(),
+    WhatsAppMainSessionService,
 };
