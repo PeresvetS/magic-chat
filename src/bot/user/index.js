@@ -8,17 +8,18 @@ const TelegramBot = require('node-telegram-bot-api');
 const config = require('../../config');
 const logger = require('../../utils/logger');
 const { userService } = require('../../services/user');
-const { processExcelFile } = require('../../services/crm');
+const LeadsService = require('../../services/leads/src/LeadsService');
 const { getUserState, clearUserState } = require('./utils/userState');
 const { TelegramSessionService } = require('../../services/telegram');
 const { WhatsAppSessionService } = require('../../services/whatsapp');
 const { campaignsMailingService } = require('../../services/campaign');
+const { processExcelFile } = require('../../services/leads').xlsProcessor;
 const { checkSubscription } = require('../../middleware/checkSubscription');
 const { setPhoneAuthenticated } = require('../../services/phone').phoneNumberService;
 
-
 const helpCommands = require('./commands/helpCommands');
 const phoneCommands = require('./commands/phoneCommands');
+const leadsCommands = require('./commands/leadsCommands');
 const promptCommands = require('./commands/promptCommands');
 const mailingCommands = require('./commands/mailingCommads');
 // const parsingCommands = require('./commands/parsingCommands');
@@ -31,13 +32,14 @@ function createUserBot() {
   const bot = new TelegramBot(config.USER_BOT_TOKEN, { polling: false });
   // const bot = new TelegramBot(token, { polling: true, filepath: false });
   const commandModules = [
-    phoneCommands,
-    // parsingCommands,
-    helpCommands,
     subscriptionCommands,
-    mailingCommands,
     crmSettingsCommands,
-    promptCommands
+    // parsingCommands,
+    mailingCommands,
+    promptCommands,
+    phoneCommands,
+    leadsCommands,
+    helpCommands,
   ];
 
   commandModules.forEach(module => {
@@ -96,6 +98,10 @@ function createUserBot() {
         await promptCommands.messageHandler(bot, msg);
       }
 
+      if (leadsCommands.messageHandler) {
+        await leadsCommands.messageHandler(bot, msg);
+      }
+
     } catch (error) {
       logger.error('Error handling message:', error);
       bot.sendMessage(msg.chat.id, 'Произошла ошибка при обработке сообщения.');
@@ -110,30 +116,24 @@ function createUserBot() {
   
       logger.info(`User state for ${userId}: ${JSON.stringify(userState)}`);
     
-      if (userState && userState.action === 'upload_leads') {
+      if (userState && userState.action === 'upload_leads_to_db') {
         const allowedMimeTypes = [
           'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
           'application/vnd.ms-excel'
         ];
   
-        logger.info(`Processing document for campaign ${userState.campaignName}`);
+        logger.info(`Processing document for LeadsDB ${userState.leadsDBId}`);
         
         if (allowedMimeTypes.includes(msg.document.mime_type)) {
           try {
-            logger.info(`Processing Excel file for campaign ${userState.campaignName}`);
-            const campaign = await campaignsMailingService.getCampaignByName(userState.campaignName);
-            if (!campaign) {
-              bot.sendMessage(msg.chat.id, `Кампания "${userState.campaignName}" не найдена.`);
-              return;
-            }
-            logger.info(`Preparing to process Excel file for campaign ${userState.campaignName}`);
+            logger.info(`Processing Excel file for LeadsDB ${userState.leadsDBId}`);
             const fileLink = await bot.getFileLink(msg.document.file_id);
-            logger.info(`Processing Excel file for campaign ${userState.campaignName}`);
+            logger.info(`Processing Excel file`);
             const leads = await processExcelFile(fileLink);
-            logger.info(`Preparing to add leads for campaign ${userState.campaignName}`);
-            const addedLeadsCount = await campaignsMailingService.addLeadsToCampaign(campaign.id, leads);
-            logger.info(`Leads added for campaign ${userState.campaignName}`);
-            bot.sendMessage(msg.chat.id, `Успешно добавлено ${addedLeadsCount} лидов для кампании "${userState.campaignName}".`);
+            logger.info(`Preparing to add leads to LeadsDB ${userState.leadsDBId}`);
+            const addedLeadsCount = await LeadsService.addLeadsToLeadsDB(parseInt(userState.leadsDBId), leads);
+            logger.info(`Leads added to LeadsDB ${userState.leadsDBId}`);
+            bot.sendMessage(msg.chat.id, `Успешно добавлено ${addedLeadsCount} лидов в базу лидов (ID: ${userState.leadsDBId}).`);
           } catch (error) {
             logger.error('Error processing Excel file:', error);
             bot.sendMessage(msg.chat.id, 'Произошла ошибка при обработке Excel файла. Пожалуйста, попробуйте еще раз.');
@@ -144,8 +144,8 @@ function createUserBot() {
           bot.sendMessage(msg.chat.id, 'Пожалуйста, отправьте файл в формате XLS или XLSX.');
         }
       } else {
-        logger.info(`Received document without active upload_leads state for user ${userId}`);
-        bot.sendMessage(msg.chat.id, 'Пожалуйста, сначала используйте команду /upload_leads для указания кампании, затем отправьте файл.');
+        logger.info(`Received document without active upload_leads_to_db state for user ${userId}`);
+        bot.sendMessage(msg.chat.id, 'Пожалуйста, сначала используйте команду /upload_leads_to_db для указания базы лидов, затем отправьте файл.');
       }
     } catch (error) {
       logger.error('Error handling document:', error);

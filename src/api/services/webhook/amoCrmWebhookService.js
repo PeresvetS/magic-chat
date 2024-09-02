@@ -1,6 +1,7 @@
 // src/api/services/webhook/amoCrmWebhookService.js
 
 const logger = require('../../../utils/logger');
+const LeadsService = require('../../../services/leads/src/LeadsService');
 const { safeStringify } = require('../../../utils/helpers');
 
 async function processAmoCrmWebhook(data, user) {
@@ -10,14 +11,18 @@ async function processAmoCrmWebhook(data, user) {
       data: safeStringify(data) 
     });
 
-    // TODO: Implement AmoCRM webhook processing logic
-    // This might include:
-    // 1. Parsing the incoming data
-    // 2. Validating the data
-    // 3. Creating or updating leads in your system
-    // 4. Sending notifications or triggering other actions
+    // Предположим, что data содержит информацию о лиде
+    const leadData = {
+      amoCrm_id: data.id,
+      name: data.name || '',
+      phone: data.phone || '',
+      source: data.source || '',
+      status: data.status || 'NEW'
+    };
 
-    logger.info('Successfully processed AmoCRM webhook', { userId: user.id });
+    const savedLead = await LeadsService.addLeadToCRM(user.id, leadData);
+
+    logger.info('Successfully processed AmoCRM webhook', { userId: user.id, leadId: savedLead.id });
   } catch (error) {
     logger.error('Error processing AmoCRM webhook', { 
       error: error.message, 

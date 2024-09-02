@@ -311,6 +311,15 @@
     }
   }
 
+  async function getCampaignByName(name) {
+    try {
+      return await prisma.campaignMailing.findUnique({ where: { name } });
+    } catch (error) {
+      logger.error(`Error getting campaign by name ${name}:`, error.message);
+      throw error;
+    }
+  }
+
 
 
   module.exports = {
@@ -321,6 +330,7 @@
     detachPhoneNumber,
     setCampaignPrompt,
     getActiveCampaign,
+    getCampaignByName,
     setCampaignMessage,
     getCampaignMailing,
     setPlatformPriority,

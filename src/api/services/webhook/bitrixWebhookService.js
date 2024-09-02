@@ -1,10 +1,9 @@
 // src/api/services/webhook/bitrixWebhookService.js
 
-const leadsRepo = require('../../../db/repositories/leadsRepo');
 const logger = require('../../../utils/logger');
-const BitrixLeadService = require('../lead/bitrixLeadService');
 const { safeStringify } = require('../../../utils/helpers');
-const { sendMessageToLead } = require('../../../services/mailing').distributionService;
+const BitrixLeadService = require('../lead/bitrixLeadService');
+const LeadsService = require('../../../services/leads/src/LeadsService');
 const messageDistributionService = require('../../../services/mailing/src/messageDistributionService');
 
 async function processBitrixWebhook(data, user) {
@@ -38,13 +37,12 @@ async function processBitrixWebhook(data, user) {
     logger.info('Extracted lead information', leadData);
 
     // Сохраняем информацию о лиде в базу данных
-    const savedLead = await leadsRepo.saveLead({
+    const savedLead = await LeadsService.addLeadToCRM(user.id, {
       bitrix_id: leadData.id,
       name: leadData.name || '', 
       phone: leadData.phone || '',
       source: leadData.source || '',
-      status: leadData.status,
-      userId: user.id  // Убедитесь, что user.id существует
+      status: leadData.status
     });
 
     logger.info('Lead saved to database', { 

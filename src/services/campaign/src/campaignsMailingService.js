@@ -2,7 +2,7 @@
 
 const logger = require('../../../utils/logger');
 const { phoneNumberService } = require('../../phone');
-const { campaignsMailingRepo, phoneNumberCampaignRepo, leadsRepo } = require('../../../db');
+const { campaignsMailingRepo, phoneNumberCampaignRepo } = require('../../../db');
 
 class CampaignMailingService {
   async createCampaign(telegramId, name) {
@@ -10,6 +10,15 @@ class CampaignMailingService {
       return await campaignsMailingRepo.createCampaignMailing(telegramId, name);
     } catch (error) {
       logger.error('Error in createCampaignMailing service:', error);
+      throw error;
+    }
+  }
+
+  async getCampaignById(campaignId) {
+    try {
+      return await campaignsMailingRepo.getCampaignById(campaignId);
+    } catch (error) {
+      logger.error('Error in getCampaignById service:', error);
       throw error;
     }
   }
@@ -54,9 +63,9 @@ class CampaignMailingService {
 
   async getCampaignByName(name) {
     try {
-      return await leadsRepo.getCampaignByName(name);
+      return await campaignsMailingRepo.getCampaignByName(name);
     } catch (error) {
-      logger.error(`Ошибка при получении кампании по имени ${name}:`, error);
+      logger.error('Error in getCampaignByName service:', error);
       throw error;
     }
   }
@@ -172,35 +181,6 @@ class CampaignMailingService {
     }
   }
 
-  async addLeadsToCampaign(campaignId, leads) {
-    try {
-      logger.info(`Добавление ${leads.length} лидов в кампанию ${campaignId}`);
-      const addedLeadsCount = await leadsRepo.addLeadsToCampaign(campaignId, leads);
-      logger.info(`Успешно добавлено ${addedLeadsCount} лидов в кампанию ${campaignId}`);
-      return addedLeadsCount;
-    } catch (error) {
-      logger.error(`Ошибка при добавлении лидов в кампанию ${campaignId}:`, error);
-      throw error;
-    }
-  }
-
-  async getLeadsForCampaign(campaignId, status = 'NEW') {
-    try {
-      return await leadsRepo.getLeadsForCampaign(campaignId, status);
-    } catch (error) {
-      logger.error('Error getting leads for campaign:', error);
-      throw error;
-    }
-  }
-
-  async updateLeadStatus(leadId, newStatus) {
-    try {
-      return await leadsRepo.updateLeadStatus(leadId, newStatus);
-    } catch (error) {
-      logger.error('Error updating lead status:', error);
-      throw error;
-    }
-  }
 }
 
 module.exports = new CampaignMailingService();

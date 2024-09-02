@@ -1,3 +1,6 @@
+-- CreateEnum
+CREATE TYPE "LeadStatus" AS ENUM ('NEW', 'UNAVAILABLE', 'PROCESSED_NEGATIVE', 'PROCESSED_POSITIVE');
+
 -- CreateTable
 CREATE TABLE "User" (
     "id" SERIAL NOT NULL,
@@ -156,14 +159,41 @@ CREATE TABLE "MessageStat" (
 -- CreateTable
 CREATE TABLE "Lead" (
     "id" SERIAL NOT NULL,
-    "bitrixId" TEXT NOT NULL,
-    "name" TEXT NOT NULL,
+    "bitrixId" TEXT,
+    "leadsDBId" INTEGER NOT NULL,
+    "campaignId" INTEGER,
+    "userId" INTEGER,
     "phone" TEXT NOT NULL,
+    "name" TEXT,
     "source" TEXT,
-    "status" TEXT NOT NULL,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+    "status" "LeadStatus" NOT NULL DEFAULT 'NEW',
 
     CONSTRAINT "Lead_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "LeadsDB" (
+    "id" SERIAL NOT NULL,
+    "name" TEXT NOT NULL,
+    "userId" INTEGER NOT NULL,
+    "isDefault" BOOLEAN NOT NULL DEFAULT false,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "LeadsDB_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "CampaignLeadsDB" (
+    "id" SERIAL NOT NULL,
+    "campaignId" INTEGER NOT NULL,
+    "leadsDBId" INTEGER NOT NULL,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "CampaignLeadsDB_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
@@ -176,6 +206,7 @@ CREATE TABLE "CampaignMailing" (
     "updatedAt" TIMESTAMP(3) NOT NULL,
     "platformPriority" TEXT NOT NULL DEFAULT 'telegram',
     "userId" INTEGER NOT NULL,
+    "promptId" INTEGER,
 
     CONSTRAINT "CampaignMailing_pkey" PRIMARY KEY ("id")
 );
@@ -193,10 +224,9 @@ CREATE TABLE "PhoneNumberCampaign" (
 -- CreateTable
 CREATE TABLE "BitrixIntegration" (
     "id" SERIAL NOT NULL,
-    "userId" INTEGER NOT NULL,
-    "bitrixWebhookId" TEXT NOT NULL,
-    "bitrixInboundUrl" TEXT NOT NULL,
-    "bitrixOutboundToken" TEXT NOT NULL,
+    "userId" BIGINT NOT NULL,
+    "bitrixInboundUrl" TEXT,
+    "bitrixOutboundToken" TEXT,
 
     CONSTRAINT "BitrixIntegration_pkey" PRIMARY KEY ("id")
 );
@@ -204,10 +234,9 @@ CREATE TABLE "BitrixIntegration" (
 -- CreateTable
 CREATE TABLE "AmoCrmIntegration" (
     "id" SERIAL NOT NULL,
-    "userId" INTEGER NOT NULL,
-    "amoCrmWebhookId" TEXT NOT NULL,
-    "amoCrmInboundUrl" TEXT NOT NULL,
-    "amoCrmOutboundToken" TEXT NOT NULL,
+    "userId" BIGINT NOT NULL,
+    "amoCrmInboundUrl" TEXT,
+    "amoCrmOutboundToken" TEXT,
 
     CONSTRAINT "AmoCrmIntegration_pkey" PRIMARY KEY ("id")
 );
@@ -238,8 +267,8 @@ CREATE TABLE "WhatsappSession" (
 CREATE TABLE "Dialog" (
     "id" SERIAL NOT NULL,
     "userId" INTEGER NOT NULL,
-    "contactId" INTEGER NOT NULL,
-    "contactPhone" TEXT NOT NULL,
+    "contactId" TEXT NOT NULL,
+    "contactPhone" TEXT,
     "platform" TEXT NOT NULL,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
@@ -256,6 +285,17 @@ CREATE TABLE "Message" (
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
     CONSTRAINT "Message_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "Prompt" (
+    "id" SERIAL NOT NULL,
+    "name" TEXT NOT NULL,
+    "content" TEXT NOT NULL,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "Prompt_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateIndex
@@ -286,6 +326,18 @@ CREATE UNIQUE INDEX "PhoneNumberContact_phoneNumber_userId_key" ON "PhoneNumberC
 CREATE UNIQUE INDEX "Lead_bitrixId_key" ON "Lead"("bitrixId");
 
 -- CreateIndex
+CREATE INDEX "Lead_campaignId_idx" ON "Lead"("campaignId");
+
+-- CreateIndex
+CREATE INDEX "Lead_userId_idx" ON "Lead"("userId");
+
+-- CreateIndex
+CREATE INDEX "Lead_phone_idx" ON "Lead"("phone");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "CampaignLeadsDB_campaignId_leadsDBId_key" ON "CampaignLeadsDB"("campaignId", "leadsDBId");
+
+-- CreateIndex
 CREATE UNIQUE INDEX "CampaignMailing_name_key" ON "CampaignMailing"("name");
 
 -- CreateIndex
@@ -295,13 +347,7 @@ CREATE UNIQUE INDEX "PhoneNumberCampaign_phoneNumber_campaignId_key" ON "PhoneNu
 CREATE UNIQUE INDEX "BitrixIntegration_userId_key" ON "BitrixIntegration"("userId");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "BitrixIntegration_bitrixWebhookId_key" ON "BitrixIntegration"("bitrixWebhookId");
-
--- CreateIndex
 CREATE UNIQUE INDEX "AmoCrmIntegration_userId_key" ON "AmoCrmIntegration"("userId");
-
--- CreateIndex
-CREATE UNIQUE INDEX "AmoCrmIntegration_amoCrmWebhookId_key" ON "AmoCrmIntegration"("amoCrmWebhookId");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "TelegramSession_phoneNumber_key" ON "TelegramSession"("phoneNumber");
@@ -311,6 +357,9 @@ CREATE UNIQUE INDEX "WhatsappSession_phoneNumber_key" ON "WhatsappSession"("phon
 
 -- CreateIndex
 CREATE UNIQUE INDEX "Dialog_userId_contactId_platform_key" ON "Dialog"("userId", "contactId", "platform");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "Prompt_name_key" ON "Prompt"("name");
 
 -- AddForeignKey
 ALTER TABLE "Admin" ADD CONSTRAINT "Admin_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
@@ -337,16 +386,37 @@ ALTER TABLE "CampaignParsing" ADD CONSTRAINT "CampaignParsing_userId_fkey" FOREI
 ALTER TABLE "ParsedUser" ADD CONSTRAINT "ParsedUser_campaignId_fkey" FOREIGN KEY ("campaignId") REFERENCES "CampaignParsing"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
+ALTER TABLE "Lead" ADD CONSTRAINT "Lead_leadsDBId_fkey" FOREIGN KEY ("leadsDBId") REFERENCES "LeadsDB"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "Lead" ADD CONSTRAINT "Lead_campaignId_fkey" FOREIGN KEY ("campaignId") REFERENCES "CampaignMailing"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "Lead" ADD CONSTRAINT "Lead_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "LeadsDB" ADD CONSTRAINT "LeadsDB_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "CampaignLeadsDB" ADD CONSTRAINT "CampaignLeadsDB_campaignId_fkey" FOREIGN KEY ("campaignId") REFERENCES "CampaignMailing"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "CampaignLeadsDB" ADD CONSTRAINT "CampaignLeadsDB_leadsDBId_fkey" FOREIGN KEY ("leadsDBId") REFERENCES "LeadsDB"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
 ALTER TABLE "CampaignMailing" ADD CONSTRAINT "CampaignMailing_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "CampaignMailing" ADD CONSTRAINT "CampaignMailing_promptId_fkey" FOREIGN KEY ("promptId") REFERENCES "Prompt"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "PhoneNumberCampaign" ADD CONSTRAINT "PhoneNumberCampaign_campaignId_fkey" FOREIGN KEY ("campaignId") REFERENCES "CampaignMailing"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "BitrixIntegration" ADD CONSTRAINT "BitrixIntegration_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "BitrixIntegration" ADD CONSTRAINT "BitrixIntegration_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("telegramId") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "AmoCrmIntegration" ADD CONSTRAINT "AmoCrmIntegration_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "AmoCrmIntegration" ADD CONSTRAINT "AmoCrmIntegration_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("telegramId") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "Message" ADD CONSTRAINT "Message_dialogId_fkey" FOREIGN KEY ("dialogId") REFERENCES "Dialog"("id") ON DELETE RESTRICT ON UPDATE CASCADE;

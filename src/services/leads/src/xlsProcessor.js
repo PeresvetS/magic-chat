@@ -1,4 +1,4 @@
-// src/services/crm/src/xlsProcessor.js
+// src/services/leads/src/xlsProcessor.js
 
 const xlsx = require('xlsx');
 const axios = require('axios');
@@ -27,4 +27,4 @@ async function processExcelFile(fileUrl) {
   }
 }
 
-module.exports = processExcelFile;
+module.exports = { processExcelFile };

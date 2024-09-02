@@ -1,9 +1,8 @@
 // src/bot/user/commands/mailingCommads.js
 
+const LeadsService = require('../../../services/leads/src/LeadsService');
 const { campaignsMailingService } = require('../../../services/campaign');
 const { distributionService } = require('../../../services/mailing');
-const { setUserState, clearUserState } = require('../utils/userState');
-const { processExcelFile } = require('../../../services/crm');
 const { promptService } = require('../../../services/prompt');
 const logger = require('../../../utils/logger');
 
@@ -22,6 +21,16 @@ async function getCampaignByName(name, bot, chatId) {
     logger.error('Error getting campaign:', error);
     bot.sendMessage(chatId, 'Произошла ошибка при получении информации о кампании.');
     return null;
+  }
+}
+
+function getStatusName(status) {
+  switch (status) {
+    case 'NEW': return 'Не обработаны';
+    case 'UNAVAILABLE': return 'Недоступны';
+    case 'PROCESSED_NEGATIVE': return 'Обработаны негативно';
+    case 'PROCESSED_POSITIVE': return 'Обработаны позитивно';
+    default: return status;
   }
 }
 
@@ -349,26 +358,51 @@ module.exports = {
   },
 
 
-'/upload_leads ([^\\s]+)': async (bot, msg, match) => {
-    const [, campaignName] = match;
-    if (!campaignName) {
-      bot.sendMessage(msg.chat.id, 'Пожалуйста, укажите название кампании. Например: /upload_leads МояКампания');
+'/view_leads ([^\\s]+)': async (bot, msg, match) => {
+  const [, campaignName] = match;
+  if (!campaignName) {
+    bot.sendMessage(msg.chat.id, 'Пожалуйста, укажите название кампании. Например: /view_leads МояКампания');
+    return;
+  }
+
+  try {
+    const campaign = await campaignsMailingService.getCampaignByName(campaignName);
+    if (!campaign) {
+      bot.sendMessage(msg.chat.id, `Кампания "${campaignName}" не найдена.`);
       return;
     }
 
-    const userId = msg.from.id;
+    const attachedLeadsDBs = await LeadsService.getAttachedLeadsDBs(campaign.id);
+    let message = `Лиды для кампании "${campaignName}":\n\n`;
 
-    // Устанавливаем состояние пользователя
-    const newState = {
-      action: 'upload_leads',
-      campaignName: campaignName
-    };
-    setUserState(userId, newState);
+    for (const leadsDB of attachedLeadsDBs) {
+      message += `База лидов: ${leadsDB.name} (ID: ${leadsDB.id})\n`;
+      const statuses = ['NEW', 'UNAVAILABLE', 'PROCESSED_NEGATIVE', 'PROCESSED_POSITIVE'];
 
-    logger.info(`Set user state for ${userId}: ${JSON.stringify(newState)}`);
+      for (const status of statuses) {
+        const leads = await LeadsService.getLeadsFromLeadsDB(leadsDB.id, status);
+        message += `  ${getStatusName(status)} (${leads.length}):\n`;
+        leads.slice(0, 5).forEach(lead => {
+          message += `  - ${lead.phone} ${lead.name ? `(${lead.name})` : ''}\n`;
+        });
+        if (leads.length > 5) {
+          message += `  ... и еще ${leads.length - 5}\n`;
+        }
+        message += '\n';
+      }
+      message += '\n';
+    }
 
-    bot.sendMessage(msg.chat.id, `Пожалуйста, отправьте Excel файл (XLS или XLSX) с лидами для кампании "${campaignName}"`);
-  },
+    if (attachedLeadsDBs.length === 0) {
+      message += 'К этой кампании не прикреплены базы лидов.';
+    }
+
+    bot.sendMessage(msg.chat.id, message);
+  } catch (error) {
+    logger.error('Error viewing leads:', error);
+    bot.sendMessage(msg.chat.id, 'Произошла ошибка при получении списка лидов. Пожалуйста, попробуйте позже.');
+  }
+},
   
   
   // Обработчик для всех текстовых сообщений
@@ -388,27 +422,6 @@ module.exports = {
       } catch (error) {
         logger.error('Error setting campaign message:', error);
         bot.sendMessage(msg.chat.id, 'Произошла ошибка при установке сообщения кампании.');
-      }
-    }
-    if (userState && userState.action === 'upload_leads') {
-      logger.info(`XLS file is ${msg.document.mime_type}`);
-      if (msg.document && msg.document.mime_type === 'application/vnd.ms-excel') {
-        try {
-          const campaign = await getCampaignByName(userState.campaignName, bot, msg.chat.id);
-          if (!campaign) return;
-    
-          const file = await bot.getFileLink(msg.document.file_id);
-          const leads = await processExcelFile(file);
-          await campaignsMailingService.addLeadsToCampaign(campaign.id, leads);
-    
-          bot.sendMessage(msg.chat.id, `Лиды успешно загружены для кампании "${userState.campaignName}".`);
-        } catch (error) {
-          logger.error('Error processing XLS file:', error);
-          bot.sendMessage(msg.chat.id, 'Произошла ошибка при обработке XLS файла.');
-        }
-        delete userStates[msg.from.id];
-      } else {
-        bot.sendMessage(msg.chat.id, 'Пожалуйста, отправьте XLS файл.');
       }
     }
   },

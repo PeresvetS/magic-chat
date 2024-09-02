@@ -27,6 +27,7 @@ model User {
   bitrixIntegration BitrixIntegration?
   amoCrmIntegration AmoCrmIntegration?
   leads       Lead[]
+  leadsDBs    LeadsDB[]  // Добавьте эту строку
 }
 
 model Admin {
@@ -158,17 +159,18 @@ model MessageStat {
 model Lead {
   id          Int      @id @default(autoincrement())
   bitrixId    String?  @unique
+  leadsDBId   Int
+  leadsDB   LeadsDB  @relation(fields: [leadsDBId], references: [id])
   campaignId  Int?
   userId      Int?
   phone       String
   name        String?
   source      String?
-  status      String   @default("NEW")
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
   campaign    CampaignMailing? @relation(fields: [campaignId], references: [id])
   user        User?    @relation(fields: [userId], references: [id])
-  status      LeadStatus @defaul(NEW)
+  status      LeadStatus @default(NEW)
 
   @@index([campaignId])
   @@index([userId])
@@ -180,6 +182,30 @@ enum LeadStatus {
   UNAVAILABLE
   PROCESSED_NEGATIVE
   PROCESSED_POSITIVE
+}
+
+model LeadsDB {
+  id        Int      @id @default(autoincrement())
+  name      String
+  userId    Int
+  user      User     @relation(fields: [userId], references: [id])
+  leads     Lead[]
+  campaigns CampaignLeadsDB[]
+  isDefault Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model CampaignLeadsDB {
+  id         Int      @id @default(autoincrement())
+  campaignId Int
+  leadsDBId  Int
+  campaign   CampaignMailing @relation(fields: [campaignId], references: [id])
+  leadsDB    LeadsDB  @relation(fields: [leadsDBId], references: [id])
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@unique([campaignId, leadsDBId])
 }
 
 model CampaignMailing {
@@ -196,6 +222,7 @@ model CampaignMailing {
   prompt            Prompt?              @relation(fields: [promptId], references: [id])
   promptId          Int?
   leads       Lead[]
+  leadsDBs CampaignLeadsDB[]
 }
 
 model PhoneNumberCampaign {
