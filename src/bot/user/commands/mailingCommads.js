@@ -426,5 +426,76 @@ module.exports = {
     }
   },
 
+  '/send_mc_to_leads ([^\\s]+) (NEW|UNAVAILABLE|PROCESSED_NEGATIVE|PROCESSED_POSITIVE)': async (bot, msg, match) => {
+    const [, campaignName, status] = match;
+    
+    if (!campaignName || !status) {
+      bot.sendMessage(msg.chat.id, 'Пожалуйста, укажите название кампании и статус лидов. Например: /send_mc_to_leads МояКампания NEW');
+      return;
+    }
+
+    try {
+      const campaign = await getCampaignByName(campaignName, bot, msg.chat.id);
+      if (!campaign) return;
+
+      if (!campaign.message) {
+        bot.sendMessage(msg.chat.id, `У кампании "${campaignName}" не установлено сообщение для рассылки.`);
+        return;
+      }
+
+      const attachedLeadsDBs = await LeadsService.getAttachedLeadsDBs(campaign.id);
+      if (attachedLeadsDBs.length === 0) {
+        bot.sendMessage(msg.chat.id, `К кампании "${campaignName}" не прикреплены базы лидов.`);
+        return;
+      }
+
+      let totalLeads = 0;
+      let successfulSends = 0;
+      let failedSends = 0;
+
+      for (const leadsDB of attachedLeadsDBs) {
+        const leads = await LeadsService.getLeadsFromLeadsDB(leadsDB.id, status);
+        totalLeads += leads.length;
+
+        for (const lead of leads) {
+          try {
+            const result = await distributionService.distributeMessage(
+              campaign.id,
+              campaign.message,
+              lead.phone,
+              campaign.platformPriority
+            );
+
+            if ((result.telegram && result.telegram.success) ||
+                (result.whatsapp && result.whatsapp.success) ||
+                (result.tgwa && result.tgwa.success)) {
+              successfulSends++;
+            } else {
+              failedSends++;
+            }
+
+            // Небольшая задержка между отправками, чтобы не перегружать систему
+            await new Promise(resolve => setTimeout(resolve, 1000));
+          } catch (error) {
+            logger.error(`Error sending message to lead ${lead.id}:`, error);
+            failedSends++;
+          }
+        }
+      }
+
+      const summaryMessage = `Рассылка для кампании "${campaignName}" завершена.\n` +
+                             `Всего лидов со статусом ${getStatusName(status)}: ${totalLeads}\n` +
+                             `Успешно отправлено: ${successfulSends}\n` +
+                             `Не удалось отправить: ${failedSends}`;
+
+      bot.sendMessage(msg.chat.id, summaryMessage);
+    } catch (error) {
+      logger.error('Error in send_mc_to_leads:', error);
+      bot.sendMessage(msg.chat.id, 'Произошла ошибка при выполнении рассылки. Пожалуйста, попробуйте позже.');
+    }
+  },
 
 };
+
+
+

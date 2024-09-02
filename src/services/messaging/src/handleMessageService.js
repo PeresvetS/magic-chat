@@ -12,7 +12,6 @@ logger.info('HandleMessageService loaded');
 logger.info('TelegramBotStateManager:', TelegramBotStateManager ? 'Loaded' : 'Not loaded');
 logger.info('WhatsAppBotStateManager:', WhatsAppBotStateManager ? 'Loaded' : 'Not loaded');
 
-
 async function processIncomingMessage(phoneNumber, event, platform = 'telegram') {
   try {
     const { senderId, messageText } = extractMessageInfo(event, platform);
@@ -40,8 +39,8 @@ async function processIncomingMessage(phoneNumber, event, platform = 'telegram')
       return;
     }
 
-    // Используем содержимое промпта кампании при обработке сообщения
-    const response = await processMessage(senderId, combinedMessage, phoneNumber, activeCampaign.prompt.content);
+    // Используем содержимое промпта кампании и приветственное сообщение при обработке сообщения
+    const response = await processMessage(senderId, combinedMessage, phoneNumber, activeCampaign.prompt.content, activeCampaign.message);
     if (response) {
       logger.info(`Отправка ответа пользователю ${senderId}: ${response}`);
       await sendResponse(senderId, response, phoneNumber, platform);
@@ -54,7 +53,6 @@ async function processIncomingMessage(phoneNumber, event, platform = 'telegram')
     logger.error(`Ошибка при обработке входящего ${platform} сообщения для ${phoneNumber}:`, error);
   }
 }
-
 
 function extractMessageInfo(event, platform) {
   if (platform === 'whatsapp') {

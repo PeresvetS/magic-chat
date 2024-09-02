@@ -9,7 +9,7 @@ class MessageSenderService {
   constructor() {
     this.limits = {
       telegram: 40, // определять через БД
-      whatsapp: 100  // Пример лимита для WhatsApp,
+      whatsapp: 250  // Пример лимита для WhatsApp,
     };
   }
 
