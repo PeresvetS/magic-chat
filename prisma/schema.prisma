@@ -26,7 +26,7 @@ model User {
   campaignMailings CampaignMailing[]
   bitrixIntegration BitrixIntegration?
   amoCrmIntegration AmoCrmIntegration?
-  leads     Lead[]
+  leads       Lead[]
 }
 
 model Admin {
@@ -156,15 +156,30 @@ model MessageStat {
 }
 
 model Lead {
-  id        Int      @id @default(autoincrement())
-  bitrixId  String   @unique
-  name      String
-  phone     String
-  source    String?
-  status    String
-  createdAt DateTime @default(now())
-  userId    Int      // Добавьте это поле
-  user      User     @relation(fields: [userId], references: [id]) // Добавьте эту связь
+  id          Int      @id @default(autoincrement())
+  bitrixId    String?  @unique
+  campaignId  Int?
+  userId      Int?
+  phone       String
+  name        String?
+  source      String?
+  status      String   @default("NEW")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  campaign    CampaignMailing? @relation(fields: [campaignId], references: [id])
+  user        User?    @relation(fields: [userId], references: [id])
+  status      LeadStatus @defaul(NEW)
+
+  @@index([campaignId])
+  @@index([userId])
+  @@index([phone])
+}
+
+enum LeadStatus {
+  NEW
+  UNAVAILABLE
+  PROCESSED_NEGATIVE
+  PROCESSED_POSITIVE
 }
 
 model CampaignMailing {
@@ -180,6 +195,7 @@ model CampaignMailing {
   phoneNumbers     PhoneNumberCampaign[]
   prompt            Prompt?              @relation(fields: [promptId], references: [id])
   promptId          Int?
+  leads       Lead[]
 }
 
 model PhoneNumberCampaign {

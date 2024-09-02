@@ -3,12 +3,12 @@
 const prisma = require('../utils/prisma');
 const logger = require('../../utils/logger');
 
-async function saveLead({ bitrix_id, name, phone, source, status, userId }) {
+async function saveLead({ bitrix_id, name, phone, source, status, userId, campaignId }) {
   try {
     const lead = await prisma.lead.upsert({
       where: { bitrixId: bitrix_id },
-      update: { name, phone, source, status, userId },
-      create: { bitrixId: bitrix_id, name, phone, source, status, userId }
+      update: { name, phone, source, status, userId, campaignId },
+      create: { bitrixId: bitrix_id, name, phone, source, status, userId, campaignId }
     });
     logger.info(`Lead saved/updated: ${bitrix_id}`);
     return lead;
@@ -52,9 +52,70 @@ async function markLeadAsSent(id) {
   }
 }
 
+async function addLeadsToCampaign(campaignId, leads) {
+  try {
+    const createdLeads = await prisma.lead.createMany({
+      data: leads.map(lead => ({
+        campaignId,
+        phone: lead.phone,
+        name: lead.name,
+        source: lead.source,
+        status: 'NEW'
+      })),
+      skipDuplicates: true,
+    });
+    logger.info(`Добавлено ${createdLeads.count} лидов в кампанию ${campaignId}`);
+    return createdLeads.count;
+  } catch (error) {
+    logger.error(`Ошибка при добавлении лидов в кампанию ${campaignId}:`, error);
+    throw error;
+  }
+}
+
+async function getCampaignByName(name) {
+  try {
+    return await prisma.campaignMailing.findUnique({
+      where: { name }
+    });
+  } catch (error) {
+    logger.error(`Ошибка при получении кампании по имени ${name}:`, error);
+    throw error;
+  }
+}
+
+async function getLeadsForCampaign(campaignId, status = 'NEW') {
+  try {
+    return await prisma.lead.findMany({
+      where: {
+        campaignId,
+        status
+      }
+    });
+  } catch (error) {
+    logger.error('Error getting leads for campaign:', error);
+    throw error;
+  }
+}
+
+async function updateLeadStatus(id, newStatus) {
+  try {
+    return await prisma.lead.update({
+      where: { id },
+      data: { status: newStatus }
+    });
+  } catch (error) {
+    logger.error('Error updating lead status:', error);
+    throw error;
+  }
+}
+
 module.exports = {
-  saveLead,
   getLead,
+  saveLead,
+  markLeadAsSent,
   getUnsentLeads,
-  markLeadAsSent
+  updateLeadStatus,
+  getCampaignByName,
+  addLeadsToCampaign,
+  getLeadsForCampaign,
 };

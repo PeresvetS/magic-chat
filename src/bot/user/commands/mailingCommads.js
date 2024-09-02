@@ -1,7 +1,9 @@
 // src/bot/user/commands/mailingCommads.js
 
-const { distributionService } = require('../../../services/mailing');
 const { campaignsMailingService } = require('../../../services/campaign');
+const { distributionService } = require('../../../services/mailing');
+const { setUserState, clearUserState } = require('../utils/userState');
+const { processExcelFile } = require('../../../services/crm');
 const { promptService } = require('../../../services/prompt');
 const logger = require('../../../utils/logger');
 
@@ -346,12 +348,35 @@ module.exports = {
     }
   },
 
+
+'/upload_leads ([^\\s]+)': async (bot, msg, match) => {
+    const [, campaignName] = match;
+    if (!campaignName) {
+      bot.sendMessage(msg.chat.id, 'Пожалуйста, укажите название кампании. Например: /upload_leads МояКампания');
+      return;
+    }
+
+    const userId = msg.from.id;
+
+    // Устанавливаем состояние пользователя
+    const newState = {
+      action: 'upload_leads',
+      campaignName: campaignName
+    };
+    setUserState(userId, newState);
+
+    logger.info(`Set user state for ${userId}: ${JSON.stringify(newState)}`);
+
+    bot.sendMessage(msg.chat.id, `Пожалуйста, отправьте Excel файл (XLS или XLSX) с лидами для кампании "${campaignName}"`);
+  },
   
   
   // Обработчик для всех текстовых сообщений
   messageHandler: async (bot, msg) => {
     const userId = msg.from.id;
     const userState = userStates[userId];
+
+    logger.info(`Received message with ${userState} and ${userState.action}`);
 
     if (userState && userState.action === 'set_mc_message') {
       try {
@@ -365,6 +390,28 @@ module.exports = {
         bot.sendMessage(msg.chat.id, 'Произошла ошибка при установке сообщения кампании.');
       }
     }
-    // Здесь можно добавить обработку других состояний или действий
+    if (userState && userState.action === 'upload_leads') {
+      logger.info(`XLS file is ${msg.document.mime_type}`);
+      if (msg.document && msg.document.mime_type === 'application/vnd.ms-excel') {
+        try {
+          const campaign = await getCampaignByName(userState.campaignName, bot, msg.chat.id);
+          if (!campaign) return;
+    
+          const file = await bot.getFileLink(msg.document.file_id);
+          const leads = await processExcelFile(file);
+          await campaignsMailingService.addLeadsToCampaign(campaign.id, leads);
+    
+          bot.sendMessage(msg.chat.id, `Лиды успешно загружены для кампании "${userState.campaignName}".`);
+        } catch (error) {
+          logger.error('Error processing XLS file:', error);
+          bot.sendMessage(msg.chat.id, 'Произошла ошибка при обработке XLS файла.');
+        }
+        delete userStates[msg.from.id];
+      } else {
+        bot.sendMessage(msg.chat.id, 'Пожалуйста, отправьте XLS файл.');
+      }
+    }
   },
+
+
 };

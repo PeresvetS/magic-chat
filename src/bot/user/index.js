@@ -8,8 +8,11 @@ const TelegramBot = require('node-telegram-bot-api');
 const config = require('../../config');
 const logger = require('../../utils/logger');
 const { userService } = require('../../services/user');
+const { processExcelFile } = require('../../services/crm');
+const { getUserState, clearUserState } = require('./utils/userState');
 const { TelegramSessionService } = require('../../services/telegram');
 const { WhatsAppSessionService } = require('../../services/whatsapp');
+const { campaignsMailingService } = require('../../services/campaign');
 const { checkSubscription } = require('../../middleware/checkSubscription');
 const { setPhoneAuthenticated } = require('../../services/phone').phoneNumberService;
 
@@ -22,6 +25,7 @@ const mailingCommands = require('./commands/mailingCommads');
 const crmSettingsCommands = require('./commands/crmSettingsCommands');
 const subscriptionCommands = require('./commands/subscriptionCommands');
 
+const userStates = {};
 
 function createUserBot() {
   const bot = new TelegramBot(config.USER_BOT_TOKEN, { polling: false });
@@ -97,6 +101,59 @@ function createUserBot() {
       bot.sendMessage(msg.chat.id, 'Произошла ошибка при обработке сообщения.');
     }
   });
+
+  bot.on('document', async (msg) => {
+    logger.info(`Received document from user ${msg.from.id}`);
+    try { 
+      const userId = msg.from.id;
+      const userState = getUserState(userId);
+  
+      logger.info(`User state for ${userId}: ${JSON.stringify(userState)}`);
+    
+      if (userState && userState.action === 'upload_leads') {
+        const allowedMimeTypes = [
+          'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+          'application/vnd.ms-excel'
+        ];
+  
+        logger.info(`Processing document for campaign ${userState.campaignName}`);
+        
+        if (allowedMimeTypes.includes(msg.document.mime_type)) {
+          try {
+            logger.info(`Processing Excel file for campaign ${userState.campaignName}`);
+            const campaign = await campaignsMailingService.getCampaignByName(userState.campaignName);
+            if (!campaign) {
+              bot.sendMessage(msg.chat.id, `Кампания "${userState.campaignName}" не найдена.`);
+              return;
+            }
+            logger.info(`Preparing to process Excel file for campaign ${userState.campaignName}`);
+            const fileLink = await bot.getFileLink(msg.document.file_id);
+            logger.info(`Processing Excel file for campaign ${userState.campaignName}`);
+            const leads = await processExcelFile(fileLink);
+            logger.info(`Preparing to add leads for campaign ${userState.campaignName}`);
+            const addedLeadsCount = await campaignsMailingService.addLeadsToCampaign(campaign.id, leads);
+            logger.info(`Leads added for campaign ${userState.campaignName}`);
+            bot.sendMessage(msg.chat.id, `Успешно добавлено ${addedLeadsCount} лидов для кампании "${userState.campaignName}".`);
+          } catch (error) {
+            logger.error('Error processing Excel file:', error);
+            bot.sendMessage(msg.chat.id, 'Произошла ошибка при обработке Excel файла. Пожалуйста, попробуйте еще раз.');
+          } finally {
+            clearUserState(userId);
+          }
+        } else {
+          bot.sendMessage(msg.chat.id, 'Пожалуйста, отправьте файл в формате XLS или XLSX.');
+        }
+      } else {
+        logger.info(`Received document without active upload_leads state for user ${userId}`);
+        bot.sendMessage(msg.chat.id, 'Пожалуйста, сначала используйте команду /upload_leads для указания кампании, затем отправьте файл.');
+      }
+    } catch (error) {
+      logger.error('Error handling document:', error);
+      bot.sendMessage(msg.chat.id, 'Произошла ошибка при обработке документа. Пожалуйста, попробуйте еще раз или обратитесь к администратору.');
+    }
+  });
+  
+  
 
 
   bot.on('callback_query', async (query) => {
@@ -250,6 +307,7 @@ async function tryWhatsappAuth(bot, query, phoneNumber, authType) {
     }
     await bot.sendMessage(query.message.chat.id, errorMessage);
   }
+
 }
 
 
