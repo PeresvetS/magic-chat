@@ -1,16 +1,52 @@
 // src/services/mailing/src/messageSenderService.js
 
 const logger = require('../../../utils/logger');
-const { phoneNumberRepo, campaignsMailingRepo, dialogRepo } = require('../../../db');
+const LeadsService = require('../../leads/src/LeadsService');
 const { TelegramSessionService } = require('../../telegram');
 const { WhatsAppSessionService } = require('../../whatsapp');
+const { phoneNumberRepo, campaignsMailingRepo, dialogRepo } = require('../../../db');
 
 class MessageSenderService {
   constructor() {
     this.limits = {
       telegram: 40, // определять через БД
-      whatsapp: 250  // Пример лимита для WhatsApp,
+      whatsapp: 250  
     };
+  }
+
+  async updateLeadChatId(campaignId, phoneNumber, chatId, platform) {
+    try {
+      const lead = await LeadsService.getLeadByPhone(phoneNumber);
+      if (lead) {
+        if (platform === 'telegram') {
+          await LeadsService.updateLeadTelegramChatId(lead.id, chatId);
+        } else if (platform === 'whatsapp') {
+          await LeadsService.updateLeadWhatsappChatId(lead.id, chatId);
+        }
+      }
+    } catch (error) {
+      logger.error(`Error updating ${platform} chat ID for lead:`, error);
+    }
+  }
+
+  async applyDelay(platform) {
+    let minDelay, maxDelay;
+    
+    if (platform === 'telegram') {
+      minDelay = 10000;  // 10 seconds
+      maxDelay = 60000;  // 1 minute
+    } else if (platform === 'whatsapp') {
+      minDelay = 30000;  // 30 seconds
+      maxDelay = 300000; // 5 minutes
+    } else {
+      // Если платформа неизвестна, используем минимальную задержку
+      minDelay = 10000;
+      maxDelay = 10000;
+    }
+
+    const delay = Math.floor(Math.random() * (maxDelay - minDelay + 1) + minDelay);
+    logger.info(`Applying delay of ${delay}ms for ${platform} platform`);
+    await new Promise(resolve => setTimeout(resolve, delay));
   }
 
   async initializeTelegram(phoneSenderNumber) {
@@ -50,7 +86,6 @@ class MessageSenderService {
     }
   }
   
-
   async sendTelegramMessage(campaignId, phoneRecipientNumber, message) {
     logger.info(`Отправка сообщения с ID кампании ${campaignId}`);
     try {
@@ -71,11 +106,16 @@ class MessageSenderService {
         return { success: false, error: 'Достигнут дневной лимит' };
       }
 
+      await this.applyDelay('telegram');
+
       const recipient = await client.getEntity(phoneRecipientNumber);
       if (!recipient) {
-        throw new Error(`Не удалось найти пользователя ${phoneRecipientNumber} в Telegram`);
+        throw new Error(`Не удалось найти пользователя ${phoneRecipientNumber} в Telegram`);
       }
       const result = await client.sendMessage(recipient, { message: message });
+
+      const peer_id = recipient.id.toString();
+      await this.updateLeadChatId(campaignId, phoneRecipientNumber, peer_id, 'telegram');
 
       const isNewContact = await this.isNewContact(userId, recipient.id, 'telegram');
       await this.updateMessageCount(phoneSenderNumber, isNewContact, 'telegram');
@@ -124,16 +164,20 @@ class MessageSenderService {
         return { success: false, error: 'Достигнут дневной лимит' };
       }
 
+      await this.applyDelay('whatsapp');
+
       const formattedNumber = this.formatPhoneNumber(phoneRecipientNumber);
       logger.info(`Форматированный номер для отправки WhatsApp: ${formattedNumber}`);
 
       const chat = await client.getChatById(formattedNumber);
       const result = await chat.sendMessage(message);
 
+      await this.updateLeadChatId(campaignId, phoneRecipientNumber, result.id.remote, 'whatsapp');
+
       const isNewContact = await this.isNewContact(userId, formattedNumber, 'whatsapp');
       await this.updateMessageCount(phoneSenderNumber, isNewContact, 'whatsapp');
       await this.saveDialog(userId, formattedNumber, 'whatsapp', '', message, phoneRecipientNumber);
-      logger.info(`Сообщение отправлено на ${phoneRecipientNumber} через WhatsAp  p с ${phoneSenderNumber}`);
+      logger.info(`Сообщение отправлено на ${phoneRecipientNumber} через WhatsApp с ${phoneSenderNumber}`);
       return { success: true, messageId: result.id._serialized };
     } catch (error) {
       logger.error(`Ошибка отправки сообщения WhatsApp для кампании ${campaignId} на ${phoneRecipientNumber}:`, error);

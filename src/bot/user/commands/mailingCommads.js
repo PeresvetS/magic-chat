@@ -58,6 +58,35 @@ module.exports = {
     }
   },
 
+  '/set_google_sheet ([^\\s]+) (.+)': async (bot, msg, match) => {
+    const [, campaignName, googleSheetUrl] = match;
+
+    if (!campaignName || !googleSheetUrl) {
+      bot.sendMessage(msg.chat.id, 'Пожалуйста, укажите название кампании и URL Google таблицы. Например: /set_google_sheet МояКампания https://docs.google.com/spreadsheets/d/...');
+      return;
+    }
+
+    try {
+      const campaign = await campaignsMailingService.getCampaignByName(campaignName);
+      if (!campaign) {
+        bot.sendMessage(msg.chat.id, `Кампания "${campaignName}" не найдена.`);
+        return;
+      }
+
+      // Простая проверка формата URL
+      if (!googleSheetUrl.startsWith('https://docs.google.com/spreadsheets/d/')) {
+        bot.sendMessage(msg.chat.id, 'Пожалуйста, укажите корректный URL Google таблицы.');
+        return;
+      }
+
+      await campaignsMailingService.setGoogleSheetUrl(campaign.id, googleSheetUrl);
+      bot.sendMessage(msg.chat.id, `Google таблица успешно подключена к кампании "${campaignName}".`);
+    } catch (error) {
+      logger.error('Error setting Google Sheet URL:', error);
+      bot.sendMessage(msg.chat.id, 'Произошла ошибка при подключении Google таблицы. Пожалуйста, попробуйте позже.');
+    }
+  },
+
   '/set_mc_message ([^\\s]+)': async (bot, msg, match) => {
     const [, campaignName] = match;
 
@@ -403,8 +432,69 @@ module.exports = {
     bot.sendMessage(msg.chat.id, 'Произошла ошибка при получении списка лидов. Пожалуйста, попробуйте позже.');
   }
 },
+
+
+'/send_mc_to_leads ([^\\s]+) (NEW|UNAVAILABLE|PROCESSED_NEGATIVE|PROCESSED_POSITIVE)': async (bot, msg, match) => {
+  const [, campaignName, status] = match;
   
-  
+  if (!campaignName || !status) {
+    bot.sendMessage(msg.chat.id, 'Пожалуйста, укажите название кампании и статус лидов. Например: /send_mc_to_leads МояКампания NEW');
+    return;
+  }
+
+  try {
+    const campaign = await getCampaignByName(campaignName, bot, msg.chat.id);
+    if (!campaign) return;
+
+    if (!campaign.message) {
+      bot.sendMessage(msg.chat.id, `У кампании "${campaignName}" не установлено сообщение для рассылки.`);
+      return;
+    }
+
+    const attachedLeadsDBs = await LeadsService.getAttachedLeadsDBs(campaign.id);
+    if (attachedLeadsDBs.length === 0) {
+      bot.sendMessage(msg.chat.id, `К кампании "${campaignName}" не прикреплены базы лидов.`);
+      return;
+    }
+
+    let allLeads = [];
+    for (const leadsDB of attachedLeadsDBs) {
+      const leads = await LeadsService.getLeadsFromLeadsDB(leadsDB.id, status);
+      allLeads = allLeads.concat(leads);
+    }
+
+    if (allLeads.length === 0) {
+      bot.sendMessage(msg.chat.id, `Нет лидов со статусом ${getStatusName(status)} для рассылки.`);
+      return;
+    }
+
+    bot.sendMessage(msg.chat.id, `Начинаем рассылку для ${allLeads.length} лидов со статусом ${getStatusName(status)}...`);
+
+    const contacts = allLeads.map(lead => ({ phoneNumber: lead.phone }));
+    const results = await distributionService.bulkDistribute(campaign.id, contacts, campaign.message, campaign.platformPriority);
+
+    const summaryMessage = `Рассылка для кампании "${campaignName}" завершена.\n` +
+                           `Всего лидов со статусом ${getStatusName(status)}: ${results.totalContacts}\n` +
+                           `Успешно отправлено: ${results.successfulSends}\n` +
+                           `Не удалось отправить: ${results.failedSends}`;
+
+    bot.sendMessage(msg.chat.id, summaryMessage);
+
+    // Отправка детальной информации, если есть ошибки
+    if (results.failedSends > 0) {
+      const failedDetails = results.details
+        .filter(detail => detail.status === 'failed')
+        .map(detail => `${detail.phoneNumber}: ${detail.error}`)
+        .join('\n');
+      
+      bot.sendMessage(msg.chat.id, `Детали неудачных отправок:\n${failedDetails}`);
+    }
+  } catch (error) {
+    logger.error('Error in send_mc_to_leads:', error);
+    bot.sendMessage(msg.chat.id, 'Произошла ошибка при выполнении рассылки. Пожалуйста, попробуйте позже.');
+  }
+},
+
   // Обработчик для всех текстовых сообщений
   messageHandler: async (bot, msg) => {
     const userId = msg.from.id;
@@ -423,75 +513,6 @@ module.exports = {
         logger.error('Error setting campaign message:', error);
         bot.sendMessage(msg.chat.id, 'Произошла ошибка при установке сообщения кампании.');
       }
-    }
-  },
-
-  '/send_mc_to_leads ([^\\s]+) (NEW|UNAVAILABLE|PROCESSED_NEGATIVE|PROCESSED_POSITIVE)': async (bot, msg, match) => {
-    const [, campaignName, status] = match;
-    
-    if (!campaignName || !status) {
-      bot.sendMessage(msg.chat.id, 'Пожалуйста, укажите название кампании и статус лидов. Например: /send_mc_to_leads МояКампания NEW');
-      return;
-    }
-
-    try {
-      const campaign = await getCampaignByName(campaignName, bot, msg.chat.id);
-      if (!campaign) return;
-
-      if (!campaign.message) {
-        bot.sendMessage(msg.chat.id, `У кампании "${campaignName}" не установлено сообщение для рассылки.`);
-        return;
-      }
-
-      const attachedLeadsDBs = await LeadsService.getAttachedLeadsDBs(campaign.id);
-      if (attachedLeadsDBs.length === 0) {
-        bot.sendMessage(msg.chat.id, `К кампании "${campaignName}" не прикреплены базы лидов.`);
-        return;
-      }
-
-      let totalLeads = 0;
-      let successfulSends = 0;
-      let failedSends = 0;
-
-      for (const leadsDB of attachedLeadsDBs) {
-        const leads = await LeadsService.getLeadsFromLeadsDB(leadsDB.id, status);
-        totalLeads += leads.length;
-
-        for (const lead of leads) {
-          try {
-            const result = await distributionService.distributeMessage(
-              campaign.id,
-              campaign.message,
-              lead.phone,
-              campaign.platformPriority
-            );
-
-            if ((result.telegram && result.telegram.success) ||
-                (result.whatsapp && result.whatsapp.success) ||
-                (result.tgwa && result.tgwa.success)) {
-              successfulSends++;
-            } else {
-              failedSends++;
-            }
-
-            // Небольшая задержка между отправками, чтобы не перегружать систему
-            await new Promise(resolve => setTimeout(resolve, 1000));
-          } catch (error) {
-            logger.error(`Error sending message to lead ${lead.id}:`, error);
-            failedSends++;
-          }
-        }
-      }
-
-      const summaryMessage = `Рассылка для кампании "${campaignName}" завершена.\n` +
-                             `Всего лидов со статусом ${getStatusName(status)}: ${totalLeads}\n` +
-                             `Успешно отправлено: ${successfulSends}\n` +
-                             `Не удалось отправить: ${failedSends}`;
-
-      bot.sendMessage(msg.chat.id, summaryMessage);
-    } catch (error) {
-      logger.error('Error in send_mc_to_leads:', error);
-      bot.sendMessage(msg.chat.id, 'Произошла ошибка при выполнении рассылки. Пожалуйста, попробуйте позже.');
     }
   },
 

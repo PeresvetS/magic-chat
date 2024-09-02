@@ -35,6 +35,20 @@
     }
   }
 
+  async function setGoogleSheetUrl(id, googleSheetUrl) {
+    try {
+      const updatedCampaign = await prisma.campaignMailing.update({
+        where: { id },
+        data: { googleSheetUrl, updatedAt: new Date() }
+      });
+      logger.info(`Google Sheet URL set for campaign: ${id}`);
+      return updatedCampaign;
+    } catch (error) {
+      logger.error(`Error setting Google Sheet URL for campaign ${id}:`, error);
+      throw error;
+    }
+  }
+
   async function getActiveCampaignForPhoneNumber(phoneNumber) {
     try {
       return await prisma.campaignMailing.findFirst({
@@ -328,6 +342,7 @@
     setCampaignPrompt,
     attachPhoneNumber,
     detachPhoneNumber,
+    setGoogleSheetUrl,
     setCampaignPrompt,
     getActiveCampaign,
     getCampaignByName,

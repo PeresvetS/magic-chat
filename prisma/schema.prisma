@@ -157,24 +157,30 @@ model MessageStat {
 }
 
 model Lead {
-  id          Int      @id @default(autoincrement())
-  bitrixId    String?  @unique
-  leadsDBId   Int
-  leadsDB   LeadsDB  @relation(fields: [leadsDBId], references: [id])
-  campaignId  Int?
-  userId      Int?
-  phone       String
-  name        String?
-  source      String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  campaign    CampaignMailing? @relation(fields: [campaignId], references: [id])
-  user        User?    @relation(fields: [userId], references: [id])
-  status      LeadStatus @default(NEW)
+  id              Int      @id @default(autoincrement())
+  bitrixId        String?  @unique
+  leadsDBId       Int
+  leadsDB         LeadsDB  @relation(fields: [leadsDBId], references: [id])
+  campaignId      Int?
+  userId          Int?
+  phone           String
+  name            String?
+  source          String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  campaign        CampaignMailing? @relation(fields: [campaignId], references: [id])
+  user            User?    @relation(fields: [userId], references: [id])
+  status          LeadStatus @default(NEW)
+  telegramChatId  String?
+  whatsappChatId  String?
+  lastMessageTime DateTime?
+  lastPlatform    String?
 
   @@index([campaignId])
   @@index([userId])
   @@index([phone])
+  @@index([telegramChatId])
+  @@index([whatsappChatId])
 }
 
 enum LeadStatus {
@@ -182,6 +188,20 @@ enum LeadStatus {
   UNAVAILABLE
   PROCESSED_NEGATIVE
   PROCESSED_POSITIVE
+}
+
+model RecipientInfo {
+  id              Int      @id @default(autoincrement())
+  leadId          Int
+  lead            Lead     @relation(fields: [leadId], references: [id])
+  campaignId      Int
+  campaign        CampaignMailing @relation(fields: [campaignId], references: [id])
+  platform        String
+  lastMessageTime DateTime
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@unique([leadId, campaignId, platform])
 }
 
 model LeadsDB {
@@ -221,6 +241,7 @@ model CampaignMailing {
   phoneNumbers     PhoneNumberCampaign[]
   prompt            Prompt?              @relation(fields: [promptId], references: [id])
   promptId          Int?
+  googleSheetUrl String?
   leads       Lead[]
   leadsDBs CampaignLeadsDB[]
 }
