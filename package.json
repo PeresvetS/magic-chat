@@ -30,7 +30,6 @@
     "node-telegram-bot-api": "^0.66.0",
     "openai": "^4.55.7",
     "pg": "^8.12.0",
-    "puppeteer": "^23.2.1",
     "qrcode": "^1.5.4",
     "telegram": "^2.23.10",
     "whatsapp-web.js": "^1.25.0",

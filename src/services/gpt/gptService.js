@@ -5,7 +5,6 @@ const OpenAI = require("openai");
 const config = require('../../config');
 const logger = require('../../utils/logger');
 const LeadsService = require('../leads/src/LeadsService');
-const userRepo = require('../../db/repositories/userRepo');
 const bitrixService = require('../crm/src/bitrixService');
 const notificationBot = require('../../bot/notification/notificationBot');
 const campaignService = require('../campaign/src/campaignsMailingService');
@@ -41,24 +40,21 @@ async function getGoogleSheetData(googleSheetUrl) {
   }
 }
 
-async function getConversationContext(leadId) {
+async function getConversationContext(lead, campaign) {
+  let bitrixInfo;
   try {
-    const lead = await LeadsService.getLead(leadId);
-    if (!lead) throw new Error('Lead not found');
-
-    const user = await userRepo.getUserById(lead.userId);
-    const bitrixInfo = await bitrixService.getIntegrationInfo(user.id);
-    const campaign = await campaignService.getCampaignById(lead.campaignId);
+    bitrixInfo = await bitrixService.getIntegrationInfo(campaign.userId);
   } catch (error) {
     logger.error('Error getting conversation context:', error);
   }
-  return { lead, user, bitrixInfo, campaign };
+  return { lead, bitrixInfo, campaign };
 }
 
 
 async function changeLeadStatusPositive(context, messages) { 
   try {
     const updatedLead = await LeadsService.updateLeadStatus(context.lead.id, 'PROCESSED_POSITIVE');
+    logger.info(`Lead ${updatedLead.id} ${updatedLead.name} status changed to PROCESSED_POSITIVE`);
         
         if (context.campaign && context.campaign.notificationTelegramIds && context.campaign.notificationTelegramIds.length > 0) {
           // Получаем последние сообщения из массива messages
@@ -121,14 +117,14 @@ const availableFunctions = {
   },
 };
 
-async function generateResponse(leadId, messages, mainSystemPrompt) {
+async function generateResponse(lead, messages, campaign) {
   try {
 
-    const context = await getConversationContext(leadId);
+    const context = await getConversationContext(lead, campaign.userId);
     let googleSheetData = null;
 
-    if (context.campaign && context.campaign.googleSheetUrl) {
-      googleSheetData = await getGoogleSheetData(context.campaign.googleSheetUrl);
+    if (googleSheetUrl) {
+      googleSheetData = await getGoogleSheetData(campaign.googleSheetUrl);
     }
 
     const googleSheetPrompt = googleSheetData 
@@ -136,7 +132,7 @@ async function generateResponse(leadId, messages, mainSystemPrompt) {
       : '';
 
     const formattedMessages = [
-      { role: "system", content: mainSystemPrompt },
+      { role: "system", content: campaign.prompt.content },
       { role: "system", content: googleSheetPrompt },
       ...messages.map(msg => ({
         role: msg.role === 'human' ? 'user' : 'assistant',

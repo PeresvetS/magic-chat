@@ -82,9 +82,9 @@ async function sendResponse(userId, response, phoneNumber, platform = 'telegram'
       await new Promise(resolve => setTimeout(resolve, Math.random() * 2000 + 1000));
     }
 
-    if (!BotStateManager.isResponseInterrupted(userId)) {
+    // if (!BotStateManager.isResponseInterrupted(userId)) {
       await BotStateManager.setOnline(phoneNumber, userId);
-    }
+    // }
     resolve();
   });
 

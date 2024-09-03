@@ -8,10 +8,10 @@ const { saveMessageStats, saveDialogToFile } = require('../../../utils/messageUt
 
 const contextManagers = new Map();
 
-async function processMessage(leadId, senderId, message, phoneNumber, prompt, welcomeMessage, googleSheetUrl) {
+async function processMessage(lead, senderId, message, phoneNumber, сampaign) {
   logger.info(`Processing message for phone number ${phoneNumber}: ${message}`);
   try {
-    if (!prompt) {
+    if (!сampaign.prompt) {
       logger.warn(`No prompt provided for processing message from ${senderId}`);
       return null;
     }
@@ -20,15 +20,15 @@ async function processMessage(leadId, senderId, message, phoneNumber, prompt, we
     
     // Проверяем, есть ли уже сообщения в контексте
     const existingMessages = await contextManager.getMessages();
-    if (existingMessages.length === 0 && welcomeMessage) {
+    if (existingMessages.length === 0 && сampaign.message) {
       // Если это первое сообщение и есть приветственное сообщение, добавляем его как сообщение от ассистента
-      await contextManager.addMessage({ role: 'assistant', content: welcomeMessage });
+      await contextManager.addMessage({ role: 'assistant', content: сampaign.message });
     }
     
     await contextManager.addMessage({ role: 'human', content: message });
     const messages = await contextManager.getMessages();
     
-    const response = await generateResponse(leadId, messages, prompt, googleSheetUrl);
+    const response = await generateResponse(lead, messages, сampaign);
     logger.info(`Response generated: ${response}`);
 
     await contextManager.addMessage({ role: 'assistant', content: response });

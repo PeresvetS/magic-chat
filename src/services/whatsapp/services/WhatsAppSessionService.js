@@ -32,6 +32,23 @@ class WhatsAppSessionService {
   //   }
   // }
 
+  async loadSession(phoneNumber) {
+    const sessionDir = path.join(this.sessionDir, `session-${phoneNumber}`);
+    try {
+      const sessionFile = path.join(sessionDir, 'session.json');
+      const sessionData = await fs.readFile(sessionFile, 'utf8');
+      logger.info(`Сессия WhatsApp загружена для номера ${phoneNumber}`);
+      return JSON.parse(sessionData);
+    } catch (error) {
+      if (error.code === 'ENOENT') {
+        logger.info(`Сессия WhatsApp не найдена для номера ${phoneNumber}`);
+      } else {
+        logger.error(`Ошибка при загрузке сессии WhatsApp для номера ${phoneNumber}:`, error);
+      }
+      return null;
+    }
+  }
+
   onMessage(handler) {
     this.messageHandlers.push(handler);
     logger.info(`New message handler registered. Total handlers: ${this.messageHandlers.length}`);
@@ -311,7 +328,7 @@ class WhatsAppSessionService {
       await fs.access(sessionDir);
       
       // Если директория существует, считаем, что сессия сохранена
-      logger.info(`WhatsApp session directory exists for ${phoneNumber}`);
+      logger.info(`WhatsApp session directory ${sessionDir} exists for ${phoneNumber}`);
       
       // Здесь мы могли бы сохранить дополнительную информацию о сессии, если это необходимо
       await whatsappSessionsRepo.saveSession(phoneNumber, JSON.stringify({ exists: true }));

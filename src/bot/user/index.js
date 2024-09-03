@@ -31,6 +31,7 @@ const userStates = {};
 
 function createUserBot() {
   const bot = new TelegramBot(config.USER_BOT_TOKEN, { polling: false });
+  let isRunning = false;
   // const bot = new TelegramBot(token, { polling: true, filepath: false });
   const commandModules = [
     subscriptionCommands,
@@ -186,9 +187,11 @@ function createUserBot() {
     logger.error('Polling error:', error);
     if (error.code === 'ETELEGRAM' && error.message.includes('Bad Gateway')) {
       logger.warn('Telegram API временно недоступен. Переподключение...');
+      isRunning = false;
       bot.stopPolling().then(() => {
         setTimeout(() => {
           bot.startPolling();
+          isRunning = true;
         }, 5000); // Попытка переподключения через 5 секунд
       });
     }
@@ -199,13 +202,16 @@ function createUserBot() {
     launch: () => {
       logger.info('Starting bot polling');
       bot.startPolling();
+      isRunning = true;
       logger.info('Bot polling started successfully');
     },
     stop: () => {
       logger.info('Stopping bot polling');
       bot.stopPolling();
+      isRunning = false;
       logger.info('Bot polling stopped successfully');
-    }
+    },
+    isRunning: () => isRunning
   };
 }
 

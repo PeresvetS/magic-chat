@@ -2,6 +2,7 @@
 
 const prisma = require('../utils/prisma');
 const logger = require('../../utils/logger');
+const { getUserIdByCampaignId } = require('./userRepo');
 
 async function saveLead({ bitrix_id, name, phone, source, status, userId, campaignId }) {
   try {
@@ -86,17 +87,6 @@ async function updateLead(id, data) {
   }
 }
 
-async function createLeadsDB(name, userId) {
-  try {
-    return await prisma.leadsDB.create({
-      data: { name, userId }
-    });
-  } catch (error) {
-    logger.error('Error creating LeadsDB:', error);
-    throw error;
-  }
-}
-
 async function getLeadsDBs(userId) {
   try {
     return await prisma.leadsDB.findMany({
@@ -155,6 +145,25 @@ async function attachLeadsDBToCampaign(leadsDBId, campaignId) {
     logger.info(`LeadsDB ${leadsDBId} прикреплена к кампании ${campaignId}`);
   } catch (error) {
     logger.error(`Ошибка при прикреплении LeadsDB ${leadsDBId} к кампании ${campaignId}:`, error);
+    throw error;
+  }
+}
+
+async function getOrCreatetLeadByPhone(phone, platform, chatId, campaignId) {
+  try {
+    const lead = await getLeadByPhone(phone);
+    if (lead) {
+      return lead;
+    }
+    const userId = await getUserIdByCampaignId(campaignId);
+    if (!userId) {
+      throw new Error(`Не удалось найти пользователя для кампании с ID ${campaignId}`);
+    }
+    const result = await createLead(platform, chatId, userId, phone);
+    return result;
+
+} catch (error) {
+    logger.error(`Ошибка при получении или создании лида по номеру телефона ${phone}:`, error);
     throw error;
   }
 }
@@ -238,6 +247,25 @@ async function createLeadsDB(name, userId, isDefault = false) {
   }
 }
 
+async function createLead(platform, chatId, userId) {
+  const leadDb = getDefaultLeadsDB(userId);
+  if (!leadDb) {
+    throw new Error('No default LeadsDB found for user');
+  }
+  const leadsDBId = leadDb.id;
+  if (platform === 'telegram') {
+    return await prisma.lead.create({
+      data: { telegramChatId: chatId, leadsDBId, userId }
+    }); 
+  } else if (platform === 'whatsapp') {
+    return await prisma.lead.create({
+      data: { whatsappChatId: chatId, leadsDBId, userId }
+    });
+  } else {
+    throw new Error('Неизвестная платформа');
+  }
+}
+
 async function setDefaultLeadsDB(userId, leadsDBId) {
   try {
     // Сначала сбрасываем isDefault для всех LeadsDB пользователя
@@ -295,11 +323,11 @@ async function updateLeadMessageInfo(leadId, data) {
 module.exports = {
   getLead,
   saveLead,
+  createLead,
   updateLead,
   deleteLead,
   getLeadsDBs,
   deleteLeadsDB,
-  createLeadsDB,
   createLeadsDB,
   getLeadBitrix,
   markLeadAsSent,
@@ -313,6 +341,7 @@ module.exports = {
   getAttachedLeadsDBs,
   updateLeadMessageInfo,
   attachLeadsDBToCampaign,
+  getOrCreatetLeadByPhone,
   getLeadByWhatsappChatId,
   getLeadByTelegramChatId,
   detachLeadsDBFromCampaign,

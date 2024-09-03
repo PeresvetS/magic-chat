@@ -14,19 +14,11 @@ class MessageSenderService {
     };
   }
 
-  async updateLeadChatId(phoneNumber, chatId, platform) {
+  async updateOrCreateLeadChatId(campaignId, phoneNumber, chatId, platform) {
+    logger.info(`Updating ${platform} chat ID for lead: ${phoneNumber}, chatId: ${chatId}`);
     try {
       const formattedPhoneNumber = LeadsService.formatPhoneNumber(phoneNumber);
-      const lead = await LeadsService.getLeadByPhone(formattedPhoneNumber);
-      if (lead) {
-        if (platform === 'telegram') {
-          await LeadsService.updateLeadTelegramChatId(lead.id, chatId);
-        } else if (platform === 'whatsapp') {
-          await LeadsService.updateLeadWhatsappChatId(lead.id, chatId);
-        }
-      } else {
-        logger.warn(`Lead not found for phone number: ${formattedPhoneNumber}`);
-      }
+      await LeadsService.getOrCreatetLeadByPhone(formattedPhoneNumber, platform, chatId, campaignId);
     } catch (error) {
       logger.error(`Error updating ${platform} chat ID for lead:`, error);
     }
@@ -112,7 +104,7 @@ class MessageSenderService {
       const result = await client.sendMessage(recipient, { message: message });
 
       const peer_id = recipient.id.toString();
-      await this.updateLeadChatId(campaignId, recipientPhoneNumber, peer_id, 'telegram');
+      await this.updateOrCreateLeadChatId(campaignId, recipientPhoneNumber, peer_id, 'telegram');
 
       const isNewContact = await this.isNewContact(userId, recipient.id, 'telegram');
       await this.updateMessageCount(senderPhoneNumber, isNewContact, 'telegram');
@@ -167,7 +159,7 @@ class MessageSenderService {
       }
       const result = await chat.sendMessage(message);
 
-      await this.updateLeadChatId(campaignId, recipientPhoneNumber, result.id.remote, 'whatsapp');
+      await this.updateOrCreateLeadChatId(campaignId, recipientPhoneNumber, result.id.remote, 'whatsapp');
 
       const isNewContact = await this.isNewContact(userId, formattedNumber, 'whatsapp');
       await this.updateMessageCount(senderPhoneNumber, isNewContact, 'whatsapp');

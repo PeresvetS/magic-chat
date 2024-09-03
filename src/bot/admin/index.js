@@ -17,6 +17,7 @@ const phoneManagementCommands = require('./commands/phoneManagementCommands');
 
 function createAdminBot() {
   const bot = new TelegramBot(config.ADMIN_BOT_TOKEN, { polling: false });
+  let isRunning = false;
 
   const commandModules = [
     helpCommands,
@@ -53,14 +54,24 @@ function createAdminBot() {
     logger.error('Polling error:', error);
     if (error.code === 'ETELEGRAM' && error.message.includes('terminated by other getUpdates request')) {
       logger.warn('Another instance is running. Shutting down...');
+      isRunning = false;
       bot.stopPolling();
     }
   });
 
   return {
     bot,
-    launch: () => bot.startPolling(),
-    stop: () => bot.stopPolling()
+    launch: () => {
+      bot.startPolling();
+      isRunning = true;
+      logger.info('Admin bot started polling');
+    },
+    stop: () => {
+      bot.stopPolling();
+      isRunning = false;
+      logger.info('Admin bot stopped polling');
+    },
+    isRunning: () => isRunning
   };
 }
 

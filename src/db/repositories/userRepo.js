@@ -35,6 +35,25 @@ async function getUserByUsername(username) {
   }
 }
 
+async function getUserIdByCampaignId(campaignId) {
+  try {
+    const campaign = await prisma.campaignMailing.findUnique({
+      where: { id: campaignId },
+      select: { userId: true }
+    });
+
+    if (!campaign) {
+      logger.warn(`Кампания с ID ${campaignId} не найдена`);
+      return null;
+    }
+
+    return campaign.userId;
+  } catch (error) {
+    logger.error('Ошибка при получении ID пользователя по ID кампании:', error);
+    throw error;
+  }
+}
+
 async function getUserById(id) {
   try {
     logger.info(`Getting user by ID: ${id}`);
@@ -100,5 +119,6 @@ module.exports = {
   getUserById,
   createUser,
   getAllUsers,
-  updateUserBanStatus
+  updateUserBanStatus,
+  getUserIdByCampaignId
 };

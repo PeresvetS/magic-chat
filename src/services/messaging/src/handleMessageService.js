@@ -7,6 +7,7 @@ const { safeStringify } = require('../../../utils/helpers');
 const LeadsService = require('../../leads/src/LeadsService');
 const TelegramBotStateManager = require('../../telegram/managers/botStateManager');
 const WhatsAppBotStateManager = require('../../whatsapp/managers/botStateManager');
+const { log } = require('winston');
 const { getActiveCampaignForPhoneNumber } = require('../../campaign').campaignsMailingService;
 
 logger.info('HandleMessageService loaded');
@@ -39,9 +40,12 @@ async function processIncomingMessage(phoneNumber, event, platform = 'telegram')
       return;
     }
 
-    const leadId = await getLeadIdByChatId(senderId, platform);
-    
-    const response = await processMessage(leadId, senderId, combinedMessage, phoneNumber, activeCampaign.prompt.content, activeCampaign.message, activeCampaign.googleSheetUrl);
+    logger.info(`Сообщение от ${senderId} в платформе=${platform} для пользователя ${activeCampaign.userId}`);
+    const lead = await getOrCreateLeadIdByChatId(senderId, platform, activeCampaign.userId);
+
+    logger.info(`Обработка ${platform} с lead=${safeStringify(lead)} `);
+
+    const response = await processMessage(lead, senderId, combinedMessage, phoneNumber, activeCampaign);
     if (response) {
       logger.info(`Отправка ответа пользователю ${senderId}: ${response}`);
       await sendResponse(senderId, response, phoneNumber, platform);
@@ -61,7 +65,8 @@ async function extractMessageInfo(event, platform) {
       logger.warn(`WhatsApp event does not contain a message body`);
       return {};
     }
-    return { senderId: event.from, messageText: event.body };
+    logger.info(`Extracted WhatsApp message: ${event.body}, from ${event.from} and chatId ${event.chatId}`);
+    return { senderId: event.from, messageText: event.body, chatId: event.chatId };
   } else {
     const message = event.message;
     if (!message) {
@@ -86,11 +91,19 @@ async function getLeadIdByChatId(chatId, platform) {
     } else {
       lead = await LeadsService.getLeadByTelegramChatId(chatId);
     }
-    return lead ? lead.id.toString() : null;
+    return lead ? lead : null;
   } catch (error) {
     logger.error(`Error getting lead ID by chat ID:`, error);
     return null;
   }
+}
+
+async function getOrCreateLeadIdByChatId(chatId, platform, userId) {
+  const lead = await getLeadIdByChatId(chatId, platform);
+  if (!lead) {
+    return await LeadsService.createLead(platform, chatId, userId);
+  }
+  return lead;
 }
 
 module.exports = { processIncomingMessage };

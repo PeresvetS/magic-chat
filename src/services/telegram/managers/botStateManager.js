@@ -32,6 +32,7 @@ class BotStateManager {
 
   async setOffline(phoneNumber, userId) {
     this.state = 'offline';
+    this.newMessage = true;
     clearTimeout(this.typingTimer);
     clearTimeout(this.offlineTimer);
     const session = await this.getSession(phoneNumber);
@@ -58,13 +59,13 @@ class BotStateManager {
 
   async setOnline(phoneNumber, userId) {
     this.state = 'online';
-      if (this.newMessage) {
-      }
-      const session = await this.getSession(phoneNumber);
-      await OnlineStatusManager.setOnline(userId, session);
-      await this.markMessagesAsRead(phoneNumber, userId);
-      this.resetOfflineTimer(phoneNumber, userId);
-      logger.info(`Bot set to online for user ${userId}`);
+    if (this.newMessage) {
+    }
+    const session = await this.getSession(phoneNumber);
+    await OnlineStatusManager.setOnline(userId, session);
+    await this.markMessagesAsRead(phoneNumber, userId);
+    this.resetOfflineTimer(phoneNumber, userId);
+    logger.info(`Bot set to online for user ${userId}`);
   }
 
   async setTyping(phoneNumber, userId) {
@@ -107,7 +108,7 @@ class BotStateManager {
   }
   
   async simulateTyping(phoneNumber, userId) {
-    const typingDuration = Math.random() * 6000 + 2000; // 2-8 seconds
+    const typingDuration = Math.random() * 8000 + 4000; // 4-12 seconds
     logger.info(`Simulating typing with ${6000} for ${typingDuration}ms`);
     let elapsedTime = 0;
     const typingInterval = 2000; 
@@ -168,6 +169,8 @@ class BotStateManager {
   
     this.processingMessage = true;
     let status = this.state;
+
+    logger.info(`Состояние бота: ${status}`);
   
     if (this.state === 'offline' && OnlineStatusManager.isOnline(userId)) {
       status = 'pre-online';
@@ -183,6 +186,7 @@ class BotStateManager {
           break;
         case 'online':
         case 'typing':
+          await this.markMessagesAsRead(phoneNumber, userId);
           break;
       }
   

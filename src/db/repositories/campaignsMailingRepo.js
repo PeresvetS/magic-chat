@@ -262,15 +262,23 @@
     }
   }
 
-  async function detachPhoneNumber(campaignId, phoneNumber, platform) {
+  async function detachPhoneNumber(campaignId, phoneNumber) {
     try {
+      const existingAttachment = await prisma.phoneNumberCampaign.findFirst({
+        where: {
+          campaignId: campaignId,
+          phoneNumber: phoneNumber
+        }
+      });
+  
+      if (!existingAttachment) {
+        logger.warn(`No attachment found for campaignId: ${campaignId} and phoneNumber: ${phoneNumber}`);
+        return null;
+      }
+  
       return await prisma.phoneNumberCampaign.delete({
         where: {
-          phoneNumber_campaignId: {
-            phoneNumber,
-            campaignId,
-            platform,
-          }
+          id: existingAttachment.id
         }
       });
     } catch (error) {

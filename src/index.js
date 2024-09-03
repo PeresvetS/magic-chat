@@ -33,11 +33,11 @@ async function retryOperation(operation, maxRetries, delay) {
 }
 
 async function checkApplicationState() {
-  // Проверка состояния Telegram сессий
-  await TelegramSessionService.checkAllSessions();
+  // // Проверка состояния Telegram сессий
+  // await TelegramSessionService.checkAllSessions();
   
-  // Проверка состояния WhatsApp сессий
-  await WhatsAppSessionService.checkAllSessions();
+  // // Проверка состояния WhatsApp сессий
+  // await WhatsAppSessionService.checkAllSessions();
   
   // Проверка состояния ботов
   if (!adminBot.isRunning()) {

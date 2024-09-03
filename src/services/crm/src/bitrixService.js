@@ -1,6 +1,7 @@
 // src/services/crm/src/bitrixService.js
 
 const crmRepo = require('../../../db/repositories/crmRepo');
+const prisma = require('../../../db/utils/prisma');
 const logger = require('../../../utils/logger');
 
 async function setInboundUrl(userId, inboundUrl) {
@@ -25,13 +26,24 @@ async function setOutboundToken(userId, outboundToken) {
 
 async function getIntegrationInfo(userId) {
   try {
+    if (!userId) {
+      logger.warn('getIntegrationInfo called with undefined userId');
+      return null;
+    }
+
     const user = await prisma.user.findUnique({
-      where: { id: userId },
+      where: { telegramId: BigInt(userId) },
       include: { bitrixIntegration: true },
     });
-    return user ? user.bitrixIntegration : null;
+
+    if (!user) {
+      logger.warn(`User not found for userId: ${userId}`);
+      return null;
+    }
+
+    return user.bitrixIntegration;
   } catch (error) {
-    logger.error('Error getting Bitrix integration info:', error);
+    logger.error(`Error getting Bitrix integration info for userId ${userId}:`, error);
     throw error;
   }
 }

@@ -110,21 +110,39 @@ async function disablePhoneNumbers(userId) {
 
 async function removePhoneNumber(phoneNumber, platform) {
   try {
-    if (platform === 'telegram') {
-      await prisma.telegramAccount?.delete({ where: { phoneNumberId: phoneNumber.id } });
-    } else if (platform === 'whatsapp') {
-      await prisma.whatsappAccount?.delete({ where: { phoneNumberId: phoneNumber.id } });
-    }
-    // Если нет связанных аккаунтов, удаляем сам номер телефона
-    const accounts = await prisma.phoneNumber.findUnique({
+    const phoneNumberRecord = await prisma.phoneNumber.findUnique({
       where: { phoneNumber },
       include: { telegramAccount: true, whatsappAccount: true }
     });
-    if (!accounts.telegramAccount && !accounts.whatsappAccount) {
+
+    if (!phoneNumberRecord) {
+      throw new Error(`Номер телефона ${phoneNumber} не найден`);
+    }
+
+    if (platform === 'telegram' && phoneNumberRecord.telegramAccount) {
+      await prisma.telegramAccount.delete({
+        where: { id: phoneNumberRecord.telegramAccount.id }
+      });
+    } else if (platform === 'whatsapp' && phoneNumberRecord.whatsappAccount) {
+      await prisma.whatsappAccount.delete({
+        where: { id: phoneNumberRecord.whatsappAccount.id }
+      });
+    }
+
+    // Проверяем, остались ли связанные аккаунты после удаления
+    const updatedPhoneNumberRecord = await prisma.phoneNumber.findUnique({
+      where: { phoneNumber },
+      include: { telegramAccount: true, whatsappAccount: true }
+    });
+
+    // Если не осталось связанных аккаунтов, удаляем сам номер телефона
+    if (!updatedPhoneNumberRecord.telegramAccount && !updatedPhoneNumberRecord.whatsappAccount) {
       await prisma.phoneNumber.delete({ where: { phoneNumber } });
     }
+
+    logger.info(`Удален ${platform} аккаунт для номера ${phoneNumber}`);
   } catch (error) {
-    logger.error('Error removing phone number:', error);
+    logger.error(`Ошибка при удалении номера телефона ${phoneNumber} для платформы ${platform}:`, error);
     throw error;
   }
 }

@@ -29,6 +29,24 @@ class LeadsService {
     return cleaned;
   }
 
+  async getLead(id) {
+    try {
+      return await leadsRepo.getLead(id);
+    } catch (error) {
+      logger.error('Error getting lead:', error);
+      throw error;
+    }
+  }
+
+  async createLead(platform, chatId, userId) {
+    try {
+      return await leadsRepo.createLead(platform, chatId, userId);
+    } catch (error) {
+      logger.error('Error creating lead:', error);
+      throw error;
+    }
+  }
+
   async getLeadsDBByName(telegramId, name) {
     try {
       const userId = await this.getUserIdByTelegramId(telegramId);
@@ -175,6 +193,14 @@ class LeadsService {
     }
   }
 
+  async getOrCreatetLeadByPhone (phone, platform, chatId, campaignId) {
+    try {
+      await leadsRepo.getOrCreatetLeadByPhone(phone, platform, chatId, campaignId);
+    } catch (error) {
+      logger.error('Error getting or creating lead by phone:', error); 
+    }
+  }
+
   async addLeadsToLeadsDB(leadsDBId, leads) {
     try {
       const processedLeads = leads.map(lead => ({
@@ -303,6 +329,10 @@ class LeadsService {
       logger.error('Error getting leads for campaign:', error);
       throw error;
     }
+  }
+
+  createLead(telegramId, platform) {
+    
   }
   
 

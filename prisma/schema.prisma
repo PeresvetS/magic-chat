@@ -163,7 +163,7 @@ model Lead {
   leadsDB         LeadsDB  @relation(fields: [leadsDBId], references: [id])
   campaignId      Int?
   userId          Int?
-  phone           String
+  phone           String?
   name            String?
   source          String?
   createdAt       DateTime @default(now())

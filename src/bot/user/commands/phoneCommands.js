@@ -63,37 +63,43 @@ module.exports = {
   },
 
   '/remove_phone (telegram|whatsapp) ([+]?[0-9]+)': async (bot, msg, match) => {
-    const [, platform, phoneNumber] = match;
+  const [, platform, phoneNumber] = match;
 
-    logger.info(`Extracted platform: ${platform}, phone number: ${phoneNumber}`);
+  logger.info(`Extracted platform: ${platform}, phone number: ${phoneNumber}`);
 
-    const user = await userService.getUserByTgId(msg.from.id);
-    const userId = user.id;
-    logger.info(`Remove phone command called by user ${userId}`);
+  const user = await userService.getUserByTgId(msg.from.id);
+  const userId = user.id;
+  logger.info(`Remove phone command called by user ${userId}`);
 
-    if (!phoneNumber) {
-      bot.sendMessage(msg.chat.id, 'Пожалуйста, укажите платформу и номер телефона после команды. Например: /remove_phone telegram +79123456789');
-      return;
+  if (!phoneNumber) {
+    bot.sendMessage(msg.chat.id, 'Пожалуйста, укажите платформу и номер телефона после команды. Например: /remove_phone telegram +79123456789');
+    return;
+  }
+
+  logger.info(`Attempting to remove ${platform} number ${phoneNumber} for user ${userId}`);
+
+  try {
+    await removePhoneNumber(userId, phoneNumber, platform);
+    logger.info(`${platform} number ${phoneNumber} removed successfully for user ${userId}`);
+    
+    if (platform === 'telegram') {
+      await TelegramSessionService.disconnectSession(phoneNumber);
+    } else if (platform === 'whatsapp') {
+      await WhatsAppSessionService.disconnectSession(phoneNumber);
     }
-
-    logger.info(`Attempting to remove ${platform} number ${phoneNumber} for user ${userId}`);
-
-    try {
-      await removePhoneNumber(userId, phoneNumber, platform);
-      logger.info(`${platform} number ${phoneNumber} removed successfully for user ${userId}`);
-      
-      if (platform === 'telegram') {
-        await TelegramSessionService.disconnectSession(phoneNumber);
-      } else if (platform === 'whatsapp') {
-        await WhatsAppSessionService.disconnectSession(phoneNumber);
-      }
-      
-      bot.sendMessage(msg.chat.id, `${platform} номер ${phoneNumber} успешно удален и сессия разорвана.`);
-    } catch (error) {
-      logger.error(`Error removing ${platform} number ${phoneNumber} for user ${userId}:`, error);
-      bot.sendMessage(msg.chat.id, `Ошибка при удалении номера: ${error.message}`);
+    
+    bot.sendMessage(msg.chat.id, `${platform} номер ${phoneNumber} успешно удален и сессия разорвана.`);
+  } catch (error) {
+    logger.error(`Error removing ${platform} number ${phoneNumber} for user ${userId}:`, error);
+    let errorMessage = 'Произошла ошибка при удалении номера.';
+    if (error.message.includes('не найден')) {
+      errorMessage = `Номер ${phoneNumber} не найден или уже был удален.`;
+    } else if (error.code === 'P2014') {
+      errorMessage = 'Не удалось удалить номер из-за связанных данных. Пожалуйста, обратитесь к администратору.';
     }
-  },
+    bot.sendMessage(msg.chat.id, errorMessage);
+  }
+},
 
   '/set_phone_limit (telegram|whatsapp) ([+]?[0-9]+) (\\d+) (\\d+)?': async (bot, msg, match) => {
     const [, platform, phoneNumber, dailyLimit, totalLimit] = match;
