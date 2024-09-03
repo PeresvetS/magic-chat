@@ -79,6 +79,42 @@ class CampaignMailingService {
     }
   }
 
+  async setGoogleSheetUrl(id, googleSheetUrl) {
+    try {
+      return await campaignsMailingRepo.setGoogleSheetUrl(id, googleSheetUrl);
+    } catch (error) {
+      logger.error('Error in setGoogleSheetUrl service:', error);
+      throw error;
+    }
+  }
+
+  async addNotificationTelegramId(id, telegramId) {
+    try {
+      return await campaignsMailingRepo.addNotificationTelegramId(id, telegramId);
+    } catch (error) {
+      logger.error('Error in addNotificationTelegramId service:', error);
+      throw error;
+    }
+  }
+
+  async removeNotificationTelegramId(id, telegramId) {
+    try {
+      return await campaignsMailingRepo.removeNotificationTelegramId(id, telegramId);
+    } catch (error) {
+      logger.error('Error in removeNotificationTelegramId service:', error);
+      throw error;
+    }
+  }
+
+  async getNotificationTelegramIds(id) {
+    try {
+      return await campaignsMailingRepo.getNotificationTelegramIds(id);
+    } catch (error) {
+      logger.error('Error in getNotificationTelegramIds service:', error);
+      throw error;
+    }
+  }
+
   async toggleCampaignActivity(id, isActive) {
     try {
       return await campaignsMailingRepo.toggleCampaignActivity(id, isActive);

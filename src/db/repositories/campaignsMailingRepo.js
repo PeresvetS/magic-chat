@@ -334,6 +334,58 @@
     }
   }
 
+  async function addNotificationTelegramId(id, telegramId) {
+    try {
+      const updatedCampaign = await prisma.campaignMailing.update({
+        where: { id },
+        data: {
+          notificationTelegramIds: {
+            push: BigInt(telegramId)
+          },
+          updatedAt: new Date()
+        }
+      });
+      logger.info(`Notification Telegram ID added for campaign: ${id}`);
+      return updatedCampaign;
+    } catch (error) {
+      logger.error(`Error adding notification Telegram ID for campaign ${id}:`, error);
+      throw error;
+    }
+  }
+  
+  async function removeNotificationTelegramId(id, telegramId) {
+    try {
+      const campaign = await prisma.campaignMailing.findUnique({ where: { id } });
+      const updatedIds = campaign.notificationTelegramIds.filter(id => id !== BigInt(telegramId));
+      
+      const updatedCampaign = await prisma.campaignMailing.update({
+        where: { id },
+        data: {
+          notificationTelegramIds: updatedIds,
+          updatedAt: new Date()
+        }
+      });
+      logger.info(`Notification Telegram ID removed for campaign: ${id}`);
+      return updatedCampaign;
+    } catch (error) {
+      logger.error(`Error removing notification Telegram ID for campaign ${id}:`, error);
+      throw error;
+    }
+  }
+  
+  async function getNotificationTelegramIds(id) {
+    try {
+      const campaign = await prisma.campaignMailing.findUnique({
+        where: { id },
+        select: { notificationTelegramIds: true }
+      });
+      return campaign.notificationTelegramIds;
+    } catch (error) {
+      logger.error(`Error getting notification Telegram IDs for campaign ${id}:`, error);
+      throw error;
+    }
+  }
+
 
 
   module.exports = {
@@ -355,6 +407,9 @@
     toggleCampaignActivity,
     getCampaignPhoneNumbers,
     getCampaignMailingByName,
+    addNotificationTelegramId,
+    getNotificationTelegramIds,
+    removeNotificationTelegramId,
     getActiveCampaignForPhoneNumber,
     checkPhoneNumbersAuthentication
   };

@@ -55,6 +55,15 @@ async function getAllUsers() {
   }
 }
 
+async function getUserByTgId(telegramId) {
+  try {
+    return await userRepo.getUserByTgId(telegramId);
+  } catch (error) {
+    logger.error('Error getting user by Telegram ID:', error);
+    throw error;
+  }
+}
+
 async function getUserByIdentifier(identifier) {
   try {
     logger.info(`Getting user by identifier: ${identifier}`);

@@ -229,21 +229,22 @@ model CampaignLeadsDB {
 }
 
 model CampaignMailing {
-  id        Int      @id @default(autoincrement())
-  name      String   @unique
-  message   String?
-  isActive  Boolean  @default(false)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  platformPriority String   @default("telegram")
-  user      User     @relation(fields: [userId], references: [id])
-  userId    Int
-  phoneNumbers     PhoneNumberCampaign[]
-  prompt            Prompt?              @relation(fields: [promptId], references: [id])
-  promptId          Int?
-  googleSheetUrl String?
-  leads       Lead[]
-  leadsDBs CampaignLeadsDB[]
+  id                    Int      @id @default(autoincrement())
+  name                  String   @unique
+  message               String?
+  isActive              Boolean  @default(false)
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+  platformPriority      String   @default("telegram")
+  user                  User     @relation(fields: [userId], references: [id])
+  userId                Int
+  phoneNumbers          PhoneNumberCampaign[]
+  prompt                Prompt?  @relation(fields: [promptId], references: [id])
+  promptId              Int?
+  leads                 Lead[]
+  leadsDBs              CampaignLeadsDB[]
+  googleSheetUrl        String?
+  notificationTelegramIds BigInt[]
 }
 
 model PhoneNumberCampaign {

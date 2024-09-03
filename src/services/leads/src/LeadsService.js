@@ -125,6 +125,59 @@ class LeadsService {
     }
   }
 
+  async getLeadByIdentifier(identifier, platform) {
+    try {
+      let lead;
+      if (platform === 'telegram') {
+        lead = await leadsRepo.getLeadByTelegramChatId(identifier);
+      } else if (platform === 'whatsapp') {
+        lead = await leadsRepo.getLeadByWhatsappChatId(identifier);
+      }
+      
+      if (!lead) {
+        // Если лид не найден по идентификатору чата, попробуем найти по номеру телефона
+        const phoneNumber = this.formatPhoneNumber(identifier.split('@')[0]);
+        lead = await leadsRepo.getLeadByPhone(phoneNumber);
+      }
+
+      return lead;
+    } catch (error) {
+      logger.error('Error getting lead by identifier:', error);
+      throw error;
+    }
+  }
+
+  async updateLeadMessageInfo(leadId, campaignId, platform) {
+    try {
+      const updatedLead = await leadsRepo.updateLeadMessageInfo(leadId, {
+        campaignId,
+        lastMessageTime: new Date(),
+        lastPlatform: platform
+      });
+      logger.info(`Message info updated for lead ${leadId} in campaign ${campaignId} on ${platform}`);
+      return updatedLead;
+    } catch (error) {
+      logger.error('Error updating lead message info:', error);
+      throw error;
+    }
+  }
+
+  async saveRecipientInfo(leadId, campaignId, platform) {
+    try {
+      const recipientInfo = await leadsRepo.upsertRecipientInfo({
+        leadId,
+        campaignId,
+        platform,
+        lastMessageTime: new Date()
+      });
+      logger.info(`Recipient info saved for lead ${leadId} in campaign ${campaignId} on ${platform}`);
+      return recipientInfo;
+    } catch (error) {
+      logger.error('Error saving recipient info:', error);
+      throw error;
+    }
+  }
+
   async addLeadsToLeadsDB(leadsDBId, leads) {
     try {
       const processedLeads = leads.map(lead => ({
@@ -314,6 +367,42 @@ class LeadsService {
       return lead;
     } catch (error) {
       logger.error('Error adding lead to CRM:', error);
+      throw error;
+    }
+  }
+
+  async updateLeadTelegramChatId(leadId, telegramChatId) {
+    try {
+      return await leadsRepo.updateLead(leadId, { telegramChatId });
+    } catch (error) {
+      logger.error('Error updating lead Telegram chat ID:', error);
+      throw error;
+    }
+  }
+
+  async updateLeadWhatsappChatId(leadId, whatsappChatId) {
+    try {
+      return await leadsRepo.updateLead(leadId, { whatsappChatId });
+    } catch (error) {
+      logger.error('Error updating lead WhatsApp chat ID:', error);
+      throw error;
+    }
+  }
+
+  async getLeadByTelegramChatId(telegramChatId) {
+    try {
+      return await leadsRepo.getLeadByTelegramChatId(telegramChatId);
+    } catch (error) {
+      logger.error('Error getting lead by Telegram chat ID:', error);
+      throw error;
+    }
+  }
+
+  async getLeadByWhatsappChatId(whatsappChatId) {
+    try {
+      return await leadsRepo.getLeadByWhatsappChatId(whatsappChatId);
+    } catch (error) {
+      logger.error('Error getting lead by WhatsApp chat ID:', error);
       throw error;
     }
   }

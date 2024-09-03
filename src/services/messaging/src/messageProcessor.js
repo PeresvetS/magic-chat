@@ -8,7 +8,7 @@ const { saveMessageStats, saveDialogToFile } = require('../../../utils/messageUt
 
 const contextManagers = new Map();
 
-async function processMessage(senderId, message, phoneNumber, prompt, welcomeMessage) {
+async function processMessage(leadId, senderId, message, phoneNumber, prompt, welcomeMessage, googleSheetUrl) {
   logger.info(`Processing message for phone number ${phoneNumber}: ${message}`);
   try {
     if (!prompt) {
@@ -28,7 +28,7 @@ async function processMessage(senderId, message, phoneNumber, prompt, welcomeMes
     await contextManager.addMessage({ role: 'human', content: message });
     const messages = await contextManager.getMessages();
     
-    const response = await generateResponse(messages, prompt);
+    const response = await generateResponse(leadId, messages, prompt, googleSheetUrl);
     logger.info(`Response generated: ${response}`);
 
     await contextManager.addMessage({ role: 'assistant', content: response });

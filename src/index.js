@@ -1,16 +1,17 @@
-const express = require('express');
 const cron = require('node-cron');
+const express = require('express');
 const config = require('./config');
-const bodyParser = require('body-parser');
-const { phoneNumberService } = require('./services/phone');
-const adminBot = require('./bot/admin');
 const userBot = require('./bot/user');
+const adminBot = require('./bot/admin');
 const logger = require('./utils/logger');
-const { TelegramSessionService } = require('./services/telegram');
-const { WhatsAppSessionService } = require('./services/whatsapp');
+const bodyParser = require('body-parser');
 const webhookRouter = require('./api/routes/webhooks');
+const { phoneNumberService } = require('./services/phone');
 const requestLogger = require('./api/middleware/requestLogger');
 const { handleMessageService } = require('./services/messaging');
+const { WhatsAppSessionService } = require('./services/whatsapp');
+const { TelegramSessionService } = require('./services/telegram');
+const notificationBot = require('./bot/notification/notificationBot');
 
 const app = express();
 
@@ -68,6 +69,12 @@ async function main() {
         logger.info('User bot stopped');
       } catch (error) {
         logger.error('Error stopping user bot:', error);
+      }
+
+      try {
+        notificationBot.stopBot();
+      } catch (error) {
+        logger.error('Error stopping notification bot:', error);
       }
 
       try {

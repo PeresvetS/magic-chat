@@ -495,6 +495,80 @@ module.exports = {
   }
 },
 
+'/add_notification_id ([^\\s]+) ([0-9]+)': async (bot, msg, match) => {
+    const [, campaignName, telegramId] = match;
+
+    if (!campaignName || !telegramId) {
+      bot.sendMessage(msg.chat.id, 'Пожалуйста, укажите название кампании и Telegram ID. Например: /add_notification_id МояКампания 123456789');
+      return;
+    }
+
+    try {
+      const campaign = await campaignsMailingService.getCampaignByName(campaignName);
+      if (!campaign) {
+        bot.sendMessage(msg.chat.id, `Кампания "${campaignName}" не найдена.`);
+        return;
+      }
+
+      await campaignsMailingService.addNotificationTelegramId(campaign.id, telegramId);
+      bot.sendMessage(msg.chat.id, `Telegram ID ${telegramId} успешно добавлен для уведомлений в кампании "${campaignName}".`);
+    } catch (error) {
+      logger.error('Error adding notification Telegram ID:', error);
+      bot.sendMessage(msg.chat.id, 'Произошла ошибка при добавлении Telegram ID для уведомлений. Пожалуйста, попробуйте позже.');
+    }
+  },
+
+  '/remove_notification_id ([^\\s]+) ([0-9]+)': async (bot, msg, match) => {
+    const [, campaignName, telegramId] = match;
+
+    if (!campaignName || !telegramId) {
+      bot.sendMessage(msg.chat.id, 'Пожалуйста, укажите название кампании и Telegram ID. Например: /remove_notification_id МояКампания 123456789');
+      return;
+    }
+
+    try {
+      const campaign = await campaignsMailingService.getCampaignByName(campaignName);
+      if (!campaign) {
+        bot.sendMessage(msg.chat.id, `Кампания "${campaignName}" не найдена.`);
+        return;
+      }
+
+      await campaignsMailingService.removeNotificationTelegramId(campaign.id, telegramId);
+      bot.sendMessage(msg.chat.id, `Telegram ID ${telegramId} успешно удален из уведомлений в кампании "${campaignName}".`);
+    } catch (error) {
+      logger.error('Error removing notification Telegram ID:', error);
+      bot.sendMessage(msg.chat.id, 'Произошла ошибка при удалении Telegram ID из уведомлений. Пожалуйста, попробуйте позже.');
+    }
+  },
+
+  '/list_notification_ids ([^\\s]+)': async (bot, msg, match) => {
+    const [, campaignName] = match;
+
+    if (!campaignName) {
+      bot.sendMessage(msg.chat.id, 'Пожалуйста, укажите название кампании. Например: /list_notification_ids МояКампания');
+      return;
+    }
+
+    try {
+      const campaign = await campaignsMailingService.getCampaignByName(campaignName);
+      if (!campaign) {
+        bot.sendMessage(msg.chat.id, `Кампания "${campaignName}" не найдена.`);
+        return;
+      }
+
+      const notificationIds = await campaignsMailingService.getNotificationTelegramIds(campaign.id);
+      if (notificationIds.length === 0) {
+        bot.sendMessage(msg.chat.id, `Для кампании "${campaignName}" не установлены Telegram ID для уведомлений.`);
+      } else {
+        const idList = notificationIds.join(', ');
+        bot.sendMessage(msg.chat.id, `Telegram ID для уведомлений в кампании "${campaignName}":\n${idList}`);
+      }
+    } catch (error) {
+      logger.error('Error listing notification Telegram IDs:', error);
+      bot.sendMessage(msg.chat.id, 'Произошла ошибка при получении списка Telegram ID для уведомлений. Пожалуйста, попробуйте позже.');
+    }
+  },
+
   // Обработчик для всех текстовых сообщений
   messageHandler: async (bot, msg) => {
     const userId = msg.from.id;

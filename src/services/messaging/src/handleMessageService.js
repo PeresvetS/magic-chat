@@ -4,6 +4,7 @@ const logger = require('../../../utils/logger');
 const { sendResponse } = require('./messageSender');
 const { processMessage } = require('./messageProcessor');
 const { safeStringify } = require('../../../utils/helpers');
+const LeadsService = require('../../leads/src/LeadsService');
 const TelegramBotStateManager = require('../../telegram/managers/botStateManager');
 const WhatsAppBotStateManager = require('../../whatsapp/managers/botStateManager');
 const { getActiveCampaignForPhoneNumber } = require('../../campaign').campaignsMailingService;
@@ -14,12 +15,11 @@ logger.info('WhatsAppBotStateManager:', WhatsAppBotStateManager ? 'Loaded' : 'No
 
 async function processIncomingMessage(phoneNumber, event, platform = 'telegram') {
   try {
-    const { senderId, messageText } = extractMessageInfo(event, platform);
+    const { senderId, messageText } = await extractMessageInfo(event, platform);
     if (!senderId || !messageText) return;
 
     logger.info(`Обработка ${platform} сообщения для ${phoneNumber}: senderId=${senderId}, text=${messageText}`);
 
-    // Проверяем, есть ли активная кампания для этого номера телефона
     const activeCampaign = await getActiveCampaignForPhoneNumber(phoneNumber);
     if (!activeCampaign) {
       logger.info(`Нет активной кампании для номера ${phoneNumber}. Сообщение игнорируется.`);
@@ -39,8 +39,9 @@ async function processIncomingMessage(phoneNumber, event, platform = 'telegram')
       return;
     }
 
-    // Используем содержимое промпта кампании и приветственное сообщение при обработке сообщения
-    const response = await processMessage(senderId, combinedMessage, phoneNumber, activeCampaign.prompt.content, activeCampaign.message);
+    const leadId = await getLeadIdByChatId(senderId, platform);
+    
+    const response = await processMessage(leadId, senderId, combinedMessage, phoneNumber, activeCampaign.prompt.content, activeCampaign.message, activeCampaign.googleSheetUrl);
     if (response) {
       logger.info(`Отправка ответа пользователю ${senderId}: ${response}`);
       await sendResponse(senderId, response, phoneNumber, platform);
@@ -54,7 +55,7 @@ async function processIncomingMessage(phoneNumber, event, platform = 'telegram')
   }
 }
 
-function extractMessageInfo(event, platform) {
+async function extractMessageInfo(event, platform) {
   if (platform === 'whatsapp') {
     if (!event.body) {
       logger.warn(`WhatsApp event does not contain a message body`);
@@ -68,14 +69,27 @@ function extractMessageInfo(event, platform) {
       return {};
     }
 
-    let senderId = null;
-    if (message.fromId) {
-      senderId = message.fromId.userId ? message.fromId.userId.toString() : null;
-    } else if (message.peerId) {
-      senderId = message.peerId.userId ? message.peerId.userId.toString() : null;
+    let chatId = message.chatId ? message.chatId.toString() : null;
+    if (!chatId && message.chat && message.chat.id) {
+      chatId = message.chat.id.toString();
     }
 
-    return { senderId, messageText: message.text };
+    return { senderId: chatId, messageText: message.text };
+  }
+}
+
+async function getLeadIdByChatId(chatId, platform) {
+  try {
+    let lead;
+    if (platform === 'whatsapp') {
+      lead = await LeadsService.getLeadByWhatsappChatId(chatId);
+    } else {
+      lead = await LeadsService.getLeadByTelegramChatId(chatId);
+    }
+    return lead ? lead.id.toString() : null;
+  } catch (error) {
+    logger.error(`Error getting lead ID by chat ID:`, error);
+    return null;
   }
 }
 

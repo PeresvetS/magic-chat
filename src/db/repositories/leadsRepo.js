@@ -18,7 +18,6 @@ async function saveLead({ bitrix_id, name, phone, source, status, userId, campai
   }
 }
 
-
 async function getLeadBitrix(bitrix_id) {
   try {
     return await prisma.lead.findUnique({
@@ -71,6 +70,18 @@ async function markLeadAsSent(id) {
     });
   } catch (error) {
     logger.error('Error marking lead as sent in database', error);
+    throw error;
+  }
+}
+
+async function updateLead(id, data) {
+  try {
+    return await prisma.lead.update({
+      where: { id },
+      data
+    });
+  } catch (error) {
+    logger.error('Error updating lead in database', error);
     throw error;
   }
 }
@@ -246,9 +257,39 @@ async function setDefaultLeadsDB(userId, leadsDBId) {
   }
 }
 
+async function getLeadByTelegramChatId(telegramChatId) {
+  return await prisma.lead.findFirst({
+    where: { telegramChatId }
+  });
+}
+
+async function getLeadByWhatsappChatId(whatsappChatId) {
+  return await prisma.lead.findFirst({
+    where: { whatsappChatId }
+  });
+}
+
+async function getLeadByPhone(phone) {
+  return await prisma.lead.findFirst({
+    where: { phone }
+  });
+}
+
+async function updateLeadMessageInfo(leadId, data) {
+  return await prisma.lead.update({
+    where: { id: leadId },
+    data: {
+      campaignId: data.campaignId,
+      lastMessageTime: data.lastMessageTime,
+      lastPlatform: data.lastPlatform
+    }
+  });
+}
+
 module.exports = {
   getLead,
   saveLead,
+  updateLead,
   deleteLead,
   getLeadsDBs,
   deleteLeadsDB,
@@ -257,12 +298,16 @@ module.exports = {
   getLeadBitrix,
   markLeadAsSent,
   getUnsentLeads,
+  getLeadByPhone,
   updateLeadStatus,
   setDefaultLeadsDB,
   addLeadsToLeadsDB,
   getDefaultLeadsDB,
   getLeadsFromLeadsDB,
   getAttachedLeadsDBs,
+  updateLeadMessageInfo,
   attachLeadsDBToCampaign,
+  getLeadByWhatsappChatId,
+  getLeadByTelegramChatId,
   detachLeadsDBFromCampaign,
 };
