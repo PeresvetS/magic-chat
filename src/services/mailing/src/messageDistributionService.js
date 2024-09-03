@@ -51,6 +51,9 @@ class MessageDistributionService {
             case 'whatsapp':
               sendResult = await messageSenderService.sendWhatsAppMessage(campaignId, senderPhoneNumber, strPhoneNumber, message);
               break;
+            case 'tgwa':
+              sendResult = await messageSenderService.sendTgAndWa(campaignId, strPhoneNumber, message);
+              break;
           }
 
           if (!sendResult.success && sendResult.error === 'DAILY_LIMIT_REACHED') {

@@ -14,7 +14,7 @@ class MessageSenderService {
     };
   }
 
-  async updateLeadChatId(campaignId, phoneNumber, chatId, platform) {
+  async updateLeadChatId(phoneNumber, chatId, platform) {
     try {
       const lead = await LeadsService.getLeadByPhone(phoneNumber);
       if (lead) {
@@ -103,6 +103,7 @@ class MessageSenderService {
 
       const recipient = await client.getEntity(recipientPhoneNumber);
       if (!recipient) {
+        await LeadsService.setLeadUnavailable(recipientPhoneNumber);
         throw new Error(`Не удалось найти пользователя ${recipientPhoneNumber} в Telegram`);
       }
       const result = await client.sendMessage(recipient, { message: message });
@@ -120,6 +121,7 @@ class MessageSenderService {
       return { success: false, error: error.message };
     }
   }
+
 
   async getCampaignSenderNumber(campaignId, platform = 'telegram') {
     try {
@@ -156,6 +158,10 @@ class MessageSenderService {
       logger.info(`Форматированный номер для отправки WhatsApp: ${formattedNumber}`);
 
       const chat = await client.getChatById(formattedNumber);
+      if (!chat) {
+        await LeadsService.setLeadUnavailable(recipientPhoneNumber);
+        throw new Error(`Не удалось найти чат ${formattedNumber} в WhatsApp`);
+      }
       const result = await chat.sendMessage(message);
 
       await this.updateLeadChatId(campaignId, recipientPhoneNumber, result.id.remote, 'whatsapp');

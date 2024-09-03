@@ -190,20 +190,6 @@ enum LeadStatus {
   PROCESSED_POSITIVE
 }
 
-model RecipientInfo {
-  id              Int      @id @default(autoincrement())
-  leadId          Int
-  lead            Lead     @relation(fields: [leadId], references: [id])
-  campaignId      Int
-  campaign        CampaignMailing @relation(fields: [campaignId], references: [id])
-  platform        String
-  lastMessageTime DateTime
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-
-  @@unique([leadId, campaignId, platform])
-}
-
 model LeadsDB {
   id        Int      @id @default(autoincrement())
   name      String

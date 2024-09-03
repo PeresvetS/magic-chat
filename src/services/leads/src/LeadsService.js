@@ -137,12 +137,21 @@ class LeadsService {
       if (!lead) {
         // Если лид не найден по идентификатору чата, попробуем найти по номеру телефона
         const phoneNumber = this.formatPhoneNumber(identifier.split('@')[0]);
-        lead = await leadsRepo.getLeadByPhone(phoneNumber);
+        lead = await this.getLeadByPhone(phoneNumber);
       }
 
       return lead;
     } catch (error) {
       logger.error('Error getting lead by identifier:', error);
+      throw error;
+    }
+  }
+
+  async getLeadByPhone(phoneNumber) {
+    try {
+      return await leadsRepo.getLeadByPhone(phoneNumber);
+    } catch (error) {
+      logger.error('Error getting lead by phone number:', error);
       throw error;
     }
   }
@@ -158,22 +167,6 @@ class LeadsService {
       return updatedLead;
     } catch (error) {
       logger.error('Error updating lead message info:', error);
-      throw error;
-    }
-  }
-
-  async saveRecipientInfo(leadId, campaignId, platform) {
-    try {
-      const recipientInfo = await leadsRepo.upsertRecipientInfo({
-        leadId,
-        campaignId,
-        platform,
-        lastMessageTime: new Date()
-      });
-      logger.info(`Recipient info saved for lead ${leadId} in campaign ${campaignId} on ${platform}`);
-      return recipientInfo;
-    } catch (error) {
-      logger.error('Error saving recipient info:', error);
       throw error;
     }
   }
@@ -404,6 +397,18 @@ class LeadsService {
     } catch (error) {
       logger.error('Error getting lead by WhatsApp chat ID:', error);
       throw error;
+    }
+  }
+
+  async setLeadUnavailable(phoneNumber) {
+    try {
+      const lead = await this.getLeadByPhone(phoneNumber);
+      if (lead) {
+        await this.updateLeadStatus(lead.id, 'UNAVAILABLE');
+        logger.info(`Lead with phone ${phoneNumber} set to UNAVAILABLE`);
+      }
+    } catch (error) {
+      logger.error(`Error setting lead to UNAVAILABLE:`, error);
     }
   }
 }

@@ -1,6 +1,7 @@
 // src/services/mailing/src/messagingPlatformChecker.js
 
 const logger = require('../../../utils/logger');
+const LeadsService = require('../../leads/src/LeadsService');
 const { getPlatformPriority } = require('../../../db').campaignsMailingRepo;
 const TelegramChecker = require('./TelegramChecker');
 const WhatsAppChecker = require('./WhatsAppChecker');
@@ -47,6 +48,7 @@ class MessagingPlatformChecker {
           whatsappAvailable = await this.checkWhatsApp(phoneNumber);
           if (whatsappAvailable) return 'whatsapp';
         } 
+        await LeadsService.setLeadUnavailable(phoneNumber);
         return 'none';
       }
 
@@ -59,6 +61,7 @@ class MessagingPlatformChecker {
           telegramAvailable = await this.checkTelegram(phoneNumber);
           if (telegramAvailable) return 'telegram';
         } 
+        await LeadsService.setLeadUnavailable(phoneNumber);
         return 'none';
       }
 
@@ -67,6 +70,8 @@ class MessagingPlatformChecker {
         telegramAvailable = await this.checkTelegram(phoneNumber);
         whatsappAvailable = await this.checkWhatsApp(phoneNumber);
         if (telegramAvailable && whatsappAvailable) return 'tgwa';
+        
+        await LeadsService.setLeadUnavailable(phoneNumber);
         return 'none';
       }
       

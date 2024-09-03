@@ -169,6 +169,10 @@ CREATE TABLE "Lead" (
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
     "status" "LeadStatus" NOT NULL DEFAULT 'NEW',
+    "telegramChatId" TEXT,
+    "whatsappChatId" TEXT,
+    "lastMessageTime" TIMESTAMP(3),
+    "lastPlatform" TEXT,
 
     CONSTRAINT "Lead_pkey" PRIMARY KEY ("id")
 );
@@ -207,6 +211,9 @@ CREATE TABLE "CampaignMailing" (
     "platformPriority" TEXT NOT NULL DEFAULT 'telegram',
     "userId" INTEGER NOT NULL,
     "promptId" INTEGER,
+    "googleSheetUrl" TEXT,
+    "notificationTelegramIds" BIGINT[],
+    "defaultPhoneNumber" TEXT,
 
     CONSTRAINT "CampaignMailing_pkey" PRIMARY KEY ("id")
 );
@@ -217,6 +224,7 @@ CREATE TABLE "PhoneNumberCampaign" (
     "phoneNumber" TEXT NOT NULL,
     "platform" TEXT NOT NULL,
     "campaignId" INTEGER NOT NULL,
+    "addedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
     CONSTRAINT "PhoneNumberCampaign_pkey" PRIMARY KEY ("id")
 );
@@ -333,6 +341,12 @@ CREATE INDEX "Lead_userId_idx" ON "Lead"("userId");
 
 -- CreateIndex
 CREATE INDEX "Lead_phone_idx" ON "Lead"("phone");
+
+-- CreateIndex
+CREATE INDEX "Lead_telegramChatId_idx" ON "Lead"("telegramChatId");
+
+-- CreateIndex
+CREATE INDEX "Lead_whatsappChatId_idx" ON "Lead"("whatsappChatId");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "CampaignLeadsDB_campaignId_leadsDBId_key" ON "CampaignLeadsDB"("campaignId", "leadsDBId");
