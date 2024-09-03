@@ -569,6 +569,51 @@ module.exports = {
     }
   },
 
+  '/set_default_phone_mc ([^\\s]+) ([+]?[0-9]+)': async (bot, msg, match) => {
+    const [, campaignName, phoneNumber] = match;
+
+    if (!campaignName || !phoneNumber) {
+      bot.sendMessage(msg.chat.id, 'Пожалуйста, укажите название кампании и номер телефона. Например: /set_default_phone_mc МояКампания +79123456789');
+      return;
+    }
+
+    try {
+      const campaign = await getCampaignByName(campaignName, bot, msg.chat.id);
+      if (!campaign) return;
+
+      await campaignsMailingService.setDefaultPhoneNumber(campaign.id, phoneNumber);
+      bot.sendMessage(msg.chat.id, `Номер ${phoneNumber} успешно установлен как дефолтный для кампании "${campaignName}".`);
+    } catch (error) {
+      logger.error('Error setting default phone number:', error);
+      bot.sendMessage(msg.chat.id, `Ошибка при установке дефолтного номера: ${error.message}`);
+    }
+  },
+
+  '/get_default_phone_mc ([^\\s]+)': async (bot, msg, match) => {
+    const [, campaignName] = match;
+
+    if (!campaignName) {
+      bot.sendMessage(msg.chat.id, 'Пожалуйста, укажите название кампании. Например: /get_default_phone_mc МояКампания');
+      return;
+    }
+
+    try {
+      const campaign = await getCampaignByName(campaignName, bot, msg.chat.id);
+      if (!campaign) return;
+
+      const defaultPhoneNumber = await campaignsMailingService.getDefaultPhoneNumber(campaign.id);
+      if (defaultPhoneNumber) {
+        bot.sendMessage(msg.chat.id, `Дефолтный номер для кампании "${campaignName}": ${defaultPhoneNumber}`);
+      } else {
+        bot.sendMessage(msg.chat.id, `Для кампании "${campaignName}" не установлен дефолтный номер.`);
+      }
+    } catch (error) {
+      logger.error('Error getting default phone number:', error);
+      bot.sendMessage(msg.chat.id, 'Произошла ошибка при получении дефолтного номера.');
+    }
+  },
+
+
   // Обработчик для всех текстовых сообщений
   messageHandler: async (bot, msg) => {
     const userId = msg.from.id;

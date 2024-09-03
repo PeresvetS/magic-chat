@@ -23,6 +23,38 @@ class CampaignMailingService {
     }
   }
 
+  async setDefaultPhoneNumber(campaignId, phoneNumber) {
+    try {
+      const phoneInfo = await phoneNumberService.getPhoneNumberInfo(phoneNumber);
+      if (!phoneInfo) {
+        throw new Error('Phone number does not exist');
+      }
+      if (phoneInfo.isBanned) {
+        throw new Error('Phone number is banned');
+      }
+      await campaignsMailingRepo.setDefaultPhoneNumber(campaignId, phoneNumber);
+    } catch (error) {
+      logger.error('Error in setDefaultPhoneNumber service:', error);
+      throw error;
+    }
+  }
+
+  async getDefaultPhoneNumber(campaignId) {
+    try {
+      let defaultPhoneNumber = await campaignsMailingRepo.getDefaultPhoneNumber(campaignId);
+      if (!defaultPhoneNumber) {
+        defaultPhoneNumber = await campaignsMailingRepo.getFirstAvailablePhoneNumber(campaignId);
+        if (defaultPhoneNumber) {
+          await this.setDefaultPhoneNumber(campaignId, defaultPhoneNumber);
+        }
+      }
+      return defaultPhoneNumber;
+    } catch (error) {
+      logger.error('Error in getDefaultPhoneNumber service:', error);
+      throw error;
+    }
+  }
+
   async attachPhoneNumber(campaignId, phoneNumber, platform) {
     try {
       const existingAttachment = await phoneNumberCampaignRepo.findExistingAttachment(phoneNumber, campaignId);

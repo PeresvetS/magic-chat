@@ -7,6 +7,7 @@ const { Api } = require("telegram/tl");
 const config = require('../../../config');
 const logger = require('../../../utils/logger');
 const qrcode = require('qrcode');
+const { LRUCache } = require('lru-cache');
 const { setPhoneAuthenticated } = require('../../phone').phoneNumberService;
 const { processIncomingMessage } = require('../../messaging').handleMessageService;
 const sessionManager = require('../managers/sessionManager');
@@ -21,6 +22,7 @@ class TelegramSessionService {
     this.RETRY_ATTEMPTS = 3;
     this.RETRY_DELAY = 5000; 
   }
+  
 
   async initializeSessions() {
     try {
@@ -39,6 +41,7 @@ class TelegramSessionService {
       // Не выбрасываем ошибку, чтобы приложение могло продолжить работу
     }
   }
+  
 
   async initializeMainClient() {
     const sessionData = await telegramSessionsRepo.getSession(config.MAIN_TG_PHONE_NUMBER);

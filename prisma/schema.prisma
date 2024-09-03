@@ -245,6 +245,7 @@ model CampaignMailing {
   leadsDBs              CampaignLeadsDB[]
   googleSheetUrl        String?
   notificationTelegramIds BigInt[]
+  defaultPhoneNumber String?
 }
 
 model PhoneNumberCampaign {
@@ -253,6 +254,7 @@ model PhoneNumberCampaign {
   platform   String
   campaign   CampaignMailing @relation(fields: [campaignId], references: [id])
   campaignId Int
+  addedAt    DateTime @default(now())
 
   @@unique([phoneNumber, campaignId])
 }

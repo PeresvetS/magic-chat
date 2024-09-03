@@ -35,6 +35,50 @@
     }
   }
 
+  async function setDefaultPhoneNumber(campaignId, phoneNumber) {
+    try {
+      await prisma.campaignMailing.update({
+        where: { id: campaignId },
+        data: { defaultPhoneNumber: phoneNumber }
+      });
+    } catch (error) {
+      logger.error(`Error setting default phone number for campaign ${campaignId}:`, error);
+      throw error;
+    }
+  }
+  
+  async function getDefaultPhoneNumber(campaignId) {
+    try {
+      const campaign = await prisma.campaignMailing.findUnique({
+        where: { id: campaignId },
+        select: { defaultPhoneNumber: true }
+      });
+      return campaign?.defaultPhoneNumber;
+    } catch (error) {
+      logger.error(`Error getting default phone number for campaign ${campaignId}:`, error);
+      throw error;
+    }
+  }
+  
+  async function getFirstAvailablePhoneNumber(campaignId) {
+    try {
+      const phoneNumbers = await prisma.phoneNumberCampaign.findMany({
+        where: { 
+          campaignId: campaignId,
+          phoneNumber: {
+            isBanned: false
+          }
+        },
+        orderBy: { addedAt: 'asc' },
+        select: { phoneNumber: true }
+      });
+      return phoneNumbers[0]?.phoneNumber;
+    } catch (error) {
+      logger.error(`Error getting first available phone number for campaign ${campaignId}:`, error);
+      throw error;
+    }
+  }
+
   async function setGoogleSheetUrl(id, googleSheetUrl) {
     try {
       const updatedCampaign = await prisma.campaignMailing.update({
@@ -403,12 +447,15 @@
     setPlatformPriority,
     getPlatformPriority,
     listCampaignMailings,
+    setDefaultPhoneNumber,
+    getDefaultPhoneNumber,
     createCampaignMailing,
     toggleCampaignActivity,
     getCampaignPhoneNumbers,
     getCampaignMailingByName,
     addNotificationTelegramId,
     getNotificationTelegramIds,
+    getFirstAvailablePhoneNumber,
     removeNotificationTelegramId,
     getActiveCampaignForPhoneNumber,
     checkPhoneNumbersAuthentication

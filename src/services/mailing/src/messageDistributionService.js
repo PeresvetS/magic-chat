@@ -4,6 +4,7 @@ const messageSenderService = require('./messageSenderService');
 const MessagingPlatformChecker = require('./MessagingPlatformChecker');
 const logger = require('../../../utils/logger');
 const { campaignsMailingService } = require('../../campaign');
+const PhoneNumberManagerService = require('../../phone/src/PhoneNumberManagerService');
 
 class MessageDistributionService {
 
@@ -33,19 +34,36 @@ class MessageDistributionService {
         whatsapp: null,
         tgwa: null,
       };
-      switch (platforms) {
-        case 'telegram':
-          results.telegram = await messageSenderService.sendTelegramMessage(campaignId, strPhoneNumber, message);
-          break;
-        case 'whatsapp':
-          results.whatsapp = await messageSenderService.sendWhatsAppMessage(campaignId, strPhoneNumber, message);
-          break;
-        case 'tgwa':
-          results.tgwa = await messageSenderService.sendTgAndWa(strPhoneNumber, message);
-          break;
-        default:
-          logger.warn(`No messaging platforms available for ${strPhoneNumber}`);
-          break;
+
+      for (const platform of platforms.split(',')) {
+        let senderPhoneNumber = await PhoneNumberManagerService.getNextAvailablePhoneNumber(campaignId, platform);
+        if (!senderPhoneNumber) {
+          logger.warn(`No available phone numbers for ${platform} in campaign ${campaignId}`);
+          continue;
+        }
+
+        let sendResult;
+        do {
+          switch (platform) {
+            case 'telegram':
+              sendResult = await messageSenderService.sendTelegramMessage(campaignId, senderPhoneNumber, strPhoneNumber, message);
+              break;
+            case 'whatsapp':
+              sendResult = await messageSenderService.sendWhatsAppMessage(campaignId, senderPhoneNumber, strPhoneNumber, message);
+              break;
+          }
+
+          if (!sendResult.success && sendResult.error === 'DAILY_LIMIT_REACHED') {
+            senderPhoneNumber = await PhoneNumberManagerService.switchToNextPhoneNumber(campaignId, senderPhoneNumber, platform);
+            if (!senderPhoneNumber) {
+              break;
+            }
+          } else {
+            break;
+          }
+        } while (true);
+
+        results[platform] = sendResult;
       }
 
       return results;

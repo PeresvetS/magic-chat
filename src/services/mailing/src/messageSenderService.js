@@ -86,44 +86,37 @@ class MessageSenderService {
     }
   }
   
-  async sendTelegramMessage(campaignId, phoneRecipientNumber, message) {
-    logger.info(`Отправка сообщения с ID кампании ${campaignId}`);
+  async sendTelegramMessage(campaignId, senderPhoneNumber, recipientPhoneNumber, message) {
+    logger.info(`Отправка сообщения с ID кампании ${campaignId} от ${senderPhoneNumber} к ${recipientPhoneNumber}`);
     try {
       const userId = await this.getCampaigUserId(campaignId);
       logger.info(`Отправка рассылки от пользователя ID с ${userId}`);
-      const phoneSenderNumber = await this.getCampaignSenderNumber(campaignId, 'telegram');
 
-      if (!phoneSenderNumber) {
-        throw new Error(`Недействительный ID кампании или отсутствует номер отправителя для кампании ${campaignId}`);
+      if (!await this.checkDailyLimit(senderPhoneNumber, 'telegram')) {
+        logger.warn(`Достигнут дневной лимит Telegram для номера телефона: ${senderPhoneNumber}`);
+        return { success: false, error: 'DAILY_LIMIT_REACHED' };
       }
 
-      logger.info(`Отправка сообщения на ${phoneRecipientNumber} через Telegram с ${phoneSenderNumber}`);
-
-      const client = await this.initializeTelegram(phoneSenderNumber);
-
-      if (!await this.checkDailyLimit(phoneSenderNumber, 'telegram')) {
-        logger.warn(`Достигнут дневной лимит Telegram для номера телефона: ${phoneSenderNumber}`);
-        return { success: false, error: 'Достигнут дневной лимит' };
-      }
+      const client = await TelegramSessionService.createOrGetSession(senderPhoneNumber);
 
       await this.applyDelay('telegram');
 
-      const recipient = await client.getEntity(phoneRecipientNumber);
+      const recipient = await client.getEntity(recipientPhoneNumber);
       if (!recipient) {
-        throw new Error(`Не удалось найти пользователя ${phoneRecipientNumber} в Telegram`);
+        throw new Error(`Не удалось найти пользователя ${recipientPhoneNumber} в Telegram`);
       }
       const result = await client.sendMessage(recipient, { message: message });
 
       const peer_id = recipient.id.toString();
-      await this.updateLeadChatId(campaignId, phoneRecipientNumber, peer_id, 'telegram');
+      await this.updateLeadChatId(campaignId, recipientPhoneNumber, peer_id, 'telegram');
 
       const isNewContact = await this.isNewContact(userId, recipient.id, 'telegram');
-      await this.updateMessageCount(phoneSenderNumber, isNewContact, 'telegram');
-      await this.saveDialog(userId, recipient.id, 'telegram', '', message , phoneRecipientNumber);
-      logger.info(`Сообщение отправлено на ${phoneRecipientNumber} через Telegram с ${phoneSenderNumber}`);
+      await this.updateMessageCount(senderPhoneNumber, isNewContact, 'telegram');
+      await this.saveDialog(userId, recipient.id, 'telegram', '', message, recipientPhoneNumber);
+      logger.info(`Сообщение отправлено на ${recipientPhoneNumber} через Telegram с ${senderPhoneNumber}`);
       return { success: true, messageId: result.id };
     } catch (error) {
-      logger.error(`Ошибка отправки сообщения Telegram для кампании ${campaignId} на ${phoneRecipientNumber}:`, error);
+      logger.error(`Ошибка отправки сообщения Telegram для кампании ${campaignId} на ${recipientPhoneNumber}:`, error);
       return { success: false, error: error.message };
     }
   }
@@ -144,43 +137,36 @@ class MessageSenderService {
     }
   }
 
-  async sendWhatsAppMessage(campaignId, phoneRecipientNumber, message) {
-    logger.info(`Отправка сообщения с ID кампании ${campaignId}`);
+  async sendWhatsAppMessage(campaignId, senderPhoneNumber, recipientPhoneNumber, message) {
+    logger.info(`Отправка сообщения с ID кампании ${campaignId} от ${senderPhoneNumber} к ${recipientPhoneNumber}`);
     try {
       const userId = await this.getCampaigUserId(campaignId);
       logger.info(`Отправка рассылки от пользователя ID с ${userId}`);
-      const phoneSenderNumber = await this.getCampaignSenderNumber(campaignId, 'whatsapp');
 
-      if (!phoneSenderNumber) {
-        throw new Error(`Недействительный ID кампании или отсутствует номер отправителя для кампании ${campaignId}`);
+      if (!await this.checkDailyLimit(senderPhoneNumber, 'whatsapp')) {
+        logger.warn(`Достигнут дневной лимит WhatsApp для номера телефона: ${senderPhoneNumber}`);
+        return { success: false, error: 'DAILY_LIMIT_REACHED' };
       }
 
-      logger.info(`Отправка сообщения на ${phoneRecipientNumber} через WhatsApp с ${phoneSenderNumber}`);
-
-      const client = await this.initializeWhatsApp(phoneSenderNumber);
-
-      if (!await this.checkDailyLimit(phoneSenderNumber, 'whatsapp')) {
-        logger.warn(`Достигнут дневной лимит WhatsApp для номера телефона: ${phoneSenderNumber}`);
-        return { success: false, error: 'Достигнут дневной лимит' };
-      }
+      const client = await WhatsAppSessionService.createOrGetSession(senderPhoneNumber);
 
       await this.applyDelay('whatsapp');
 
-      const formattedNumber = this.formatPhoneNumber(phoneRecipientNumber);
+      const formattedNumber = this.formatPhoneNumber(recipientPhoneNumber);
       logger.info(`Форматированный номер для отправки WhatsApp: ${formattedNumber}`);
 
       const chat = await client.getChatById(formattedNumber);
       const result = await chat.sendMessage(message);
 
-      await this.updateLeadChatId(campaignId, phoneRecipientNumber, result.id.remote, 'whatsapp');
+      await this.updateLeadChatId(campaignId, recipientPhoneNumber, result.id.remote, 'whatsapp');
 
       const isNewContact = await this.isNewContact(userId, formattedNumber, 'whatsapp');
-      await this.updateMessageCount(phoneSenderNumber, isNewContact, 'whatsapp');
-      await this.saveDialog(userId, formattedNumber, 'whatsapp', '', message, phoneRecipientNumber);
-      logger.info(`Сообщение отправлено на ${phoneRecipientNumber} через WhatsApp с ${phoneSenderNumber}`);
+      await this.updateMessageCount(senderPhoneNumber, isNewContact, 'whatsapp');
+      await this.saveDialog(userId, formattedNumber, 'whatsapp', '', message, recipientPhoneNumber);
+      logger.info(`Сообщение отправлено на ${recipientPhoneNumber} через WhatsApp с ${senderPhoneNumber}`);
       return { success: true, messageId: result.id._serialized };
     } catch (error) {
-      logger.error(`Ошибка отправки сообщения WhatsApp для кампании ${campaignId} на ${phoneRecipientNumber}:`, error);
+      logger.error(`Ошибка отправки сообщения WhatsApp для кампании ${campaignId} на ${recipientPhoneNumber}:`, error);
       return { success: false, error: error.message };
     }
   }
