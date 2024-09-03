@@ -16,13 +16,16 @@ class MessageSenderService {
 
   async updateLeadChatId(phoneNumber, chatId, platform) {
     try {
-      const lead = await LeadsService.getLeadByPhone(phoneNumber);
+      const formattedPhoneNumber = LeadsService.formatPhoneNumber(phoneNumber);
+      const lead = await LeadsService.getLeadByPhone(formattedPhoneNumber);
       if (lead) {
         if (platform === 'telegram') {
           await LeadsService.updateLeadTelegramChatId(lead.id, chatId);
         } else if (platform === 'whatsapp') {
           await LeadsService.updateLeadWhatsappChatId(lead.id, chatId);
         }
+      } else {
+        logger.warn(`Lead not found for phone number: ${formattedPhoneNumber}`);
       }
     } catch (error) {
       logger.error(`Error updating ${platform} chat ID for lead:`, error);

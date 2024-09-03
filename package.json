@@ -23,6 +23,7 @@
     "gpt3-tokenizer": "^1.1.5",
     "input": "^1.0.1",
     "langchain": "^0.2.16",
+    "libphonenumber-js": "^1.11.7",
     "lru-cache": "^11.0.0",
     "natural": "^7.1.0",
     "node-cron": "^3.0.3",

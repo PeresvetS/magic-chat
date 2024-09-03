@@ -7,7 +7,6 @@ const { Api } = require("telegram/tl");
 const config = require('../../../config');
 const logger = require('../../../utils/logger');
 const qrcode = require('qrcode');
-const { LRUCache } = require('lru-cache');
 const { setPhoneAuthenticated } = require('../../phone').phoneNumberService;
 const { processIncomingMessage } = require('../../messaging').handleMessageService;
 const sessionManager = require('../managers/sessionManager');
@@ -19,10 +18,27 @@ class TelegramSessionService {
     this.mainClient = null;
     this.startConnectionCheck();
     this.startAuthorizationCheck();
+    this.connectionCheckInterval = null;
+    this.authorizationCheckInterval = null;
     this.RETRY_ATTEMPTS = 3;
     this.RETRY_DELAY = 5000; 
   }
   
+  async connectWithRetry(telegramClient, retries = 0) {
+    try {
+      await telegramClient.connect();
+      logger.info('Successfully connected to Telegram');
+    } catch (error) {
+      if (retries < MAX_RETRIES) {
+        logger.warn(`Failed to connect to Telegram. Retrying in ${RETRY_DELAY / 1000} seconds...`);
+        await new Promise(resolve => setTimeout(resolve, RETRY_DELAY));
+        await connectWithRetry(telegramClient, retries + 1);
+      } else {
+        logger.error('Failed to connect to Telegram after multiple attempts');
+        throw error;
+      }
+    }
+  }
 
   async initializeSessions() {
     try {
@@ -265,6 +281,7 @@ class TelegramSessionService {
     }
   }
 
+
   async generateQRCode(phoneNumber, bot, chatId) {
     let client;
     try {
@@ -331,49 +348,53 @@ class TelegramSessionService {
     }
   }
 
-  async getAuthCodeFromUser(phoneNumber) {
+  async getAuthCodeFromUser(phoneNumber, bot, chatId) {
     return new Promise((resolve, reject) => {
-      const rl = readline.createInterface({
-        input: process.stdin,
-        output: process.stdout
-      });
-  
-      rl.question(`Enter the authentication code for ${phoneNumber}: `, (code) => {
-        rl.close();
-        if (code && code.trim()) {
-          resolve(code.trim());
-        } else {
-          reject(new Error('Authentication code is empty'));
+      bot.sendMessage(chatId, `Пожалуйста, введите код аутентификации для номера ${phoneNumber}:`);
+
+      const listener = (msg) => {
+        if (msg.chat.id === chatId) {
+          const code = msg.text.trim();
+          if (code) {
+            bot.removeListener('text', listener);
+            resolve(code);
+          } else {
+            bot.sendMessage(chatId, 'Код не может быть пустым. Пожалуйста, введите код еще раз:');
+          }
         }
-      });
-  
+      };
+
+      bot.on('text', listener);
+
       setTimeout(() => {
-        rl.close();
+        bot.removeListener('text', listener);
         reject(new Error('Timeout: Authentication code was not entered'));
       }, 5 * 60 * 1000); // 5 минут таймаут
     });
   }
   
-  async get2FAPasswordFromUser(phoneNumber) {
+  async get2FAPasswordFromUser(phoneNumber, bot, chatId) {
     return new Promise((resolve, reject) => {
-      const rl = readline.createInterface({
-        input: process.stdin,
-        output: process.stdout
-      });
-  
-      rl.question(`Enter the 2FA password for ${phoneNumber}: `, (password) => {
-        rl.close();
-        if (password && password.trim()) {
-          resolve(password.trim());
-        } else {
-          reject(new Error('2FA password is empty'));
+      bot.sendMessage(chatId, `Пожалуйста, введите пароль 2FA для номера ${phoneNumber}:`);
+
+      const listener = (msg) => {
+        if (msg.chat.id === chatId) {
+          const password = msg.text.trim();
+          if (password) {
+            bot.removeListener('text', listener);
+            resolve(password);
+          } else {
+            bot.sendMessage(chatId, 'Пароль не может быть пустым. Пожалуйста, введите пароль еще раз:');
+          }
         }
-      });
-  
+      };
+
+      bot.on('text', listener);
+
       setTimeout(() => {
-        rl.close();
+        bot.removeListener('text', listener);
         reject(new Error('Timeout: 2FA password was not entered'));
-      }, 5 * 60 * 1000);
+      }, 5 * 60 * 1000); // 5 минут таймаут
     });
   }
 
@@ -475,21 +496,6 @@ class TelegramSessionService {
     return client;
   }
 
-  async authenticateSession(phoneNumber, getAuthCode, get2FAPassword) {
-    const client = await this.createOrGetSession(phoneNumber);
-    
-    await client.start({
-      phoneNumber: async () => phoneNumber,
-      password: async () => await get2FAPassword(),
-      phoneCode: async () => await getAuthCode(),
-      onError: (err) => {
-        logger.error('Error during authentication:', err);
-        throw err;
-      },
-    });
-
-    return client;
-  }
 
   async checkTelegram(phoneNumber) {
     logger.info(`Checking Telegram for number ${phoneNumber}`);

@@ -1,10 +1,8 @@
 // src/bot/user/commands/promptCommands.js
 
-const { promptService } = require('../../../services/prompt');
 const logger = require('../../../utils/logger');
-
-// Объект для хранения состояния пользователей
-const userStates = {};
+const { promptService } = require('../../../services/prompt');
+const { setUserState, getUserState, clearUserState } = require('../utils/userState');
 
 module.exports = {
   '/create_prompt ([^\\s]+)': async (bot, msg, match) => {
@@ -17,11 +15,11 @@ module.exports = {
     try {
       const prompt = await promptService.createPrompt(promptName, '');
       bot.sendMessage(msg.chat.id, `Промпт "${promptName}" успешно создан. ID: ${prompt.id}`);
-      userStates[msg.from.id] = {
+      setUserState(msg.from.id, {
         action: 'set_prompt_content',
         promptId: prompt.id,
         promptName: promptName
-      };
+      });
       bot.sendMessage(msg.chat.id, `Пожалуйста, отправьте содержимое для промпта "${promptName}"`);
     } catch (error) {
       logger.error('Error creating prompt:', error);
@@ -43,11 +41,11 @@ module.exports = {
         return;
       }
 
-      userStates[msg.from.id] = {
+      setUserState(msg.from.id, {
         action: 'set_prompt_content',
         promptId: prompt.id,
         promptName: promptName
-      };
+      });
       bot.sendMessage(msg.chat.id, `Пожалуйста, отправьте новое содержимое для промпта "${promptName}"`);
     } catch (error) {
       logger.error('Error preparing to set prompt content:', error);
@@ -95,13 +93,13 @@ module.exports = {
   // Обработчик для всех текстовых сообщений
   messageHandler: async (bot, msg) => {
     const userId = msg.from.id;
-    const userState = userStates[userId];
+    const userState = getUserState(userId);
 
     if (userState && userState.action === 'set_prompt_content') {
       try {
         await promptService.updatePrompt(userState.promptId, msg.text);
         bot.sendMessage(msg.chat.id, `Содержимое промпта "${userState.promptName}" успешно обновлено.`);
-        delete userStates[userId];
+        clearUserState(userId);
       } catch (error) {
         logger.error('Error setting prompt content:', error);
         bot.sendMessage(msg.chat.id, 'Произошла ошибка при установке содержимого промпта.');

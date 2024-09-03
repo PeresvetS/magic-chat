@@ -249,6 +249,21 @@ class CampaignMailingService {
     }
   }
 
+  async setDefaultPhoneNumber(campaignId, phoneNumber, platform) {
+    try {
+      const phoneInfo = await phoneNumberService.getPhoneNumberInfo(phoneNumber);
+      if (!phoneInfo) {
+        throw new Error('Phone number does not exist');
+      }
+      if (phoneInfo.isBanned) {
+        throw new Error('Phone number is banned');
+      }
+      await campaignsMailingRepo.setDefaultPhoneNumber(campaignId, phoneNumber, platform);
+    } catch (error) {
+      logger.error(`Error in setDefaultPhoneNumber service for ${platform}:`, error);
+      throw error;
+    }
+  }
 }
 
 module.exports = new CampaignMailingService();

@@ -42,7 +42,8 @@ class WhatsAppMainSessionService {
         headless: true,
         handleSIGINT: false,
         handleSIGTERM: false,
-        handleSIGHUP: false
+        handleSIGHUP: false,
+        timeout: 60000 
       }
     });
 
@@ -72,6 +73,10 @@ class WhatsAppMainSessionService {
         resolve(this.mainClient);
       });
 
+      this.mainClient.on('error', (error) => {
+        logger.error(`Main WhatsApp client error for ${mainPhoneNumber}:`, error);
+      });
+
       this.mainClient.on('authenticated', () => {
         logger.info(`Main WhatsApp client (${mainPhoneNumber}) authenticated`);
       });
@@ -95,6 +100,7 @@ class WhatsAppMainSessionService {
       this.mainClient.initialize().catch(error => {
         clearTimeout(initTimeout);
         logger.error(`Error initializing main WhatsApp client (${mainPhoneNumber}):`, error);
+        this.mainClient = null; // Сбрасываем клиент в случае ошибки
         reject(error);
       });
     });

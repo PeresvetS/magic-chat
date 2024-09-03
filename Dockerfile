@@ -5,6 +5,8 @@ RUN apk update && \
 
 WORKDIR /usr/src/app
 
+ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=false
+
 COPY package.json package.json
 
 RUN yarn install
@@ -13,4 +15,4 @@ COPY . .
 
 EXPOSE 3000
 
-CMD ["node", "src/index.js"]
+CMD ["node", "./index.js"]

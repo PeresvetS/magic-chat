@@ -11,11 +11,12 @@ const { userService } = require('../../services/user');
 const LeadsService = require('../../services/leads/src/LeadsService');
 const { getUserState, clearUserState } = require('./utils/userState');
 const { TelegramSessionService } = require('../../services/telegram');
-const { WhatsAppSessionService } = require('../../services/whatsapp');
+const { WhatsAppSessionService } = require('../../services/whatsapp/');
 const { campaignsMailingService } = require('../../services/campaign');
 const { processExcelFile } = require('../../services/leads').xlsProcessor;
 const { checkSubscription } = require('../../middleware/checkSubscription');
 const { setPhoneAuthenticated } = require('../../services/phone').phoneNumberService;
+const PhoneNumberManagerService = require('../../services/phone/src/PhoneNumberManagerService');
 
 const helpCommands = require('./commands/helpCommands');
 const phoneCommands = require('./commands/phoneCommands');
@@ -41,6 +42,10 @@ function createUserBot() {
     leadsCommands,
     helpCommands,
   ];
+
+  PhoneNumberManagerService.setNotificationCallback((telegramId, message) => {
+    bot.sendMessage(telegramId, message);
+  });
 
   commandModules.forEach(module => {
     Object.entries(module).forEach(([command, handler]) => {

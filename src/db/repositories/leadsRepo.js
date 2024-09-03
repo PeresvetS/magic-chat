@@ -270,9 +270,15 @@ async function getLeadByWhatsappChatId(whatsappChatId) {
 }
 
 async function getLeadByPhone(phone) {
-  return await prisma.lead.findFirst({
-    where: { phone }
-  });
+  try {
+    const phoneString = String(phone); // Преобразуем входное значение в строку
+    return await prisma.lead.findFirst({
+      where: { phone: phoneString }
+    });
+  } catch (error) {
+    logger.error('Error getting lead by phone number:', error);
+    throw error;
+  }
 }
 
 async function updateLeadMessageInfo(leadId, data) {

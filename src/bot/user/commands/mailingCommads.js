@@ -1,13 +1,12 @@
 // src/bot/user/commands/mailingCommads.js
 
+const { setUserState, getUserState, clearUserState } = require('../utils/userState');
 const LeadsService = require('../../../services/leads/src/LeadsService');
 const { campaignsMailingService } = require('../../../services/campaign');
 const { distributionService } = require('../../../services/mailing');
 const { promptService } = require('../../../services/prompt');
 const logger = require('../../../utils/logger');
 
-// Объект для хранения состояния пользователей
-const userStates = {};
 
 async function getCampaignByName(name, bot, chatId) {
   try {
@@ -102,11 +101,11 @@ module.exports = {
       }
 
       // Устанавливаем состояние пользователя
-      userStates[msg.from.id] = {
+      setUserState(msg.from.id, {
         action: 'set_mc_message',
         campaignId: campaign.id,
         campaignName: campaignName
-      };
+      });
 
       bot.sendMessage(msg.chat.id, `Пожалуйста, отправьте сообщение для кампании "${campaignName}"`);
     } catch (error) {
@@ -114,6 +113,7 @@ module.exports = {
       bot.sendMessage(msg.chat.id, 'Произошла ошибка при подготовке к установке сообщения кампании.');
     }
   },
+
 
   '/get_mc ([^\\s]+)': async (bot, msg, match) => {
     const [, campaignName] = match;
@@ -326,14 +326,32 @@ module.exports = {
       const campaign = await getCampaignByName(campaignName, bot, msg.chat.id);
       if (!campaign) return;
 
-      const phoneNumbers = await campaignsMailingService.getCampaignPhoneNumbers(campaign.id);
+      const { phoneNumbers, defaultTelegramNumber, defaultWhatsappNumber } = await campaignsMailingService.getCampaignPhoneNumbers(campaign.id);
+      
       if (phoneNumbers.length === 0) {
         bot.sendMessage(msg.chat.id, `У кампании "${campaignName}" нет прикрепленных номеров.`);
         return;
       }
 
-      const phoneList = phoneNumbers.map(p => `${p.phoneNumber} (${p.platform})`).join('\n');
-      bot.sendMessage(msg.chat.id, `Номера, прикрепленные к кампании "${campaignName}":\n${phoneList}`);
+      let message = `Номера, прикрепленные к кампании "${campaignName}":\n`;
+      phoneNumbers.forEach(p => {
+        let status = '';
+        if (p.phoneNumber === defaultTelegramNumber && p.platform === 'telegram') {
+          status = ' (дефолтный для Telegram)';
+        } else if (p.phoneNumber === defaultWhatsappNumber && p.platform === 'whatsapp') {
+          status = ' (дефолтный для WhatsApp)';
+        }
+        message += `${p.phoneNumber} (${p.platform})${status}\n`;
+      });
+
+      if (!defaultTelegramNumber) {
+        message += '\nДля Telegram не установлен дефолтный номер.';
+      }
+      if (!defaultWhatsappNumber) {
+        message += '\nДля WhatsApp не установлен дефолтный номер.';
+      }
+
+      bot.sendMessage(msg.chat.id, message);
     } catch (error) {
       logger.error('Error listing campaign phone numbers:', error);
       bot.sendMessage(msg.chat.id, 'Произошла ошибка при получении списка номеров кампании.');
@@ -617,9 +635,9 @@ module.exports = {
   // Обработчик для всех текстовых сообщений
   messageHandler: async (bot, msg) => {
     const userId = msg.from.id;
-    const userState = userStates[userId];
+    const userState = getUserState(userId);
 
-    logger.info(`Received message with ${userState} and ${userState.action}`);
+    logger.info(`Received message with userState: ${JSON.stringify(userState)}`);
 
     if (userState && userState.action === 'set_mc_message') {
       try {
@@ -627,11 +645,13 @@ module.exports = {
         bot.sendMessage(msg.chat.id, `Сообщение для кампании "${userState.campaignName}" установлено:\n${msg.text}`);
         
         // Очищаем состояние пользователя
-        delete userStates[userId];
+        clearUserState(userId);
       } catch (error) {
         logger.error('Error setting campaign message:', error);
         bot.sendMessage(msg.chat.id, 'Произошла ошибка при установке сообщения кампании.');
       }
+    } else {
+      logger.info(`No matching action found for user ${userId}`);
     }
   },
 

@@ -65,14 +65,28 @@
       const phoneNumbers = await prisma.phoneNumberCampaign.findMany({
         where: { 
           campaignId: campaignId,
-          phoneNumber: {
-            isBanned: false
+        },
+        include: {
+          campaign: {
+            include: {
+              user: {
+                include: {
+                  phoneNumbers: true
+                }
+              }
+            }
           }
         },
-        orderBy: { addedAt: 'asc' },
-        select: { phoneNumber: true }
+        orderBy: { addedAt: 'asc' }
       });
-      return phoneNumbers[0]?.phoneNumber;
+  
+      const availablePhoneNumber = phoneNumbers.find(pnc => 
+        pnc.campaign.user.phoneNumbers.some(pn => 
+          pn.phoneNumber === pnc.phoneNumber && !pn.isBanned
+        )
+      );
+  
+      return availablePhoneNumber?.phoneNumber;
     } catch (error) {
       logger.error(`Error getting first available phone number for campaign ${campaignId}:`, error);
       throw error;
@@ -429,6 +443,7 @@
       throw error;
     }
   }
+  
 
 
 

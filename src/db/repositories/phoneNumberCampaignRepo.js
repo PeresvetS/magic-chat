@@ -20,6 +20,20 @@ const phoneNumberCampaignRepo = {
     }
   },
 
+  async findAttachmentsByCampaignAndPlatform(campaignId, platform) {
+    try {
+      return await prisma.phoneNumberCampaign.findMany({
+        where: {
+          campaignId,
+          platform
+        }
+      });
+    } catch (error) {
+      logger.error('Error finding phone number campaign attachments:', error);
+      throw error;
+    }
+  },
+
   async getPhoneNumberRecord(phoneNumber) {
     try {
       return await prisma.phoneNumber.findUnique({

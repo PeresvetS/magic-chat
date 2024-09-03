@@ -1,12 +1,16 @@
 // src/services/phone/src/PhoneNumberManagerService.js
 
 const logger = require('../../../utils/logger');
-const { phoneNumberRepo, phoneNumberCampaignRepo } = require('../../../db');
-const telegramBot = require('../../telegram/telegramBot');
+const { phoneNumberRepo, phoneNumberCampaignRepo, campaignsMailingRepo } = require('../../../db');
 
 class PhoneNumberManagerService {
   constructor() {
     this.activePhoneNumbers = new Map();
+    this.notificationCallback = null;
+  }
+
+  setNotificationCallback(callback) {
+    this.notificationCallback = callback;
   }
 
   async getNextAvailablePhoneNumber(campaignId, platform) {
@@ -59,9 +63,7 @@ class PhoneNumberManagerService {
                   + `Новый номер: ${newPhoneNumber}\n`
                   + `Причина: достижение лимита отправки или недоступность номера.`;
 
-    for (const telegramId of campaign.notificationTelegramIds) {
-      await telegramBot.sendMessage(telegramId, message);
-    }
+    this.sendNotification(campaign.notificationTelegramIds, message);
   }
 
   async notifyUserAboutNoAvailablePhoneNumbers(campaignId, platform) {
@@ -69,8 +71,16 @@ class PhoneNumberManagerService {
     const message = `Внимание! В кампании "${campaign.name}" закончились доступные номера телефонов для платформы ${platform}.\n`
                   + `Пожалуйста, добавьте новые номера или увеличьте лимиты для существующих.`;
 
-    for (const telegramId of campaign.notificationTelegramIds) {
-      await telegramBot.sendMessage(telegramId, message);
+    this.sendNotification(campaign.notificationTelegramIds, message);
+  }
+
+  sendNotification(telegramIds, message) {
+    if (this.notificationCallback) {
+      telegramIds.forEach(telegramId => {
+        this.notificationCallback(telegramId, message);
+      });
+    } else {
+      logger.warn('Notification callback is not set. Unable to send notifications.');
     }
   }
 }

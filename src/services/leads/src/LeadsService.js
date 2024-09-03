@@ -10,8 +10,11 @@ class LeadsService {
   formatPhoneNumber(phone) {
     if (!phone) return null;
 
+    // Преобразуем входное значение в строку
+    let phoneString = String(phone);
+
     // Удаляем все нецифровые символы
-    let cleaned = phone.replace(/\D/g, '');
+    let cleaned = phoneString.replace(/\D/g, '');
 
     // Если номер начинается с '8' и длина 11 цифр (российский номер), заменяем '8' на '7'
     if (cleaned.length === 11 && cleaned.startsWith('8')) {
@@ -149,7 +152,8 @@ class LeadsService {
 
   async getLeadByPhone(phoneNumber) {
     try {
-      return await leadsRepo.getLeadByPhone(phoneNumber);
+      const formattedPhone = this.formatPhoneNumber(phoneNumber);
+      return await leadsRepo.getLeadByPhone(formattedPhone);
     } catch (error) {
       logger.error('Error getting lead by phone number:', error);
       throw error;
