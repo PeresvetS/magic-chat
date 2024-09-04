@@ -365,6 +365,7 @@ class LeadsService {
     }
   }
 
+
   async setDefaultLeadsDB(telegramId, leadsDBId) {
     try {
       const userId = await this.getUserIdByTelegramId(telegramId);

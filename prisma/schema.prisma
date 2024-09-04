@@ -101,6 +101,32 @@ model WhatsappAccount {
   messagesSentTotal     Int         @default(0)
 }
 
+model WABAAccount {
+  id                    Int         @id @default(autoincrement())
+  phoneNumber           PhoneNumber @relation(fields: [phoneNumberId], references: [id])
+  phoneNumberId         Int         @unique
+  isAuthenticated       Boolean     @default(false)
+  businessProfileId     String?
+  contactsReachedToday  Int         @default(0)
+  contactsReachedTotal  Int         @default(0)
+  dailyLimit            Int         @default(1000)
+  totalLimit            Int         @default(1000)
+  messagesSentToday     Int         @default(0)
+  messagesSentTotal     Int         @default(0)
+  accessToken           String?
+  refreshToken          String?
+  tokenExpiresAt        DateTime?
+}
+
+model WABASession {
+  id          Int      @id @default(autoincrement())
+  phoneNumber String   @unique
+  session     String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+
 model CampaignParsing {
   id                  Int          @id @default(autoincrement())
   user                User         @relation(fields: [userId], references: [id])
