@@ -15,7 +15,6 @@ async function processMessage(lead, senderId, message, phoneNumber, сampaign) {
       logger.warn(`No prompt provided for processing message from ${senderId}`);
       return null;
     }
-    
     const contextManager = getOrCreateContextManager(senderId);
     
     // Проверяем, есть ли уже сообщения в контексте

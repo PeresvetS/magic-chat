@@ -158,7 +158,7 @@ model MessageStat {
 
 model Lead {
   id              Int      @id @default(autoincrement())
-  bitrixId        String?  @unique
+  bitrixId        String?  @unique 
   leadsDBId       Int
   leadsDB         LeadsDB  @relation(fields: [leadsDBId], references: [id])
   campaignId      Int?

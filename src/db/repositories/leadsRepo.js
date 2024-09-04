@@ -253,6 +253,7 @@ async function createLead(platform, chatId, userId) {
     throw new Error('No default LeadsDB found for user');
   }
   const leadsDBId = leadDb.id;
+  logger.info(`Created lead with id ${leadsDBId}`);
   if (platform === 'telegram') {
     return await prisma.lead.create({
       data: { telegramChatId: chatId, leadsDBId, userId }

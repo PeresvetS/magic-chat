@@ -40,57 +40,53 @@ async function getGoogleSheetData(googleSheetUrl) {
   }
 }
 
-async function getConversationContext(lead, campaign) {
-  let bitrixInfo;
-  try {
-    bitrixInfo = await bitrixService.getIntegrationInfo(campaign.userId);
-  } catch (error) {
-    logger.error('Error getting conversation context:', error);
-  }
-  return { lead, bitrixInfo, campaign };
-}
 
-
-async function changeLeadStatusPositive(context, messages) { 
+async function changeLeadStatusPositive(lead, campaign, messages) { 
   try {
-    const updatedLead = await LeadsService.updateLeadStatus(context.lead.id, 'PROCESSED_POSITIVE');
+    const updatedLead = await LeadsService.updateLeadStatus(lead.id, 'PROCESSED_POSITIVE');
     logger.info(`Lead ${updatedLead.id} ${updatedLead.name} status changed to PROCESSED_POSITIVE`);
         
-        if (context.campaign && context.campaign.notificationTelegramIds && context.campaign.notificationTelegramIds.length > 0) {
-          // Получаем последние сообщения из массива messages
-          const recentMessages = messages.slice(-6);
-          
-          const messageHistory = recentMessages.length > 0 
-            ? recentMessages.map(msg => `${msg.role === 'human' ? '👤' : '🤖'} ${msg.content}`).join('\n\n')
-            : 'История сообщений недоступна';
+    if (lead.bitrixId !== null && campaign) {
+      bitrixInfo = await bitrixService.getIntegrationInfo(campaign.userId);
+      const url = `${bitrixInfo.bitrixInboundUrl}/crm.lead.update.json?ID=${lead.bitrixId}&FIELDS[STATUS_ID]=IN_PROCESS`;
+      const response = await axios.get(url);
+    }
+    
+    if (campaign && campaign.notificationTelegramIds && campaign.notificationTelegramIds.length > 0) {
+      // Получаем последние сообщения из массива messages
+      const recentMessages = messages.slice(-6);
 
-          const message = `
+      const messageHistory = recentMessages.length > 0 
+        ? recentMessages.map(msg => `${msg.role === 'human' ? '👤' : '🤖'} ${msg.content}`).join('\n\n')
+        : 'История сообщений недоступна';
+
+      const message = `
 Новый успешный лид!
 
 👤 Имя: ${updatedLead.name || 'Не указано'}
 📞 Телефон: ${updatedLead.phone}
 🏷️ Источник: ${updatedLead.source || 'Не указан'}
 📅 Дата создания: ${updatedLead.createdAt.toLocaleString()}
-🔗 Кампания: ${context.campaign.name}
+🔗 Кампания: ${campaign.name}
 🆔 ID лида: ${updatedLead.id}
 ${updatedLead.bitrixId ? `🔢 Bitrix ID: ${updatedLead.bitrixId}` : ''}
 
-💬 Последнее сообщение: ${context.lead.lastMessageTime ? `${context.lead.lastMessageTime.toLocaleString()} через ${context.lead.lastPlatform}` : 'Нет данных'}
+💬 Последнее сообщение: ${lead.lastMessageTime ? `${lead.lastMessageTime.toLocaleString()} через ${lead.lastPlatform}` : 'Нет данных'}
 
 📜 Последние сообщения диалога:
 ${messageHistory}
           `;
 
           try {
-            for (const telegramId of context.campaign.notificationTelegramIds) {
+            for (const telegramId of campaign.notificationTelegramIds) {
               await notificationBot.sendMessage(telegramId, message);
             }
-            logger.info(`Notifications sent to ${context.campaign.notificationTelegramIds.length} recipients for lead ${updatedLead.id}`);
+            logger.info(`Notifications sent to ${campaign.notificationTelegramIds.length} recipients for lead ${updatedLead.id}`);
           } catch (error) {
             logger.error('Error sending notifications:', error);
           }
         } else {
-          logger.warn(`No notification recipients found for campaign ${context.campaign.id}`);
+          logger.warn(`No notification recipients found for campaign ${campaign.id}`);
         }
 
         return updatedLead;
@@ -100,30 +96,19 @@ ${messageHistory}
 }
 
 const availableFunctions = {
-  change_lead_status_negative: async (context) => {
-    return await LeadsService.updateLeadStatus(context.lead.id, 'PROCESSED_NEGATIVE');
+  change_lead_status_negative: async (lead) => {
+    return await LeadsService.updateLeadStatus(lead.id, 'PROCESSED_NEGATIVE');
   },
-  change_lead_status_positive: async (context, messages) => {
-   return await changeLeadStatusPositive(context, messages);
-  },
-  update_bitrix_lead: async (context) => {
-    const url = `${context.bitrixInfo.bitrixInboundUrl}/crm.lead.update.json?ID=${context.lead.bitrixId}&FIELDS[STATUS_ID]=IN_PROCESS`;
-    const response = await axios.get(url);
-    return response.data;
-  },
-  send_lead_to_amo: async (context) => {
-    // This function is not implemented yet
-    throw new Error('Function not implemented');
+  change_lead_status_positive: async (lead, campaign, messages) => {
+   return await changeLeadStatusPositive(lead, campaign, messages);
   },
 };
 
 async function generateResponse(lead, messages, campaign) {
   try {
-
-    const context = await getConversationContext(lead, campaign.userId);
     let googleSheetData = null;
 
-    if (googleSheetUrl) {
+    if (campaign.googleSheetUrl) {
       googleSheetData = await getGoogleSheetData(campaign.googleSheetUrl);
     }
 
@@ -181,7 +166,7 @@ async function generateResponse(lead, messages, campaign) {
 
       if (functionName in availableFunctions) {
 
-        const functionResult = await availableFunctions[functionName](context, messages);
+        const functionResult = await availableFunctions[functionName](lead, campaign, messages);
         
         formattedMessages.push({
           role: "function",

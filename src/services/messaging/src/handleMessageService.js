@@ -40,7 +40,6 @@ async function processIncomingMessage(phoneNumber, event, platform = 'telegram')
       return;
     }
 
-    logger.info(`Сообщение от ${senderId} в платформе=${platform} для пользователя ${activeCampaign.userId}`);
     const lead = await getOrCreateLeadIdByChatId(senderId, platform, activeCampaign.userId);
 
     logger.info(`Обработка ${platform} с lead=${safeStringify(lead)} `);
@@ -101,6 +100,7 @@ async function getLeadIdByChatId(chatId, platform) {
 async function getOrCreateLeadIdByChatId(chatId, platform, userId) {
   const lead = await getLeadIdByChatId(chatId, platform);
   if (!lead) {
+    logger.info(`Lead not found for ${platform} chat ID ${chatId}`);
     return await LeadsService.createLead(platform, chatId, userId);
   }
   return lead;
