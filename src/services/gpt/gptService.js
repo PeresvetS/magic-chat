@@ -7,7 +7,7 @@ const logger = require('../../utils/logger');
 const LeadsService = require('../leads/src/LeadsService');
 const bitrixService = require('../crm/src/bitrixService');
 const notificationBot = require('../../bot/notification/notificationBot');
-const campaignService = require('../campaign/src/campaignsMailingService');
+const { safeStringify } = require('../../utils/helpers'); 
 
 const openai = new OpenAI({
   apiKey: config.OPENAI_API_KEY,
@@ -45,8 +45,10 @@ async function changeLeadStatusPositive(lead, campaign, messages) {
   try {
     const updatedLead = await LeadsService.updateLeadStatus(lead.id, 'PROCESSED_POSITIVE');
     logger.info(`Lead ${updatedLead.id} ${updatedLead.name} status changed to PROCESSED_POSITIVE`);
-        
-    if (lead.bitrixId !== null && campaign) {
+
+    lead.bitrixId = lead.bitrixId || null;
+
+    if (lead.bitrixId != null && campaign) {
       bitrixInfo = await bitrixService.getIntegrationInfo(campaign.userId);
       const url = `${bitrixInfo.bitrixInboundUrl}/crm.lead.update.json?ID=${lead.bitrixId}&FIELDS[STATUS_ID]=IN_PROCESS`;
       const response = await axios.get(url);
@@ -79,7 +81,7 @@ ${messageHistory}
 
           try {
             for (const telegramId of campaign.notificationTelegramIds) {
-              await notificationBot.sendMessage(telegramId, message);
+              await notificationBot.sendNotification(telegramId, message);
             }
             logger.info(`Notifications sent to ${campaign.notificationTelegramIds.length} recipients for lead ${updatedLead.id}`);
           } catch (error) {
@@ -97,9 +99,11 @@ ${messageHistory}
 
 const availableFunctions = {
   change_lead_status_negative: async (lead) => {
+     logger.info(`Lead ${lead.id} status changed to PROCESSED_NEGATIVE`);
     return await LeadsService.updateLeadStatus(lead.id, 'PROCESSED_NEGATIVE');
   },
   change_lead_status_positive: async (lead, campaign, messages) => {
+    logger.info(`Lead ${lead.id} status changed to PROCESSED_POSITIVE`);
    return await changeLeadStatusPositive(lead, campaign, messages);
   },
 };
@@ -108,12 +112,14 @@ async function generateResponse(lead, messages, campaign) {
   try {
     let googleSheetData = null;
 
+    logger.info(`Generating response for lead ${safeStringify(lead)} with messages: ${safeStringify(messages)} and campaign: ${safeStringify(campaign)}`);
+    
     if (campaign.googleSheetUrl) {
       googleSheetData = await getGoogleSheetData(campaign.googleSheetUrl);
     }
 
     const googleSheetPrompt = googleSheetData 
-      ? `Here's the current Q&A data: ${JSON.stringify(googleSheetData)}. Use this information to provide more accurate answers when possible. If a user's question closely matches a question in this data, prioritize using the corresponding answer, but feel free to expand or adapt it as necessary to fully address the user's query.`
+      ? `Here's the current Q&A data: ${safeStringify(googleSheetData)}. Use this information to provide more accurate answers when possible. If a user's question closely matches a question in this data, prioritize using the corresponding answer, but feel free to expand or adapt it as necessary to fully address the user's query.`
       : '';
 
     const formattedMessages = [
@@ -125,7 +131,7 @@ async function generateResponse(lead, messages, campaign) {
       }))
     ];
 
-    logger.info(`Sending request to OpenAI with messages: ${JSON.stringify(formattedMessages)}`);
+    logger.info(`Sending request to OpenAI with messages: ${safeStringify(formattedMessages)}`);
 
     const functions = [
       {
@@ -171,7 +177,7 @@ async function generateResponse(lead, messages, campaign) {
         formattedMessages.push({
           role: "function",
           name: functionName,
-          content: JSON.stringify(functionResult),
+          content: safeStringify(functionResult),
         });
 
         const secondResponse = await openai.chat.completions.create({

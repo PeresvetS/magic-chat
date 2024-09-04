@@ -247,23 +247,41 @@ async function createLeadsDB(name, userId, isDefault = false) {
   }
 }
 
-async function createLead(platform, chatId, userId) {
-  const leadDb = getDefaultLeadsDB(userId);
-  if (!leadDb) {
-    throw new Error('No default LeadsDB found for user');
+async function createLead(platform, chatId, userId, leadsDBId) {
+  logger.info(`Creating lead with platform ${platform}, chatId ${chatId}, userId ${userId}, leadsDBId ${leadsDBId}`);
+  
+  if (!leadsDBId) {
+    logger.error('leadsDBId is undefined. Attempting to get default LeadsDB.');
+    const defaultLeadsDB = await getDefaultLeadsDB(userId);
+    if (!defaultLeadsDB) {
+      throw new Error(`No default LeadsDB found for user ${userId}`);
+    }
+    leadsDBId = defaultLeadsDB.id;
+    logger.info(`Using default LeadsDB with id ${leadsDBId}`);
   }
-  const leadsDBId = leadDb.id;
-  logger.info(`Created lead with id ${leadsDBId}`);
-  if (platform === 'telegram') {
-    return await prisma.lead.create({
-      data: { telegramChatId: chatId, leadsDBId, userId }
-    }); 
-  } else if (platform === 'whatsapp') {
-    return await prisma.lead.create({
-      data: { whatsappChatId: chatId, leadsDBId, userId }
-    });
-  } else {
-    throw new Error('Неизвестная платформа');
+
+  try {
+    let leadData = {
+      userId,
+      leadsDBId,
+      status: 'NEW'
+    };
+
+    if (platform === 'telegram') {
+      leadData.telegramChatId = chatId;
+    } else if (platform === 'whatsapp') {
+      leadData.whatsappChatId = chatId;
+    } else {
+      throw new Error('Неизвестная платформа');
+    }
+
+    logger.info(`Attempting to create lead with data:`, leadData);
+    const lead = await prisma.lead.create({ data: leadData });
+    logger.info(`Created lead:`, lead);
+    return lead;
+  } catch (error) {
+    logger.error('Error creating lead:', error);
+    throw error;
   }
 }
 

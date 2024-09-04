@@ -39,7 +39,7 @@ async function processIncomingMessage(phoneNumber, event, platform = 'telegram')
       logger.info(`Сообщение добавлено в буфер для пользователя ${senderId}`);
       return;
     }
-
+    ;
     const lead = await getOrCreateLeadIdByChatId(senderId, platform, activeCampaign.userId);
 
     logger.info(`Обработка ${platform} с lead=${safeStringify(lead)} `);
@@ -101,9 +101,11 @@ async function getOrCreateLeadIdByChatId(chatId, platform, userId) {
   const lead = await getLeadIdByChatId(chatId, platform);
   if (!lead) {
     logger.info(`Lead not found for ${platform} chat ID ${chatId}`);
-    return await LeadsService.createLead(platform, chatId, userId);
+    const newLead = await LeadsService.createLead(platform, chatId, userId);
+    return newLead
+  } else {
+    return lead;
   }
-  return lead;
 }
 
 module.exports = { processIncomingMessage };

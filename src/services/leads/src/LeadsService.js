@@ -4,6 +4,7 @@ const { leadsRepo } = require('../../../db');
 const { userRepo } = require('../../../db');
 const logger = require('../../../utils/logger');
 const CampaignMailingService = require('../../../services/campaign/src/campaignsMailingService');
+const { log } = require('winston');
 
 class LeadsService {
 
@@ -40,7 +41,14 @@ class LeadsService {
 
   async createLead(platform, chatId, userId) {
     try {
-      return await leadsRepo.createLead(platform, chatId, userId);
+      const defaultLeadsDB = await this.getOrCreateDefaultLeadsDB(userId);
+      
+      if (!defaultLeadsDB) {
+        throw new Error(`No default LeadsDB found for user ${userId}`);
+      }
+      
+      const lead = await leadsRepo.createLead(platform, chatId, userId, defaultLeadsDB.id);
+      return lead;
     } catch (error) {
       logger.error('Error creating lead:', error);
       throw error;
@@ -331,10 +339,6 @@ class LeadsService {
     }
   }
 
-  createLead(telegramId, platform) {
-    
-  }
-  
 
   async createLeadsDB(name, telegramId) {
     try {
@@ -346,11 +350,12 @@ class LeadsService {
     }
   }
 
-  async getOrCreateDefaultLeadsDB(telegramId) {
+  async getOrCreateDefaultLeadsDB(userId) {
     try {
-      const userId = await this.getUserIdByTelegramId(telegramId);
+      logger.info(`Getting or creating default LeadsDB for user ${userId}`);
       let defaultLeadsDB = await leadsRepo.getDefaultLeadsDB(userId);
       if (!defaultLeadsDB) {
+        logger.info(`No default LeadsDB found for user ${userId}. Creating new one.`);
         defaultLeadsDB = await leadsRepo.createLeadsDB('Default LeadsDB', userId, true);
       }
       return defaultLeadsDB;

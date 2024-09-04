@@ -13,10 +13,8 @@ class BotStateManager {
     this.offlineTimer = null;
     this.messageBuffer = [];
     this.processingMessage = false;
-    this.hasNewMessage = new Map();
-    this.interruptedResponses = new Set();
-    this.currentResponsePromise = null;
     this.preOnlineComplete = new Map();
+    this.lastMessageTimestamp = new Map();
   }
 
   async getClient(phoneNumber) {
@@ -41,7 +39,7 @@ class BotStateManager {
     this.state = 'pre-online';
     this.preOnlineComplete.set(userId, false);
     if (this.newMessage) {
-      await delay(Math.random() * 8000 + 2000); // 2-10 seconds delay
+      await delay(Math.random() * 12000 + 3000); // 3-15 seconds delay
       const client = await this.getClient(phoneNumber);
       await OnlineStatusManager.setOnline(userId, client);
       await delay(Math.random() * 5000 + 2000); // 2-7 seconds delay
@@ -110,7 +108,7 @@ class BotStateManager {
     logger.info(`Начало обработки сообщения для пользователя WhatsApp ${userId}: ${message}`);
 
     this.messageBuffer.push(message);
-    this.hasNewMessage.set(userId, true);
+    this.lastMessageTimestamp.set(userId, Date.now());
 
     if (this.processingMessage) {
       logger.info(`Сообщение добавлено в буфер для пользователя WhatsApp ${userId}`);
@@ -134,6 +132,7 @@ class BotStateManager {
           break;
         case 'online':
         case 'typing':
+          await this.markMessagesAsRead(phoneNumber, userId);
           break;
       }
 
@@ -146,7 +145,6 @@ class BotStateManager {
       const combinedMessage = this.messageBuffer.join('\n');
       this.messageBuffer = [];
       this.processingMessage = false;
-      this.hasNewMessage.set(userId, false);
 
       logger.info(`Завершена обработка сообщения для пользователя WhatsApp ${userId}`);
       return combinedMessage;
@@ -157,21 +155,9 @@ class BotStateManager {
     }
   }
 
-  interruptCurrentResponse(userId) {
-    logger.info(`Прерывание ответа для пользователя WhatsApp ${userId}`);
-    this.interruptedResponses.add(userId);
-  }
-
-  isResponseInterrupted(userId) {
-    return this.interruptedResponses.has(userId);
-  }
-
-  setCurrentResponsePromise(promise) {
-    this.currentResponsePromise = promise;
-  }
-
-  clearInterruption(userId) {
-    this.interruptedResponses.delete(userId);
+  hasNewMessageSince(userId, timestamp) {
+    const lastMessageTime = this.lastMessageTimestamp.get(userId) || 0;
+    return lastMessageTime > timestamp;
   }
 
   async handleTypingState(phoneNumber, userId) {
@@ -197,10 +183,6 @@ class BotStateManager {
     }
 
     await delay(1000);
-  }
-
-  checkForNewMessages(userId) {
-    return this.hasNewMessage.get(userId) || false;
   }
 
   async checkUserTyping(phoneNumber, userId) {

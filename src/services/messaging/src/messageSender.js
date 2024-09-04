@@ -56,50 +56,52 @@ async function sendMessage(userId, message, phoneNumber, platform = 'telegram') 
 
 
 async function sendResponse(userId, response, phoneNumber, platform = 'telegram') { 
-  if (!response) {
-    logger.warn(`Attempted to send empty ${platform} response to ${userId}`);
-    return;
-  }
-  const sentences = response.split(/(?<=[.!?])\s+/);
+  try { 
+    logger.info(`Starting sendResponse for ${platform} user ${userId} from ${phoneNumber}`);
+    if (!response) {
+      logger.warn(`Attempted to send empty ${platform} response to ${userId}`);
+      return;
+    }
+    const sentences = response.split(/(?<=[.!?])\s+/);
 
-  const BotStateManager = platform === 'whatsapp' ? WhatsAppBotStateManager : TelegramBotStateManager;
+    const BotStateManager = platform === 'whatsapp' ? WhatsAppBotStateManager : TelegramBotStateManager;
 
-  const sendPromise = new Promise(async (resolve, reject) => {
-    for (const sentence of sentences) {
-      if (BotStateManager.isResponseInterrupted(userId)) {
-        logger.info(`Response interrupted for user ${userId}`);
-        BotStateManager.interruptedResponses.delete(userId);
-        resolve();
-        return;
+
+    const sendPromise = new Promise(async (resolve, reject) => {
+      const startTime = Date.now();
+
+      for (const sentence of sentences) {
+
+        await BotStateManager.setTyping(phoneNumber, userId);
+
+        if (BotStateManager.hasNewMessageSince(userId, startTime)) {
+          logger.info(`Response interrupted for user ${userId}`);
+          resolve();
+          return;
+        }
+
+        const result = await sendMessage(userId, sentence, phoneNumber, platform);
+        logger.info(`Message sent to ${userId}, result: ${JSON.stringify(result)}`);
+        BotStateManager.resetOfflineTimer(phoneNumber, userId);  
+
+        await new Promise(resolve => setTimeout(resolve, Math.random() * 2000 + 1000));
       }
 
-      await BotStateManager.setTyping(phoneNumber, userId);
-      logger.info(`Sending message to ${userId}: ${sentence}`);
-      const result = await sendMessage(userId, sentence, phoneNumber, platform);
-      logger.info(`Message sent to ${userId}, result: ${JSON.stringify(result)}`);
-      BotStateManager.resetOfflineTimer(phoneNumber, userId);  
+        await BotStateManager.setOnline(phoneNumber, userId);
+      resolve();
+    });
 
-      await new Promise(resolve => setTimeout(resolve, Math.random() * 2000 + 1000));
-    }
-
-    // if (!BotStateManager.isResponseInterrupted(userId)) {
-      await BotStateManager.setOnline(phoneNumber, userId);
-    // }
-    resolve();
-  });
-
-  sendPromise.cancel = () => {
-    BotStateManager.interruptCurrentResponse(userId);
-  };
-
-  return sendPromise;
+    return sendPromise;
+  } catch (error) {
+    logger.error(`Error sending ${platform} response to ${userId}: ${error}`);
+  }
 }
 
 async function validatePhoneNumber(phoneNumber) {
   const phoneInfo = await getPhoneNumberInfo(phoneNumber);
   logger.info(`Phone info for ${phoneNumber}: ${safeStringify(phoneInfo)}`);
 
-  if (phoneInfo.is_banned) {
+  if (phoneInfo.isBanned) {
     throw new Error(`Phone number ${phoneNumber} is banned`);
   }
 }

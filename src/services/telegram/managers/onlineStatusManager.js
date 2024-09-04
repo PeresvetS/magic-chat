@@ -22,7 +22,6 @@ class OnlineStatusManager {
         const result = await session.invoke(new Api.account.UpdateStatus({ offline: false }));
         logger.info(`Online status set for user ${userId}, result: ${safeStringify(result)}`);
 
-        logger.info(`Online status set for user ${userId}`);
         return result;
       } catch (error) {
         logger.error(`Error setting online status for user ${userId}:`, safeStringify(error));
