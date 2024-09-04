@@ -1,4 +1,4 @@
-// src/services/mailing/src/telegramChecker.js
+// src/services/mailing/checkers/telegramChecker.js
 
 const { Api } = require("telegram/tl");
 const logger = require('../../../utils/logger');

@@ -1,25 +1,27 @@
-// src/services/mailing/src/messagingPlatformChecker.js
+// src/services/mailing/checkers/messagingPlatformChecker.js
 
+const WABAChecker = require('./WABAChecker');
 const logger = require('../../../utils/logger');
-const LeadsService = require('../../leads/src/LeadsService');
-const { getPlatformPriority } = require('../../../db').campaignsMailingRepo;
 const TelegramChecker = require('./TelegramChecker');
 const WhatsAppChecker = require('./WhatsAppChecker');
+const LeadsService = require('../../leads/src/LeadsService');
+const { getPlatformPriority } = require('../../../db').campaignsMailingRepo;
 
 class MessagingPlatformChecker {
   constructor() {
     this.telegramChecker = TelegramChecker;
     this.whatsappChecker = WhatsAppChecker;
+    this.wabaChecker = WABAChecker;
   }
 
   async initialize() {
     try {
       await this.telegramChecker.initialize();
       await this.whatsappChecker.initialize();
-
+      await this.wabaChecker.initialize();
     } catch (error) {
-      logger.error('Error initializing Telegram checker:', error);
-      throw new Error('Failed to initialize Telegram checker.');
+      logger.error('Error initializing checkers:', error);
+      throw new Error('Failed to initialize checkers.');
     }
   }
 
@@ -33,27 +35,33 @@ class MessagingPlatformChecker {
     return await this.whatsappChecker.checkWhatsApp(phoneNumber);
   }
 
-  async checkPlatforms(phoneNumber, platform, mode = 'one') {
+  async checkWABA(phoneNumber) {
+    logger.info(`Checking WABA for number ${phoneNumber}`);
+    return await this.wabaChecker.checkWABA(phoneNumber);
+  }
 
+  async checkPlatforms(phoneNumber, platform, mode = 'one') {
     let telegramAvailable;
     let whatsappAvailable;
+    let wabaAvailable;
 
     switch (platform) {
       case 'telegram': {
-
         telegramAvailable = await this.checkTelegram(phoneNumber);
         if (telegramAvailable) return 'telegram';
 
         if (mode === 'both') { 
           whatsappAvailable = await this.checkWhatsApp(phoneNumber);
           if (whatsappAvailable) return 'whatsapp';
+
+          // wabaAvailable = await this.checkWABA(phoneNumber);
+          // if (wabaAvailable) return 'waba';
         } 
         await LeadsService.setLeadUnavailable(phoneNumber);
         return 'none';
       }
 
       case 'whatsapp': {
-
         whatsappAvailable = await this.checkWhatsApp(phoneNumber);
         if (whatsappAvailable) return 'whatsapp';
 
@@ -65,12 +73,34 @@ class MessagingPlatformChecker {
         return 'none';
       }
 
-      case 'tgwa': {
+      case 'waba': {
+        wabaAvailable = await this.checkWABA(phoneNumber);
+        if (wabaAvailable) return 'waba';
 
+        if (mode === 'both') { 
+          telegramAvailable = await this.checkTelegram(phoneNumber);
+          if (telegramAvailable) return 'telegram';
+        } 
+        await LeadsService.setLeadUnavailable(phoneNumber);
+        return 'none';
+      }
+
+      case 'tgwa': {
         telegramAvailable = await this.checkTelegram(phoneNumber);
         whatsappAvailable = await this.checkWhatsApp(phoneNumber);
         if (telegramAvailable && whatsappAvailable) return 'tgwa';
-        
+        if (telegramAvailable) return 'telegram';
+        if (whatsappAvailable) return 'whatsapp';
+        await LeadsService.setLeadUnavailable(phoneNumber);
+        return 'none';
+      }
+
+      case 'tgwaba': {
+        telegramAvailable = await this.checkTelegram(phoneNumber);
+        wabaAvailable = await this.checkWABA(phoneNumber);
+        if (telegramAvailable && wabaAvailable) return 'tgwaba';
+        if (telegramAvailable) return 'telegram';
+        if (wabaAvailable) return 'waba';
         await LeadsService.setLeadUnavailable(phoneNumber);
         return 'none';
       }
@@ -87,7 +117,7 @@ class MessagingPlatformChecker {
       throw new Error('Invalid phone number');
     }
 
-    if (!['telegram', 'whatsapp', 'tgwa'].includes(platformPriority)) {
+    if (!['telegram', 'whatsapp', 'waba', 'tgwa', 'tgwaba'].includes(platformPriority)) {
       logger.warn('Invalid priority platform, getting from DB');
       platformPriority = await getPlatformPriority(campaignId);
     }
@@ -97,6 +127,8 @@ class MessagingPlatformChecker {
 
   async disconnect() {
     await this.telegramChecker.disconnect();
+    await this.whatsappChecker.disconnect();
+    await this.wabaChecker.disconnect();
   }
 }
 

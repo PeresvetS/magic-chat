@@ -11,7 +11,13 @@ async function getGlobalStats() {
       totalCampaigns: 0,
       activeCampaigns: 0,
       totalPhoneNumbers: 0,
-      activeSubscriptions: 0
+      activeSubscriptions: 0,
+      totalTelegramAccounts: 0,
+      totalWhatsAppAccounts: 0,
+      totalWABAAccounts: 0,
+      activeTelegramAccounts: 0,
+      activeWhatsAppAccounts: 0,
+      activeWABAAccounts: 0
     };
 
     // Получаем статистику из базы данных с использованием Prisma
@@ -21,14 +27,20 @@ async function getGlobalStats() {
       totalCampaigns,
       activeCampaigns,
       totalPhoneNumbers,
-      activeSubscriptions
+      activeSubscriptions,
+      telegramAccounts,
+      whatsAppAccounts,
+      wabaAccounts
     ] = await Promise.all([
       prisma.user.count(),
       prisma.parsedUser.count(),
       prisma.parsingCampaign.count(),
       prisma.parsingCampaign.count({ where: { status: 'in_progress' } }),
       prisma.phoneNumber.count(),
-      prisma.subscription.count({ where: { endDate: { gt: new Date() } } })
+      prisma.subscription.count({ where: { endDate: { gt: new Date() } } }),
+      prisma.telegramAccount.findMany(),
+      prisma.whatsappAccount.findMany(),
+      prisma.wABAAccount.findMany()
     ]);
 
     stats.totalUsers = totalUsers;
@@ -37,6 +49,14 @@ async function getGlobalStats() {
     stats.activeCampaigns = activeCampaigns;
     stats.totalPhoneNumbers = totalPhoneNumbers;
     stats.activeSubscriptions = activeSubscriptions;
+
+    stats.totalTelegramAccounts = telegramAccounts.length;
+    stats.totalWhatsAppAccounts = whatsAppAccounts.length;
+    stats.totalWABAAccounts = wabaAccounts.length;
+
+    stats.activeTelegramAccounts = telegramAccounts.filter(account => account.isAuthenticated).length;
+    stats.activeWhatsAppAccounts = whatsAppAccounts.filter(account => account.isAuthenticated).length;
+    stats.activeWABAAccounts = wabaAccounts.filter(account => account.isAuthenticated).length;
 
     return stats;
 

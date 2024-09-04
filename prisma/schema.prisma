@@ -11,23 +11,23 @@ datasource db {
 }
 
 model User {
-  id            Int             @id @default(autoincrement())
-  telegramId    BigInt          @unique
-  username      String?         @unique
-  firstName     String?
-  lastName      String?
-  isBanned      Boolean         @default(false)
-  registeredAt  DateTime        @default(now())
-  admin         Admin?
-  subscriptions Subscription[]
-  userLimits    UserLimits?
-  phoneNumbers  PhoneNumber[]
-  CampaignParsing     CampaignParsing[]
-  campaignMailings CampaignMailing[]
+  id                Int                @id @default(autoincrement())
+  telegramId        BigInt             @unique
+  username          String?            @unique
+  firstName         String?
+  lastName          String?
+  isBanned          Boolean            @default(false)
+  registeredAt      DateTime           @default(now())
+  admin             Admin?
+  subscriptions     Subscription[]
+  userLimits        UserLimits?
+  phoneNumbers      PhoneNumber[]
+  CampaignParsing   CampaignParsing[]
+  campaignMailings  CampaignMailing[]
   bitrixIntegration BitrixIntegration?
   amoCrmIntegration AmoCrmIntegration?
-  leads       Lead[]
-  leadsDBs    LeadsDB[]  // Добавьте эту строку
+  leads             Lead[]
+  leadsDBs          LeadsDB[] // Добавьте эту строку
 }
 
 model Admin {
@@ -59,63 +59,63 @@ model UserLimits {
 }
 
 model PhoneNumber {
-  id              Int       @id @default(autoincrement())
-  phoneNumber     String    @unique
-  user            User?     @relation(fields: [userId], references: [id])
-  userId          Int?
-  isBanned        Boolean   @default(false)
-  banType         String?
-  maxInactivityTime Int     @default(3600)
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
-  telegramAccount TelegramAccount?
-  whatsappAccount WhatsappAccount?
+  id                Int              @id @default(autoincrement())
+  phoneNumber       String           @unique
+  user              User?            @relation(fields: [userId], references: [id])
+  userId            Int?
+  isBanned          Boolean          @default(false)
+  banType           String?
+  maxInactivityTime Int              @default(3600)
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+  telegramAccount   TelegramAccount?
+  whatsappAccount   WhatsappAccount?
+  WABAAccount       WABAAccount?
 }
 
 model TelegramAccount {
-  id                    Int         @id @default(autoincrement())
-  phoneNumber           PhoneNumber @relation(fields: [phoneNumberId], references: [id])
-  phoneNumberId         Int         @unique
-  isPremium             Boolean     @default(false)
-  isAuthenticated       Boolean     @default(false)
-  contactsReachedToday  Int         @default(0)
-  contactsReachedTotal  Int         @default(0)
-  dailyLimit            Int         @default(40)
-  totalLimit            Int         @default(40)
-  messagesSentToday     Int         @default(0)
-  messagesSentTotal     Int         @default(0)
+  id                   Int         @id @default(autoincrement())
+  phoneNumber          PhoneNumber @relation(fields: [phoneNumberId], references: [id])
+  phoneNumberId        Int         @unique
+  isPremium            Boolean     @default(false)
+  isAuthenticated      Boolean     @default(false)
+  contactsReachedToday Int         @default(0)
+  contactsReachedTotal Int         @default(0)
+  dailyLimit           Int         @default(40)
+  totalLimit           Int         @default(40)
+  messagesSentToday    Int         @default(0)
+  messagesSentTotal    Int         @default(0)
 }
 
-
 model WhatsappAccount {
-  id                    Int         @id @default(autoincrement())
-  phoneNumber           PhoneNumber @relation(fields: [phoneNumberId], references: [id])
-  phoneNumberId         Int         @unique
-  isAuthenticated       Boolean     @default(false)
-  accountType           String      @default("regular")
-  contactsReachedToday  Int         @default(0)
-  contactsReachedTotal  Int         @default(0)
-  dailyLimit            Int         @default(100)
-  totalLimit            Int         @default(100)
-  messagesSentToday     Int         @default(0)
-  messagesSentTotal     Int         @default(0)
+  id                   Int         @id @default(autoincrement())
+  phoneNumber          PhoneNumber @relation(fields: [phoneNumberId], references: [id])
+  phoneNumberId        Int         @unique
+  isAuthenticated      Boolean     @default(false)
+  accountType          String      @default("regular")
+  contactsReachedToday Int         @default(0)
+  contactsReachedTotal Int         @default(0)
+  dailyLimit           Int         @default(100)
+  totalLimit           Int         @default(100)
+  messagesSentToday    Int         @default(0)
+  messagesSentTotal    Int         @default(0)
 }
 
 model WABAAccount {
-  id                    Int         @id @default(autoincrement())
-  phoneNumber           PhoneNumber @relation(fields: [phoneNumberId], references: [id])
-  phoneNumberId         Int         @unique
-  isAuthenticated       Boolean     @default(false)
-  businessProfileId     String?
-  contactsReachedToday  Int         @default(0)
-  contactsReachedTotal  Int         @default(0)
-  dailyLimit            Int         @default(1000)
-  totalLimit            Int         @default(1000)
-  messagesSentToday     Int         @default(0)
-  messagesSentTotal     Int         @default(0)
-  accessToken           String?
-  refreshToken          String?
-  tokenExpiresAt        DateTime?
+  id                   Int         @id @default(autoincrement())
+  phoneNumber          PhoneNumber @relation(fields: [phoneNumberId], references: [id])
+  phoneNumberId        Int         @unique
+  isAuthenticated      Boolean     @default(false)
+  businessProfileId    String?
+  contactsReachedToday Int         @default(0)
+  contactsReachedTotal Int         @default(0)
+  dailyLimit           Int         @default(1000)
+  totalLimit           Int         @default(1000)
+  messagesSentToday    Int         @default(0)
+  messagesSentTotal    Int         @default(0)
+  accessToken          String?
+  refreshToken         String?
+  tokenExpiresAt       DateTime?
 }
 
 model WABASession {
@@ -125,7 +125,6 @@ model WABASession {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 }
-
 
 model CampaignParsing {
   id                  Int          @id @default(autoincrement())
@@ -147,21 +146,21 @@ model CampaignParsing {
 }
 
 model ParsedUser {
-  id              Int             @id @default(autoincrement())
-  campaign        CampaignParsing @relation(fields: [campaignId], references: [id])
-  campaignId      Int
-  groupUsername   String?
-  groupLink       String?
-  userId          BigInt
-  username        String?
-  firstName       String?
-  lastName        String?
-  bio             String?
-  category        String?
-  parsedAt        DateTime        @default(now())
-  lastSeen        DateTime?
-  hasChannel      Boolean         @default(false)
-  isProcessed     Boolean         @default(false)
+  id               Int             @id @default(autoincrement())
+  campaign         CampaignParsing @relation(fields: [campaignId], references: [id])
+  campaignId       Int
+  groupUsername    String?
+  groupLink        String?
+  userId           BigInt
+  username         String?
+  firstName        String?
+  lastName         String?
+  bio              String?
+  category         String?
+  parsedAt         DateTime        @default(now())
+  lastSeen         DateTime?
+  hasChannel       Boolean         @default(false)
+  isProcessed      Boolean         @default(false)
   processingStatus String?
 }
 
@@ -183,20 +182,20 @@ model MessageStat {
 }
 
 model Lead {
-  id              Int      @id @default(autoincrement())
-  bitrixId        String?  @unique 
+  id              Int              @id @default(autoincrement())
+  bitrixId        String?          @unique
   leadsDBId       Int
-  leadsDB         LeadsDB  @relation(fields: [leadsDBId], references: [id])
+  leadsDB         LeadsDB          @relation(fields: [leadsDBId], references: [id])
   campaignId      Int?
   userId          Int?
   phone           String?
   name            String?
   source          String?
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
   campaign        CampaignMailing? @relation(fields: [campaignId], references: [id])
-  user            User?    @relation(fields: [userId], references: [id])
-  status          LeadStatus @default(NEW)
+  user            User?            @relation(fields: [userId], references: [id])
+  status          LeadStatus       @default(NEW)
   telegramChatId  String?
   whatsappChatId  String?
   lastMessageTime DateTime?
@@ -217,73 +216,73 @@ enum LeadStatus {
 }
 
 model LeadsDB {
-  id        Int      @id @default(autoincrement())
+  id        Int               @id @default(autoincrement())
   name      String
   userId    Int
-  user      User     @relation(fields: [userId], references: [id])
+  user      User              @relation(fields: [userId], references: [id])
   leads     Lead[]
   campaigns CampaignLeadsDB[]
-  isDefault Boolean  @default(false)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  isDefault Boolean           @default(false)
+  createdAt DateTime          @default(now())
+  updatedAt DateTime          @updatedAt
 }
 
 model CampaignLeadsDB {
-  id         Int      @id @default(autoincrement())
+  id         Int             @id @default(autoincrement())
   campaignId Int
   leadsDBId  Int
   campaign   CampaignMailing @relation(fields: [campaignId], references: [id])
-  leadsDB    LeadsDB  @relation(fields: [leadsDBId], references: [id])
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  leadsDB    LeadsDB         @relation(fields: [leadsDBId], references: [id])
+  createdAt  DateTime        @default(now())
+  updatedAt  DateTime        @updatedAt
 
   @@unique([campaignId, leadsDBId])
 }
 
 model CampaignMailing {
-  id                    Int      @id @default(autoincrement())
-  name                  String   @unique
-  message               String?
-  isActive              Boolean  @default(false)
-  createdAt             DateTime @default(now())
-  updatedAt             DateTime @updatedAt
-  platformPriority      String   @default("telegram")
-  user                  User     @relation(fields: [userId], references: [id])
-  userId                Int
-  phoneNumbers          PhoneNumberCampaign[]
-  prompt                Prompt?  @relation(fields: [promptId], references: [id])
-  promptId              Int?
-  leads                 Lead[]
-  leadsDBs              CampaignLeadsDB[]
-  googleSheetUrl        String?
+  id                      Int                   @id @default(autoincrement())
+  name                    String                @unique
+  message                 String?
+  isActive                Boolean               @default(false)
+  createdAt               DateTime              @default(now())
+  updatedAt               DateTime              @updatedAt
+  platformPriority        String                @default("telegram")
+  user                    User                  @relation(fields: [userId], references: [id])
+  userId                  Int
+  phoneNumbers            PhoneNumberCampaign[]
+  prompt                  Prompt?               @relation(fields: [promptId], references: [id])
+  promptId                Int?
+  leads                   Lead[]
+  leadsDBs                CampaignLeadsDB[]
+  googleSheetUrl          String?
   notificationTelegramIds BigInt[]
-  defaultPhoneNumber String?
+  defaultPhoneNumber      String?
 }
 
 model PhoneNumberCampaign {
-  id         Int             @id @default(autoincrement())
+  id          Int             @id @default(autoincrement())
   phoneNumber String
-  platform   String
-  campaign   CampaignMailing @relation(fields: [campaignId], references: [id])
-  campaignId Int
-  addedAt    DateTime @default(now())
+  platform    String
+  campaign    CampaignMailing @relation(fields: [campaignId], references: [id])
+  campaignId  Int
+  addedAt     DateTime        @default(now())
 
   @@unique([phoneNumber, campaignId])
 }
 
 model BitrixIntegration {
-  id                 Int    @id @default(autoincrement())
-  user               User   @relation(fields: [userId], references: [telegramId])
-  userId             BigInt    @unique
-  bitrixInboundUrl   String?
+  id                  Int     @id @default(autoincrement())
+  user                User    @relation(fields: [userId], references: [telegramId])
+  userId              BigInt  @unique
+  bitrixInboundUrl    String?
   bitrixOutboundToken String?
 }
 
 model AmoCrmIntegration {
-  id                Int    @id @default(autoincrement())
-  user              User   @relation(fields: [userId], references: [telegramId])
-  userId            BigInt    @unique
-  amoCrmInboundUrl  String?
+  id                  Int     @id @default(autoincrement())
+  user                User    @relation(fields: [userId], references: [telegramId])
+  userId              BigInt  @unique
+  amoCrmInboundUrl    String?
   amoCrmOutboundToken String?
 }
 
@@ -304,32 +303,32 @@ model WhatsappSession {
 }
 
 model Dialog {
-  id        Int      @id @default(autoincrement())
-  userId    Int
-  contactId    String 
+  id           Int       @id @default(autoincrement())
+  userId       Int
+  contactId    String
   contactPhone String?
-  platform  String
-  messages  Message[]
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  platform     String
+  messages     Message[]
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
 
   @@unique([userId, contactId, platform])
 }
 
 model Message {
-  id            Int      @id @default(autoincrement())
-  dialog        Dialog   @relation(fields: [dialogId], references: [id])
-  dialogId      Int
-  userRequest   String
+  id                Int      @id @default(autoincrement())
+  dialog            Dialog   @relation(fields: [dialogId], references: [id])
+  dialogId          Int
+  userRequest       String
   assistantResponse String
-  createdAt     DateTime @default(now())
+  createdAt         DateTime @default(now())
 }
 
 model Prompt {
-  id              Int               @id @default(autoincrement())
-  name            String            @unique
-  content         String
-  createdAt       DateTime          @default(now())
-  updatedAt       DateTime          @updatedAt
-  campaigns       CampaignMailing[]
+  id        Int               @id @default(autoincrement())
+  name      String            @unique
+  content   String
+  createdAt DateTime          @default(now())
+  updatedAt DateTime          @updatedAt
+  campaigns CampaignMailing[]
 }

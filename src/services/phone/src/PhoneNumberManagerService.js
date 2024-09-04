@@ -1,6 +1,7 @@
 // src/services/phone/src/PhoneNumberManagerService.js
 
 const logger = require('../../../utils/logger');
+const WABAAccountService = require('../../waba/services/WABAAccountService');
 const { phoneNumberRepo, phoneNumberCampaignRepo, campaignsMailingRepo } = require('../../../db');
 
 class PhoneNumberManagerService {
@@ -31,7 +32,20 @@ class PhoneNumberManagerService {
     if (!phoneInfo) return false;
     if (phoneInfo.isBanned) return false;
 
-    const account = platform === 'telegram' ? phoneInfo.telegramAccount : phoneInfo.whatsappAccount;
+    let account;
+    switch (platform) {
+      case 'telegram':
+        account = phoneInfo.telegramAccount;
+        break;
+      case 'whatsapp':
+        account = phoneInfo.whatsappAccount;
+        break;
+      case 'waba':
+        account = await WABAAccountService.getAccount(phoneNumber);
+        break;
+      default:
+        throw new Error(`Unsupported platform: ${platform}`);
+    }
     
     if (!account || !account.isAuthenticated) return false;
     if (account.contactsReachedToday >= account.dailyLimit) return false;

@@ -168,6 +168,27 @@ async function getOrCreatetLeadByPhone(phone, platform, chatId, campaignId) {
   }
 }
 
+async function getLeadByIdentifier(identifier, platform) {
+  try {
+    let lead;
+    switch (platform) {
+      case 'telegram':
+        lead = await prisma.lead.findFirst({ where: { telegramChatId: identifier } });
+        break;
+      case 'whatsapp':
+      case 'waba':
+        lead = await prisma.lead.findFirst({ where: { whatsappChatId: identifier } });
+        break;
+      default:
+        throw new Error(`Unsupported platform: ${platform}`);
+    }
+    return lead;
+  } catch (error) {
+    logger.error(`Error getting lead by ${platform} identifier:`, error);
+    throw error;
+  }
+}
+
 async function detachLeadsDBFromCampaign(leadsDBId, campaignId) {
   try {
     await prisma.campaignLeadsDB.delete({
@@ -267,12 +288,16 @@ async function createLead(platform, chatId, userId, leadsDBId) {
       status: 'NEW'
     };
 
-    if (platform === 'telegram') {
-      leadData.telegramChatId = chatId;
-    } else if (platform === 'whatsapp') {
-      leadData.whatsappChatId = chatId;
-    } else {
-      throw new Error('Неизвестная платформа');
+    switch (platform) {
+      case 'telegram':
+        leadData.telegramChatId = chatId;
+        break;
+      case 'whatsapp':
+      case 'waba':
+        leadData.whatsappChatId = chatId;
+        break;
+      default:
+        throw new Error('Неизвестная платформа');
     }
 
     logger.info(`Attempting to create lead with data:`, leadData);
@@ -358,6 +383,7 @@ module.exports = {
   getDefaultLeadsDB,
   getLeadsFromLeadsDB,
   getAttachedLeadsDBs,
+  getLeadByIdentifier,
   updateLeadMessageInfo,
   attachLeadsDBToCampaign,
   getOrCreatetLeadByPhone,

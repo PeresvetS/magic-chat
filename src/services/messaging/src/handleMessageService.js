@@ -1,5 +1,7 @@
 // src/services/messaging/src/handleMessageService.js
 
+// src/services/messaging/src/handleMessageService.js
+
 const logger = require('../../../utils/logger');
 const { sendResponse } = require('./messageSender');
 const { processMessage } = require('./messageProcessor');
@@ -7,12 +9,13 @@ const { safeStringify } = require('../../../utils/helpers');
 const LeadsService = require('../../leads/src/LeadsService');
 const TelegramBotStateManager = require('../../telegram/managers/botStateManager');
 const WhatsAppBotStateManager = require('../../whatsapp/managers/botStateManager');
-const { log } = require('winston');
+const WABABotStateManager = require('../../waba/managers/botStateManager');
 const { getActiveCampaignForPhoneNumber } = require('../../campaign').campaignsMailingService;
 
 logger.info('HandleMessageService loaded');
 logger.info('TelegramBotStateManager:', TelegramBotStateManager ? 'Loaded' : 'Not loaded');
 logger.info('WhatsAppBotStateManager:', WhatsAppBotStateManager ? 'Loaded' : 'Not loaded');
+logger.info('WABABotStateManager:', WABABotStateManager ? 'Loaded' : 'Not loaded');
 
 async function processIncomingMessage(phoneNumber, event, platform = 'telegram') {
   try {
@@ -32,14 +35,14 @@ async function processIncomingMessage(phoneNumber, event, platform = 'telegram')
       return;
     }
 
-    const BotStateManager = platform === 'whatsapp' ? WhatsAppBotStateManager : TelegramBotStateManager;
+    const BotStateManager = getBotStateManager(platform);
 
     const combinedMessage = await BotStateManager.handleIncomingMessage(phoneNumber, senderId, messageText);
     if (!combinedMessage) {
       logger.info(`Сообщение добавлено в буфер для пользователя ${senderId}`);
       return;
     }
-    ;
+
     const lead = await getOrCreateLeadIdByChatId(senderId, platform, activeCampaign.userId);
 
     logger.info(`Обработка ${platform} с lead=${safeStringify(lead)} `);
@@ -58,13 +61,26 @@ async function processIncomingMessage(phoneNumber, event, platform = 'telegram')
   }
 }
 
+function getBotStateManager(platform) {
+  switch (platform) {
+    case 'telegram':
+      return TelegramBotStateManager;
+    case 'whatsapp':
+      return WhatsAppBotStateManager;
+    case 'waba':
+      return WABABotStateManager;
+    default:
+      throw new Error(`Unsupported platform: ${platform}`);
+  }
+}
+
 async function extractMessageInfo(event, platform) {
-  if (platform === 'whatsapp') {
+  if (platform === 'whatsapp' || platform === 'waba') {
     if (!event.body) {
-      logger.warn(`WhatsApp event does not contain a message body`);
+      logger.warn(`${platform} event does not contain a message body`);
       return {};
     }
-    logger.info(`Extracted WhatsApp message: ${event.body}, from ${event.from} and chatId ${event.chatId}`);
+    logger.info(`Extracted ${platform} message: ${event.body}, from ${event.from} and chatId ${event.chatId}`);
     return { senderId: event.from, messageText: event.body, chatId: event.chatId };
   } else {
     const message = event.message;
@@ -85,10 +101,16 @@ async function extractMessageInfo(event, platform) {
 async function getLeadIdByChatId(chatId, platform) {
   try {
     let lead;
-    if (platform === 'whatsapp') {
-      lead = await LeadsService.getLeadByWhatsappChatId(chatId);
-    } else {
-      lead = await LeadsService.getLeadByTelegramChatId(chatId);
+    switch (platform) {
+      case 'whatsapp':
+      case 'waba':
+        lead = await LeadsService.getLeadByWhatsappChatId(chatId);
+        break;
+      case 'telegram':
+        lead = await LeadsService.getLeadByTelegramChatId(chatId);
+        break;
+      default:
+        throw new Error(`Unsupported platform: ${platform}`);
     }
     return lead ? lead : null;
   } catch (error) {

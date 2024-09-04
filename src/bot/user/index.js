@@ -8,6 +8,7 @@ const TelegramBot = require('node-telegram-bot-api');
 const config = require('../../config');
 const logger = require('../../utils/logger');
 const { userService } = require('../../services/user');
+const wabaCommands = require('./commands/wabaCommands');
 const LeadsService = require('../../services/leads/src/LeadsService');
 const { getUserState, clearUserState } = require('./utils/userState');
 const { TelegramSessionService } = require('../../services/telegram');
@@ -42,6 +43,7 @@ function createUserBot() {
     phoneCommands,
     leadsCommands,
     helpCommands,
+    wabaCommands,
   ];
 
   PhoneNumberManagerService.setNotificationCallback((telegramId, message) => {

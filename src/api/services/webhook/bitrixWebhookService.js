@@ -4,7 +4,7 @@ const logger = require('../../../utils/logger');
 const { safeStringify } = require('../../../utils/helpers');
 const BitrixLeadService = require('../lead/bitrixLeadService');
 const LeadsService = require('../../../services/leads/src/LeadsService');
-const messageDistributionService = require('../../../services/mailing/src/messageDistributionService');
+const messageDistributionService = require('../../../services/mailing/services/messageDistributionService');
 
 async function processBitrixWebhook(data, user) {
   try {

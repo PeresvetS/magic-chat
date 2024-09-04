@@ -9,12 +9,13 @@ const {
   getUserPhoneNumbers,
 } = require('../../../services/phone').phoneNumberService;
 const { userService } = require('../../../services/user');
+const { WABASessionService } = require('../../../services/waba');
 const { TelegramSessionService } = require('../../../services/telegram');
 const { WhatsAppSessionService } = require('../../../services/whatsapp');
 const logger = require('../../../utils/logger');
 
 module.exports = {
-  '/add_phone (telegram|whatsapp) ([+]?[0-9]+)': async (bot, msg, match) => {
+  '/add_phone (telegram|whatsapp|waba) ([+]?[0-9]+)': async (bot, msg, match) => {
     const [, platform, phoneNumber] = match;
 
     logger.info(`Extracted platform: ${platform}, phone number: ${phoneNumber}`);
@@ -55,6 +56,15 @@ module.exports = {
         bot.sendMessage(msg.chat.id, `Номер ${phoneNumber} успешно ${result.isNew ? 'добавлен' : 'обновлен'}. Выберите способ WhatsApp аутентификации:`, {
           reply_markup: JSON.stringify(keyboard)
         });
+      } else if (platform === 'waba') {
+        const keyboard = {
+          inline_keyboard: [
+            [{ text: 'Аутентифицировать WABA', callback_data: `auth_waba_${phoneNumber}` }]
+          ]
+        };
+        bot.sendMessage(msg.chat.id, `Номер ${phoneNumber} успешно ${result.isNew ? 'добавлен' : 'обновлен'}. Нажмите кнопку для аутентификации WABA:`, {
+          reply_markup: JSON.stringify(keyboard)
+        });
       }
     } catch (error) {
       logger.error(`Error adding/updating ${platform} number ${phoneNumber} for user ${userId}:`, error);
@@ -62,44 +72,46 @@ module.exports = {
     }
   },
 
-  '/remove_phone (telegram|whatsapp) ([+]?[0-9]+)': async (bot, msg, match) => {
-  const [, platform, phoneNumber] = match;
+  '/remove_phone (telegram|whatsapp|waba) ([+]?[0-9]+)': async (bot, msg, match) => {
+    const [, platform, phoneNumber] = match;
 
-  logger.info(`Extracted platform: ${platform}, phone number: ${phoneNumber}`);
+    logger.info(`Extracted platform: ${platform}, phone number: ${phoneNumber}`);
 
-  const user = await userService.getUserByTgId(msg.from.id);
-  const userId = user.id;
-  logger.info(`Remove phone command called by user ${userId}`);
+    const user = await userService.getUserByTgId(msg.from.id);
+    const userId = user.id;
+    logger.info(`Remove phone command called by user ${userId}`);
 
-  if (!phoneNumber) {
-    bot.sendMessage(msg.chat.id, 'Пожалуйста, укажите платформу и номер телефона после команды. Например: /remove_phone telegram +79123456789');
-    return;
-  }
-
-  logger.info(`Attempting to remove ${platform} number ${phoneNumber} for user ${userId}`);
-
-  try {
-    await removePhoneNumber(userId, phoneNumber, platform);
-    logger.info(`${platform} number ${phoneNumber} removed successfully for user ${userId}`);
-    
-    if (platform === 'telegram') {
-      await TelegramSessionService.disconnectSession(phoneNumber);
-    } else if (platform === 'whatsapp') {
-      await WhatsAppSessionService.disconnectSession(phoneNumber);
+    if (!phoneNumber) {
+      bot.sendMessage(msg.chat.id, 'Пожалуйста, укажите платформу и номер телефона после команды. Например: /remove_phone telegram +79123456789');
+      return;
     }
-    
-    bot.sendMessage(msg.chat.id, `${platform} номер ${phoneNumber} успешно удален и сессия разорвана.`);
-  } catch (error) {
-    logger.error(`Error removing ${platform} number ${phoneNumber} for user ${userId}:`, error);
-    let errorMessage = 'Произошла ошибка при удалении номера.';
-    if (error.message.includes('не найден')) {
-      errorMessage = `Номер ${phoneNumber} не найден или уже был удален.`;
-    } else if (error.code === 'P2014') {
-      errorMessage = 'Не удалось удалить номер из-за связанных данных. Пожалуйста, обратитесь к администратору.';
+
+    logger.info(`Attempting to remove ${platform} number ${phoneNumber} for user ${userId}`);
+
+    try {
+      await removePhoneNumber(userId, phoneNumber, platform);
+      logger.info(`${platform} number ${phoneNumber} removed successfully for user ${userId}`);
+      
+      if (platform === 'telegram') {
+        await TelegramSessionService.disconnectSession(phoneNumber);
+      } else if (platform === 'whatsapp') {
+        await WhatsAppSessionService.disconnectSession(phoneNumber);
+      } else if (platform === 'waba') {
+        await WABASessionService.disconnectSession(phoneNumber);
+      }
+      
+      bot.sendMessage(msg.chat.id, `${platform} номер ${phoneNumber} успешно удален и сессия разорвана.`);
+    } catch (error) {
+      logger.error(`Error removing ${platform} number ${phoneNumber} for user ${userId}:`, error);
+      let errorMessage = 'Произошла ошибка при удалении номера.';
+      if (error.message.includes('не найден')) {
+        errorMessage = `Номер ${phoneNumber} не найден или уже был удален.`;
+      } else if (error.code === 'P2014') {
+        errorMessage = 'Не удалось удалить номер из-за связанных данных. Пожалуйста, обратитесь к администратору.';
+      }
+      bot.sendMessage(msg.chat.id, errorMessage);
     }
-    bot.sendMessage(msg.chat.id, errorMessage);
-  }
-},
+  },
 
   '/set_phone_limit (telegram|whatsapp) ([+]?[0-9]+) (\\d+) (\\d+)?': async (bot, msg, match) => {
     const [, platform, phoneNumber, dailyLimit, totalLimit] = match;
@@ -141,7 +153,7 @@ module.exports = {
         return;
       } 
       const phoneList = phoneNumbers.map(phone => 
-        `${phone.phoneNumber} - Telegram: ${phone.isTelegramAuthenticated ? 'аутентифицирован' : 'не аутентифицирован'}, WhatsApp: ${phone.isWhatsappAuthenticated ? 'аутентифицирован' : 'не аутентифицирован'}`
+        `${phone.phoneNumber} - Telegram: ${phone.isTelegramAuthenticated ? 'аутентифицирован' : 'не аутентифицирован'}, WhatsApp: ${phone.isWhatsappAuthenticated ? 'аутентифицирован' : 'не аутентифицирован'}, WABA: ${phone.isWABAAuthenticated ? 'аутентифицирован' : 'не аутентифицирован'}`
       ).join('\n');
       bot.sendMessage(msg.chat.id, `Ваши номера телефонов:\n${phoneList}`);
     } catch (error) {
@@ -149,6 +161,7 @@ module.exports = {
       bot.sendMessage(msg.chat.id, `Ошибка при получении списка номеров: ${error.message}`);
     }
   },
+
 
   '/phone_stats ([+]?[0-9]+)': async (bot, msg, match) => {
     const [, phoneNumber] = match;
@@ -172,22 +185,29 @@ module.exports = {
       message += `Забанен: ${info.isBanned ? 'Да' : 'Нет'}\n`;
       message += `Telegram аутентифицирован: ${info.telegramAccount?.isAuthenticated ? 'Да' : 'Нет'}\n`;
       message += `WhatsApp аутентифицирован: ${info.whatsappAccount?.isAuthenticated ? 'Да' : 'Нет'}\n`;
+      message += `WABA аутентифицирован: ${info.wabaAccount?.isAuthenticated ? 'Да' : 'Нет'}\n`;
       message += `WhatsApp тип: ${info.whatsappAccount?.accountType || 'Не указан'}\n`;
       if (info.isBanned) {
         message += `Тип бана: ${info.banType}\n`;
       }
       message += `Отправлено сообщений в Telegram сегодня: ${info.telegramAccount?.messagesSentToday || 0}\n`;
       message += `Отправлено сообщений в WhatsApp сегодня: ${info.whatsappAccount?.messagesSentToday || 0}\n`;
+      message += `Отправлено сообщений в WABA сегодня: ${info.wabaAccount?.messagesSentToday || 0}\n`;
       message += `Отправлено сообщений в Telegram всего: ${info.telegramAccount?.messagesSentTotal || 0}\n`;
       message += `Отправлено сообщений в WhatsApp всего: ${info.whatsappAccount?.messagesSentTotal || 0}\n`;
+      message += `Отправлено сообщений в WABA всего: ${info.wabaAccount?.messagesSentTotal || 0}\n`;
       message += `Охвачено контактов в Telegram сегодня: ${info.telegramAccount?.contactsReachedToday || 0}\n`;
       message += `Охвачено контактов в WhatsApp сегодня: ${info.whatsappAccount?.contactsReachedToday || 0}\n`;
+      message += `Охвачено контактов в WABA сегодня: ${info.wabaAccount?.contactsReachedToday || 0}\n`;
       message += `Охвачено контактов в Telegram всего: ${info.telegramAccount?.contactsReachedTotal || 0}\n`;
       message += `Охвачено контактов в WhatsApp всего: ${info.whatsappAccount?.contactsReachedTotal || 0}\n`;
+      message += `Охвачено контактов в WABA всего: ${info.wabaAccount?.contactsReachedTotal || 0}\n`;
       message += `Дневной лимит Telegram: ${info.telegramAccount?.dailyLimit || 'Не установлен'}\n`;
       message += `Дневной лимит WhatsApp: ${info.whatsappAccount?.dailyLimit || 'Не установлен'}\n`;
+      message += `Дневной лимит WABA: ${info.wabaAccount?.dailyLimit || 'Не установлен'}\n`;
       message += `Общий лимит Telegram: ${info.telegramAccount?.totalLimit || 'Не установлен'}\n`;
       message += `Общий лимит WhatsApp: ${info.whatsappAccount?.totalLimit || 'Не установлен'}\n`;
+      message += `Общий лимит WABA: ${info.wabaAccount?.totalLimit || 'Не установлен'}\n`;
       bot.sendMessage(msg.chat.id, message);
     } catch (error) {
       logger.error(`Error getting info for phone number ${phoneNumber}:`, error);

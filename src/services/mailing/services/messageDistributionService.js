@@ -1,13 +1,12 @@
-// src/services/mailing/src/messageDistributionService.js
+// src/services/mailing/services/messageDistributionService.js
 
 const messageSenderService = require('./messageSenderService');
-const MessagingPlatformChecker = require('./MessagingPlatformChecker');
+const MessagingPlatformChecker = require('../checkers/MessagingPlatformChecker');
 const logger = require('../../../utils/logger');
 const { campaignsMailingService } = require('../../campaign');
 const PhoneNumberManagerService = require('../../phone/src/PhoneNumberManagerService');
 
 class MessageDistributionService {
-
   constructor() {
     this.lastMessageTimes = new Map();
     this.RATE_LIMIT_SECONDS = 60; // 1 минута
@@ -32,7 +31,9 @@ class MessageDistributionService {
         strPhoneNumber,
         telegram: null,
         whatsapp: null,
+        waba: null,
         tgwa: null,
+        tgwaba: null,
       };
 
       for (const platform of platforms.split(',')) {
@@ -51,8 +52,14 @@ class MessageDistributionService {
             case 'whatsapp':
               sendResult = await messageSenderService.sendWhatsAppMessage(campaignId, senderPhoneNumber, strPhoneNumber, message);
               break;
+            case 'waba':
+              sendResult = await messageSenderService.sendWABAMessage(campaignId, senderPhoneNumber, strPhoneNumber, message);
+              break;
             case 'tgwa':
               sendResult = await messageSenderService.sendTgAndWa(campaignId, strPhoneNumber, message);
+              break;
+            case 'tgwaba':
+              sendResult = await messageSenderService.sendTgAndWABA(campaignId, strPhoneNumber, message);
               break;
           }
 
@@ -144,12 +151,15 @@ class MessageDistributionService {
   getSuccessfulPlatform(result) {
     if (result.telegram && result.telegram.success) return 'telegram';
     if (result.whatsapp && result.whatsapp.success) return 'whatsapp';
+    if (result.waba && result.waba.success) return 'waba';
     if (result.tgwa && result.tgwa.success) return 'telegram and whatsapp';
+    if (result.tgwaba && result.tgwaba.success) return 'telegram and waba';
     return 'unknown';
   }
 
   getErrorMessage(result) {
-    return result.telegram?.error || result.whatsapp?.error || result.tgwa?.error || 'Unknown error';
+    return result.telegram?.error || result.whatsapp?.error || result.waba?.error || 
+           result.tgwa?.error || result.tgwaba?.error || 'Unknown error';
   }
 
 

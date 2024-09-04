@@ -2,6 +2,7 @@
 
 const logger = require('../../../utils/logger');
 const { phoneNumberService } = require('../../phone');
+const WABAAccountService = require('../../waba/services/WABAAccountService');
 const { campaignsMailingRepo, phoneNumberCampaignRepo } = require('../../../db');
 
 class CampaignMailingService {
@@ -31,6 +32,12 @@ class CampaignMailingService {
       }
       if (phoneInfo.isBanned) {
         throw new Error('Phone number is banned');
+      }
+      if (platform === 'waba') {
+        const wabaAccount = await WABAAccountService.getAccount(phoneNumber);
+        if (!wabaAccount || !wabaAccount.isAuthenticated) {
+          throw new Error('Phone number is not WABA authenticated');
+        }
       }
       await campaignsMailingRepo.setDefaultPhoneNumber(campaignId, phoneNumber);
     } catch (error) {
@@ -75,6 +82,13 @@ class CampaignMailingService {
 
       if (platform === 'whatsapp' && !phoneNumberRecord.whatsappAccount?.isAuthenticated) {
         throw new Error('Phone number is not WhatsApp authenticated');
+      }
+
+      if (platform === 'waba') {
+        const wabaAccount = await WABAAccountService.getAccount(phoneNumber);
+        if (!wabaAccount || !wabaAccount.isAuthenticated) {
+          throw new Error('Phone number is not WABA authenticated');
+        }
       }
 
       return await phoneNumberCampaignRepo.createAttachment(campaignId, phoneNumber, platform);
@@ -185,6 +199,11 @@ class CampaignMailingService {
 
   async setPlatformPriority(campaignId, platformPriority) {
     try {
+      const validPlatforms = ['telegram', 'whatsapp', 'waba'];
+      const isValidPriority = platformPriority.split(',').every(platform => validPlatforms.includes(platform.trim()));
+      if (!isValidPriority) {
+        throw new Error('Invalid platform priority');
+      }
       return await campaignsMailingRepo.setPlatformPriority(campaignId, platformPriority);
     } catch (error) {
       logger.error('Error in setPlatformPriority service:', error);

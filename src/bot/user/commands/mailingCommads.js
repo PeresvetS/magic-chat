@@ -149,8 +149,8 @@ module.exports = {
     }
   },
 
-  '/mailing_test ([+]?[0-9]+)(?:\\s(telegram|whatsapp|tgwa))?': async (bot, msg, match) => {
-  const [, phoneNumber, priorityPlatform] = match;
+  '/mailing_test ([+]?[0-9]+)(?:\\s(telegram|whatsapp|waba|tgwa|tgwaba))?': async (bot, msg, match) => {
+    const [, phoneNumber, priorityPlatform] = match;
 
     if (!phoneNumber) {
       bot.sendMessage(msg.chat.id, 'Пожалуйста, укажите номер телефона после команды.');
@@ -176,8 +176,14 @@ module.exports = {
       else if (result.whatsapp && result.whatsapp.success) {
         bot.sendMessage(msg.chat.id, `Тестовое сообщение успешно отправлено в WhatsApp на номер ${phoneNumber}`);
       } 
+      else if (result.waba && result.waba.success) {
+        bot.sendMessage(msg.chat.id, `Тестовое сообщение успешно отправлено в WABA на номер ${phoneNumber}`);
+      }
       else if (result.tgwa && result.tgwa.success) {
         bot.sendMessage(msg.chat.id, `Тестовое сообщение успешно отправлено в Telegram и/или WhatsApp на номер ${phoneNumber}`);
+      }
+      else if (result.tgwaba && result.tgwaba.success) {
+        bot.sendMessage(msg.chat.id, `Тестовое сообщение успешно отправлено в Telegram и/или WABA на номер ${phoneNumber}`);
       }
       else {
         bot.sendMessage(msg.chat.id, `Не удалось отправить тестовое сообщение на номер ${phoneNumber}. Проверьте, доступен ли этот номер в мессенджерах.`);
@@ -228,15 +234,15 @@ module.exports = {
   },
 
 
-  '/set_platform_priority_mc ([^\\s]+)(?:\\s(telegram|whatsapp|tgwa))?': async (bot, msg, match) => {
+  '/set_platform_priority_mc ([^\\s]+)(?:\\s(telegram|whatsapp|waba|tgwa|tgwaba))?': async (bot, msg, match) => {
     const [, campaignName, platformPriority] = match;
     if (!campaignName || !platformPriority) {
       bot.sendMessage(msg.chat.id, 'Пожалуйста, укажите название кампании и приоритет платформы. Например: /set_platform_priority МояКампания telegram');
       return;
     }
 
-    if (!['telegram', 'whatsapp', 'TgAndWa'].includes(platformPriority)) {
-      bot.sendMessage(msg.chat.id, 'Неверный приоритет платформы. Допустимые значения: telegram, whatsapp, TgAndWa');
+    if (!['telegram', 'whatsapp', 'waba', 'tgwa', 'tgwaba'].includes(platformPriority)) {
+      bot.sendMessage(msg.chat.id, 'Неверный приоритет платформы. Допустимые значения: telegram, whatsapp, waba, tgwa, tgwaba');
       return;
     }
 
@@ -256,7 +262,7 @@ module.exports = {
   },
 
   
-  '/attach_phone_mc ([^\\s]+) ([+]?[0-9]+) (telegram|whatsapp|tgwa)': async (bot, msg, match) => {
+  '/attach_phone_mc ([^\\s]+) ([+]?[0-9]+) (telegram|whatsapp|waba)': async (bot, msg, match) => {
     const [, campaignName, phoneNumber, platform] = match;
     logger.info('Attaching phone number to campaign:', campaignName, phoneNumber, platform);
     if (!campaignName || !phoneNumber || !platform) {

@@ -157,10 +157,16 @@ class LeadsService {
   async getLeadByIdentifier(identifier, platform) {
     try {
       let lead;
-      if (platform === 'telegram') {
-        lead = await leadsRepo.getLeadByTelegramChatId(identifier);
-      } else if (platform === 'whatsapp') {
-        lead = await leadsRepo.getLeadByWhatsappChatId(identifier);
+      switch (platform) {
+        case 'telegram':
+          lead = await leadsRepo.getLeadByTelegramChatId(identifier);
+          break;
+        case 'whatsapp':
+        case 'waba':
+          lead = await leadsRepo.getLeadByWhatsappChatId(identifier);
+          break;
+        default:
+          throw new Error(`Unsupported platform: ${platform}`);
       }
       
       if (!lead) {
@@ -295,6 +301,44 @@ class LeadsService {
       return await leadsRepo.updateLeadStatus(leadId, newStatus);
     } catch (error) {
       logger.error('Error updating lead status by name:', error);
+      throw error;
+    }
+  }
+
+  async updateLeadChatId(leadId, chatId, platform) {
+    try {
+      let updateData = {};
+      switch (platform) {
+        case 'telegram':
+          updateData = { telegramChatId: chatId };
+          break;
+        case 'whatsapp':
+        case 'waba':
+          updateData = { whatsappChatId: chatId };
+          break;
+        default:
+          throw new Error(`Unsupported platform: ${platform}`);
+      }
+      return await leadsRepo.updateLead(leadId, updateData);
+    } catch (error) {
+      logger.error(`Error updating lead ${platform} chat ID:`, error);
+      throw error;
+    }
+  }
+
+  async getLeadByChatId(chatId, platform) {
+    try {
+      switch (platform) {
+        case 'telegram':
+          return await leadsRepo.getLeadByTelegramChatId(chatId);
+        case 'whatsapp':
+        case 'waba':
+          return await leadsRepo.getLeadByWhatsappChatId(chatId);
+        default:
+          throw new Error(`Unsupported platform: ${platform}`);
+      }
+    } catch (error) {
+      logger.error(`Error getting lead by ${platform} chat ID:`, error);
       throw error;
     }
   }

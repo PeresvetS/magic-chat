@@ -155,18 +155,30 @@ async function addPhoneNumber(userId, phoneNumber, platform, isPremium = false) 
       create: { userId, phoneNumber }
     });
 
-    if (platform === 'telegram') {
-      await prisma.telegramAccount.upsert({
-        where: { phoneNumberId: phoneNumberRecord.id },
-        update: { isPremium },
-        create: { phoneNumberId: phoneNumberRecord.id, isPremium, isAuthenticated: false }
-      });
-    } else if (platform === 'whatsapp') {
-      await prisma.whatsappAccount.upsert({
-        where: { phoneNumberId: phoneNumberRecord.id },
-        update: {},
-        create: { phoneNumberId: phoneNumberRecord.id, isAuthenticated: false, accountType: 'regular' }
-      });
+    switch (platform) {
+      case 'telegram':
+        await prisma.telegramAccount.upsert({
+          where: { phoneNumberId: phoneNumberRecord.id },
+          update: { isPremium },
+          create: { phoneNumberId: phoneNumberRecord.id, isPremium, isAuthenticated: false }
+        });
+        break;
+      case 'whatsapp':
+        await prisma.whatsappAccount.upsert({
+          where: { phoneNumberId: phoneNumberRecord.id },
+          update: {},
+          create: { phoneNumberId: phoneNumberRecord.id, isAuthenticated: false, accountType: 'regular' }
+        });
+        break;
+      case 'waba':
+        await prisma.wABAAccount.upsert({
+          where: { phoneNumberId: phoneNumberRecord.id },
+          update: {},
+          create: { phoneNumberId: phoneNumberRecord.id, isAuthenticated: false }
+        });
+        break;
+      default:
+        throw new Error(`Unsupported platform: ${platform}`);
     }
 
     return phoneNumberRecord;
@@ -175,6 +187,7 @@ async function addPhoneNumber(userId, phoneNumber, platform, isPremium = false) 
     throw error;
   }
 }
+
 
 async function updatePhoneNumberStatus(phoneNumber, isBanned, banType = null) {
   try {
@@ -196,36 +209,47 @@ async function updatePhoneNumberStats(phoneNumber, isNewContact, platform) {
   try {
     const phoneNumberRecord = await prisma.phoneNumber.findUnique({
       where: { phoneNumber },
-      include: { telegramAccount: true, whatsappAccount: true }
+      include: { telegramAccount: true, whatsappAccount: true, wabaAccount: true }
     });
 
     if (!phoneNumberRecord) {
       throw new Error(`Phone number ${phoneNumber} not found`);
     }
 
-     const updateData = {
+    const updateData = {
       contactsReachedToday: { increment: isNewContact ? 1 : 0 },
       contactsReachedTotal: { increment: isNewContact ? 1 : 0 },
       messagesSentToday: { increment: 1 },
       messagesSentTotal: { increment: 1 }
     };
 
-    if (platform === 'telegram' && phoneNumberRecord.telegramAccount) {
-
-      await prisma.telegramAccount.update({
-        where: { id: phoneNumberRecord.telegramAccount?.id },
-        data: updateData
-      });
-
-    } else if (platform === 'whatsapp' && phoneNumberRecord.whatsappAccount) {
-      
-      await prisma.whatsappAccount.update({
-        where: { id: phoneNumberRecord.whatsappAccount?.id },
-        data: updateData
-      });
-
-    } else {
-      throw new Error(`Platform ${platform} account not found for phone number ${phoneNumber}`);
+    switch (platform) {
+      case 'telegram':
+        if (phoneNumberRecord.telegramAccount) {
+          await prisma.telegramAccount.update({
+            where: { id: phoneNumberRecord.telegramAccount.id },
+            data: updateData
+          });
+        }
+        break;
+      case 'whatsapp':
+        if (phoneNumberRecord.whatsappAccount) {
+          await prisma.whatsappAccount.update({
+            where: { id: phoneNumberRecord.whatsappAccount.id },
+            data: updateData
+          });
+        }
+        break;
+      case 'waba':
+        if (phoneNumberRecord.wabaAccount) {
+          await prisma.wABAAccount.update({
+            where: { id: phoneNumberRecord.wabaAccount.id },
+            data: updateData
+          });
+        }
+        break;
+      default:
+        throw new Error(`Unsupported platform: ${platform}`);
     }
 
     return phoneNumberRecord;
@@ -273,7 +297,8 @@ async function getPhoneNumberInfo(phoneNumber) {
       where: { phoneNumber },
       include: {
         telegramAccount: true,
-        whatsappAccount: true
+        whatsappAccount: true,
+        wabaAccount: true
       }
     });
   } catch (error) {

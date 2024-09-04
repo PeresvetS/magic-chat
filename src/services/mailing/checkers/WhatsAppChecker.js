@@ -1,4 +1,4 @@
-// src/services/mailing/src/WhatsAppChecker.js
+// src/services/mailing/checkers/WhatsAppChecker.js
 
 const logger = require('../../../utils/logger');
 const { parsePhoneNumber } = require('libphonenumber-js')

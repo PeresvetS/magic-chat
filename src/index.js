@@ -7,6 +7,7 @@ const logger = require('./utils/logger');
 const bodyParser = require('body-parser');
 const webhookRouter = require('./api/routes/webhooks');
 const { phoneNumberService } = require('./services/phone');
+// const { WABASessionService } = require('./services/waba');
 const requestLogger = require('./api/middleware/requestLogger');
 const { handleMessageService } = require('./services/messaging');
 const { WhatsAppSessionService } = require('./services/whatsapp');
@@ -88,6 +89,8 @@ async function main() {
     const server = app.listen(port, () => {
       logger.info(`Server is running on port ${port}`);
     });
+
+    // app.all('/waba-webhook', WABASessionService.getWebhookHandler());
 
     // Функция корректного завершения работы
     async function gracefulShutdown() {

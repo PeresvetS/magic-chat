@@ -1,6 +1,7 @@
-// src/services/mailing/src/messageSenderService.js
+// src/services/mailing/services/messageSenderService.js
 
 const logger = require('../../../utils/logger');
+const { WABASessionService } = require('../../waba');
 const LeadsService = require('../../leads/src/LeadsService');
 const { TelegramSessionService } = require('../../telegram');
 const { WhatsAppSessionService } = require('../../whatsapp');
@@ -10,7 +11,8 @@ class MessageSenderService {
   constructor() {
     this.limits = {
       telegram: 40, // определять через БД
-      whatsapp: 250  
+      whatsapp: 250,
+      waba: 1000
     };
   }
 
@@ -117,6 +119,36 @@ class MessageSenderService {
     }
   }
 
+  async sendWABAMessage(campaignId, senderPhoneNumber, recipientPhoneNumber, message) {
+    logger.info(`Отправка сообщения WABA с ID кампании ${campaignId} от ${senderPhoneNumber} к ${recipientPhoneNumber}`);
+    try {
+      const userId = await this.getCampaigUserId(campaignId);
+      logger.info(`Отправка рассылки от пользователя ID с ${userId}`);
+
+      if (!await this.checkDailyLimit(senderPhoneNumber, 'waba')) {
+        logger.warn(`Достигнут дневной лимит WABA для номера телефона: ${senderPhoneNumber}`);
+        return { success: false, error: 'DAILY_LIMIT_REACHED' };
+      }
+
+      const client = await WABASessionService.createOrGetSession(senderPhoneNumber);
+
+      await this.applyDelay('waba');
+
+      const result = await client.sendMessage(recipientPhoneNumber, message);
+
+      await this.updateOrCreateLeadChatId(campaignId, recipientPhoneNumber, result.id, 'waba');
+
+      const isNewContact = await this.isNewContact(userId, recipientPhoneNumber, 'waba');
+      await this.updateMessageCount(senderPhoneNumber, isNewContact, 'waba');
+      await this.saveDialog(userId, recipientPhoneNumber, 'waba', '', message, recipientPhoneNumber);
+      logger.info(`Сообщение отправлено на ${recipientPhoneNumber} через WABA с ${senderPhoneNumber}`);
+      return { success: true, messageId: result.id };
+    } catch (error) {
+      logger.error(`Ошибка отправки сообщения WABA для кампании ${campaignId} на ${recipientPhoneNumber}:`, error);
+      return { success: false, error: error.message };
+    }
+  }
+
 
   async getCampaignSenderNumber(campaignId, platform = 'telegram') {
     try {
@@ -189,6 +221,23 @@ class MessageSenderService {
     };
   }
 
+  async sendTgAndWABA(campaignId, phoneRecipientNumber, message) {
+    const telegramResult = await this.sendTelegramMessage(campaignId, phoneRecipientNumber, message);
+    const wabaResult = await this.sendWABAMessage(campaignId, phoneRecipientNumber, message);
+
+    if (!telegramResult.success && !wabaResult.success) {
+      return {
+        success: false,
+        error: telegramResult.error || wabaResult.error,
+      };
+    }
+
+    return {
+      success: true,
+      messageId: telegramResult.messageId || wabaResult.messageId,
+    };
+  }
+
   async checkDailyLimit(phoneNumber, platform) {
     try {
       const phoneNumberInfo = await phoneNumberRepo.getPhoneNumberInfo(phoneNumber);
@@ -208,6 +257,11 @@ class MessageSenderService {
             throw new Error(`No WhatsApp account found for phone number ${phoneNumber}`);
           }
           return phoneNumberInfo.whatsappAccount.contactsReachedToday < phoneNumberInfo.whatsappAccount.dailyLimit;
+        case 'waba':
+          if (!phoneNumberInfo.wabaAccount) {
+            throw new Error(`No WABA account found for phone number ${phoneNumber}`);
+          }
+          return phoneNumberInfo.wabaAccount.contactsReachedToday < phoneNumberInfo.wabaAccount.dailyLimit;
         default:
           throw new Error(`Invalid platform: ${platform}`);
       }
