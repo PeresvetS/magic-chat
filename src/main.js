@@ -259,6 +259,7 @@ async function main() {
           logger.error('Error disconnecting Telegram sessions:', error),
         ),
         RabbitMQQueueService.disconnect(), // Добавьте метод отключения от RabbitMQ
+        
         ...Array.from(WhatsAppSessionService.clients.keys()).map(
           (phoneNumber) =>
             WhatsAppSessionService.disconnectSession(phoneNumber).catch(

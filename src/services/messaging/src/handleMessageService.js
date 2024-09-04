@@ -140,8 +140,8 @@ async function processIncomingMessage(
 
 async function extractMessageInfo(event, platform) {
   if (platform === 'whatsapp' || platform === 'waba') {
-    if (!event.body) {
-      logger.warn(`${platform} event does not contain a message body`);
+    if (!event.messages || event.messages.length === 0) {
+      logger.warn(`${platform} event does not contain messages`);
       return {};
     }
     logger.info(

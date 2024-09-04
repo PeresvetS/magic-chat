@@ -32,11 +32,10 @@ async function sendMessage(
     let result;
     switch (platform) {
       case 'whatsapp':
-        const whatsappClient =
-          await WhatsAppSessionService.createOrGetSession(senderPhoneNumber);
-        result = await retryOperation(() =>
-          whatsappClient.sendMessage(senderId, message),
-        );
+        const whatsappClient = await WhatsAppSessionService.createOrGetSession(phoneNumber);
+        result = await retryOperation(() => whatsappClient.sendMessage(userId, {
+          body: message
+        }));
         break;
       case 'waba':
         result = await retryOperation(() =>

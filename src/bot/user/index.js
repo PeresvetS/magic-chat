@@ -276,26 +276,46 @@ function createUserBot() {
   }
 
   async function handleWhatsAppAuth(bot, query, phoneNumber, authType) {
+    await bot.answerCallbackQuery(query.id);
     try {
-      if (authType === 'qr') {
-        const { qr, client } =
-          await WhatsAppSessionService.generateQRCode(phoneNumber);
-        // Send QR code and wait for authentication
-      } else if (authType === 'phone') {
-        const client =
-          await WhatsAppSessionService.authenticateWithPhoneNumber(phoneNumber);
-        // Wait for authentication
+      logger.info(`Starting WhatsApp authentication process for ${phoneNumber}`);
+
+    if (authType === 'qr') {
+      await bot.sendMessage(query.message.chat.id, 'Начинаем процесс аутентификации WhatsApp с использованием QR-code. Это может занять некоторое время.');
+      const qrImageBuffer = await WhatsAppSessionService.generateQRCode(phoneNumber);
+      
+      if (!qrImageBuffer) {
+        throw new Error('Failed to generate QR code');
       }
-      await setPhoneAuthenticated(phoneNumber, 'whatsapp', true);
-      bot.sendMessage(
-        query.message.chat.id,
-        `Номер телефона ${phoneNumber} успешно аутентифицирован в WhatsApp.`,
-      );
-    } catch (error) {
-      bot.sendMessage(
-        query.message.chat.id,
-        `Ошибка аутентификации: ${error.message}`,
-      );
+      logger.info(`QR code generated for ${phoneNumber}`);
+
+      // Отправляем изображение QR-кода
+      await bot.sendPhoto(query.message.chat.id, qrImageBuffer, {
+        caption: 'Пожалуйста, отсканируйте этот QR-код в приложении WhatsApp для подключения. У вас есть 5 минут на сканирование.'
+      });
+
+      // Ожидаем завершения аутентификации
+      // Здесь нужно реализовать проверку статуса аутентификации через API Whapi
+      // Например, периодически опрашивать статус через эндпоинт /health
+
+    } else if (authType === 'phone') {
+      // Реализация аутентификации по номеру телефона остается без изменений
+    }
+
+    await setPhoneAuthenticated(phoneNumber, 'whatsapp', true);
+    logger.info(`Authentication process completed for ${phoneNumber}`);
+    await bot.sendMessage(query.message.chat.id, `Номер телефона ${phoneNumber} успешно аутентифицирован в WhatsApp.`);
+  } catch (error) {
+    logger.error(`Error in WhatsApp authentication process for ${phoneNumber}:`, error);
+    let errorMessage = 'Произошла ошибка при аутентификации WhatsApp. Попробуйте ещё раз.';
+    if (error.message.includes('timeout')) {
+      errorMessage = 'Время ожидания аутентификации истекло. Пожалуйста, попробуйте еще раз.';
+    } else if (error.message.includes('auth_failure')) {
+      errorMessage = 'Ошибка аутентификации WhatsApp. Пожалуйста, убедитесь, что вы правильно отсканировали QR-код.';
+    } else if (error.message.includes('Failed to generate QR code')) {
+      errorMessage = 'Не удалось сгенерировать QR-код. Пожалуйста, попробуйте еще раз.';
+    }
+      await bot.sendMessage(query.message.chat.id, errorMessage);
     }
   }
 
@@ -320,3 +340,48 @@ function createUserBot() {
 }
 
 module.exports = createUserBot();
+
+
+// async function tryWhatsappAuth(bot, query, phoneNumber, authType) {
+//   await bot.answerCallbackQuery(query.id);
+//   try {
+//     logger.info(`Starting WhatsApp authentication process for ${phoneNumber}`);
+
+//     if (authType === 'qr') {
+//       await bot.sendMessage(query.message.chat.id, 'Начинаем процесс аутентификации WhatsApp с использованием QR-code. Это может занять некоторое время.');
+//       const qrImageBuffer = await WhatsAppSessionService.generateQRCode(phoneNumber);
+      
+//       if (!qrImageBuffer) {
+//         throw new Error('Failed to generate QR code');
+//       }
+//       logger.info(`QR code generated for ${phoneNumber}`);
+
+//       // Отправляем изображение QR-кода
+//       await bot.sendPhoto(query.message.chat.id, qrImageBuffer, {
+//         caption: 'Пожалуйста, отсканируйте этот QR-код в приложении WhatsApp для подключения. У вас есть 5 минут на сканирование.'
+//       });
+
+//       // Ожидаем завершения аутентификации
+//       // Здесь нужно реализовать проверку статуса аутентификации через API Whapi
+//       // Например, периодически опрашивать статус через эндпоинт /health
+
+//     } else if (authType === 'phone') {
+//       // Реализация аутентификации по номеру телефона остается без изменений
+//     }
+
+//     await setPhoneAuthenticated(phoneNumber, 'whatsapp', true);
+//     logger.info(`Authentication process completed for ${phoneNumber}`);
+//     await bot.sendMessage(query.message.chat.id, `Номер телефона ${phoneNumber} успешно аутентифицирован в WhatsApp.`);
+//   } catch (error) {
+//     logger.error(`Error in WhatsApp authentication process for ${phoneNumber}:`, error);
+//     let errorMessage = 'Произошла ошибка при аутентификации WhatsApp. Попробуйте ещё раз.';
+//     if (error.message.includes('timeout')) {
+//       errorMessage = 'Время ожидания аутентификации истекло. Пожалуйста, попробуйте еще раз.';
+//     } else if (error.message.includes('auth_failure')) {
+//       errorMessage = 'Ошибка аутентификации WhatsApp. Пожалуйста, убедитесь, что вы правильно отсканировали QR-код.';
+//     } else if (error.message.includes('Failed to generate QR code')) {
+//       errorMessage = 'Не удалось сгенерировать QR-код. Пожалуйста, попробуйте еще раз.';
+//     }
+//     await bot.sendMessage(query.message.chat.id, errorMessage);
+//   }
+// }

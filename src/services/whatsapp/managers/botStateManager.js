@@ -1,11 +1,10 @@
-// src/services/whatsapp/managers/botStateManager.js
-
 const logger = require('../../../utils/logger');
 const { delay, safeStringify } = require('../../../utils/helpers');
 const OnlineStatusManager = require('./onlineStatusManager');
 const WhatsAppSessionService = require('../services/WhatsAppSessionService');
 const { RETRY_OPTIONS } = require('../../../config/constants');
 const { retryOperation } = require('../../../utils/messageUtils');
+const axios = require('axios');
 
 class BotStateManager {
   constructor() {
@@ -17,10 +16,11 @@ class BotStateManager {
     this.processingMessage = false;
     this.preOnlineComplete = new Map();
     this.lastMessageTimestamp = new Map();
+    this.whapiToken = process.env.WHAPI_TOKEN;
   }
 
   async getClient(phoneNumber) {
-    return WhatsAppSessionService.createOrGetSession(phoneNumber);
+    return await WhatsAppSessionService.createOrGetSession(phoneNumber);
   }
 
   async setOffline(phoneNumber, userId) {
@@ -28,8 +28,7 @@ class BotStateManager {
     this.newMessage = true;
     clearTimeout(this.typingTimer);
     clearTimeout(this.offlineTimer);
-    const client = await this.getClient(phoneNumber);
-    await OnlineStatusManager.setOffline(userId, client);
+    await OnlineStatusManager.setOffline(userId);
     logger.info(`WhatsApp bot set to offline for user ${userId}`);
   }
 
@@ -38,8 +37,7 @@ class BotStateManager {
     this.preOnlineComplete.set(userId, false);
     if (this.newMessage) {
       await delay(Math.random() * 12000 + 3000); // 3-15 seconds delay
-      const client = await this.getClient(phoneNumber);
-      await OnlineStatusManager.setOnline(userId, client);
+      await OnlineStatusManager.setOnline(userId);
       await delay(Math.random() * 5000 + 2000); // 2-7 seconds delay
       await this.markMessagesAsRead(phoneNumber, userId);
       this.state = 'typing';
@@ -50,8 +48,7 @@ class BotStateManager {
 
   async setOnline(phoneNumber, userId) {
     this.state = 'online';
-    const client = await this.getClient(phoneNumber);
-    await OnlineStatusManager.setOnline(userId, client);
+    await OnlineStatusManager.setOnline(userId);
     await this.markMessagesAsRead(phoneNumber, userId);
     this.resetOfflineTimer(phoneNumber, userId);
     logger.info(`WhatsApp bot set to online for user ${userId}`);
@@ -74,16 +71,32 @@ class BotStateManager {
 
   async markMessagesAsRead(phoneNumber, userId) {
     try {
-      const client = await this.getClient(phoneNumber);
-      await client.sendSeen(userId);
+      await axios.put(`https://gate.whapi.cloud/messages/${userId}`, {}, {
+        headers: {
+          'accept': 'application/json',
+          'authorization': `Bearer ${this.whapiToken}`
+        }
+      });
     } catch (error) {
       logger.error(`Failed to mark WhatsApp messages as read: ${error}`);
     }
   }
 
   async typing(phoneNumber, userId) {
-    const client = await this.getClient(phoneNumber);
-    await client.sendPresenceUpdate('composing', userId);
+    try {
+      await axios.post(`https://gate.whapi.cloud/presences/${userId}`, {
+        presence: 'typing',
+        delay: 5
+      }, {
+        headers: {
+          'accept': 'application/json',
+          'content-type': 'application/json',
+          'authorization': `Bearer ${this.whapiToken}`
+        }
+      });
+    } catch (error) {
+      logger.error(`Error setting typing status: ${error}`);
+    }
   }
 
   async simulateTyping(phoneNumber, userId) {
@@ -209,27 +222,18 @@ class BotStateManager {
     await delay(RETRY_OPTIONS.DELAY);
   }
 
+ 
   async checkUserTyping(phoneNumber, userId) {
     try {
-      const client = await this.getClient(phoneNumber);
-
-      const typingPromise = new Promise((resolve) => {
-        const timeout = setTimeout(() => resolve(false), 5000);
-
-        const onTyping = (participant) => {
-          if (participant === userId) {
-            clearTimeout(timeout);
-            client.removeListener('participant-typing', onTyping);
-            resolve(true);
-          }
-        };
-
-        client.on('typing', onTyping);
+      const response = await axios.get(`https://gate.whapi.cloud/presences/${userId}`, {
+        headers: {
+          'accept': 'application/json',
+          'authorization': `Bearer ${this.whapiToken}`
+        }
       });
-
-      const isTyping = await typingPromise;
-
-      logger.info(`WhatsApp user ${userId} typing status: ${isTyping}`);
+      
+      const isTyping = response.data.presence === 'composing';
+      logger.info(`User ${userId} typing status: ${isTyping}`);
       return isTyping;
     } catch (error) {
       logger.error(`Error checking user typing status in WhatsApp: ${error}`);
