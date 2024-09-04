@@ -62,20 +62,6 @@ class MessageSenderService {
   async initializeWhatsApp(phoneSenderNumber) {
     try {
       const client = await WhatsAppSessionService.createOrGetSession(phoneSenderNumber);
-      if (!client.isReady) {
-        logger.warn(`WhatsApp client for ${phoneSenderNumber} is not ready. Waiting for ready state.`);
-        await new Promise((resolve, reject) => {
-          const readyTimeout = setTimeout(() => {
-            reject(new Error(`Timeout waiting for WhatsApp client to be ready for ${phoneSenderNumber}`));
-          }, 30000); // 30 секунд таймаут
-  
-          client.on('ready', () => {
-            clearTimeout(readyTimeout);
-            logger.info(`WhatsApp client for ${phoneSenderNumber} is now ready.`);
-            resolve();
-          });
-        });
-      }
       return client;
     } catch (error) {
       logger.error(`Error initializing WhatsApp client for ${phoneSenderNumber}:`, error);
@@ -171,33 +157,28 @@ class MessageSenderService {
     try {
       const userId = await this.getCampaigUserId(campaignId);
       logger.info(`Отправка рассылки от пользователя ID с ${userId}`);
-
+  
       if (!await this.checkDailyLimit(senderPhoneNumber, 'whatsapp')) {
         logger.warn(`Достигнут дневной лимит WhatsApp для номера телефона: ${senderPhoneNumber}`);
         return { success: false, error: 'DAILY_LIMIT_REACHED' };
       }
-
+  
       const client = await WhatsAppSessionService.createOrGetSession(senderPhoneNumber);
-
+  
       await this.applyDelay('whatsapp');
-
+  
       const formattedNumber = this.formatPhoneNumber(recipientPhoneNumber);
       logger.info(`Форматированный номер для отправки WhatsApp: ${formattedNumber}`);
-
-      const chat = await client.getChatById(formattedNumber);
-      if (!chat) {
-        await LeadsService.setLeadUnavailable(recipientPhoneNumber);
-        throw new Error(`Не удалось найти чат ${formattedNumber} в WhatsApp`);
-      }
-      const result = await chat.sendMessage(message);
-
-      await this.updateOrCreateLeadChatId(campaignId, recipientPhoneNumber, result.id.remote, 'whatsapp');
-
+  
+      const result = await client.sendMessage(formattedNumber, message);
+  
+      await this.updateOrCreateLeadChatId(campaignId, recipientPhoneNumber, result.id, 'whatsapp');
+  
       const isNewContact = await this.isNewContact(userId, formattedNumber, 'whatsapp');
       await this.updateMessageCount(senderPhoneNumber, isNewContact, 'whatsapp');
       await this.saveDialog(userId, formattedNumber, 'whatsapp', '', message, recipientPhoneNumber);
       logger.info(`Сообщение отправлено на ${recipientPhoneNumber} через WhatsApp с ${senderPhoneNumber}`);
-      return { success: true, messageId: result.id._serialized };
+      return { success: true, messageId: result.id };
     } catch (error) {
       logger.error(`Ошибка отправки сообщения WhatsApp для кампании ${campaignId} на ${recipientPhoneNumber}:`, error);
       return { success: false, error: error.message };

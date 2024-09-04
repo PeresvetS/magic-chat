@@ -1,38 +1,23 @@
-// src/services/mailing/checkers/WhatsAppChecker.js
+// Файл: /src/services/mailing/checkers/WhatsAppChecker.js
 
 const logger = require('../../../utils/logger');
-const { parsePhoneNumber } = require('libphonenumber-js')
-const WhatsAppMainSessionService = require('../../whatsapp').WhatsAppMainSessionService;
+const { parsePhoneNumber } = require('libphonenumber-js');
+const axios = require('axios');
 
 class WhatsAppChecker {
   constructor() {
-    this.client = null;
-    this.whatsAppMainSessionService = WhatsAppMainSessionService;
+    this.whapiToken = process.env.WHAPI_TOKEN;
   }
 
   async initialize() {
-    if (!this.client) {
-      logger.info('Initializing WhatsApp main client');
-      try {
-        this.client = await this.whatsAppMainSessionService.getMainClient();
-        if (!this.client) {
-          throw new Error('Failed to get main WhatsApp client');
-        }
-        logger.info('WhatsApp main client initialized successfully');
-      } catch (error) {
-        logger.error('Error initializing WhatsApp main client:', error);
-        throw error;
-      }
-    } else {
-      logger.info('WhatsApp main client already initialized');
-    }
+    logger.info('WhatsApp checker initialized');
   }
 
   formatPhoneNumber(phoneNumber) {
     try {
-      const parsedNumber = parsePhoneNumber(phoneNumber, 'ID') // 'ID' - код страны по умолчанию
+      const parsedNumber = parsePhoneNumber(phoneNumber, 'ID')
       if (parsedNumber.isValid()) {
-        return parsedNumber.format('E.164').slice(1) // Удаляем начальный '+'
+        return parsedNumber.format('E.164').slice(1)
       } else {
         logger.warn(`Invalid phone number: ${phoneNumber}`)
         return null
@@ -43,20 +28,20 @@ class WhatsAppChecker {
     }
   }
 
-
   async checkWhatsApp(phoneNumber, retries = 3) {
     logger.info(`Checking WhatsApp for number ${phoneNumber}`);
     try {
-      await this.initialize();
-  
       const formattedNumber = this.formatPhoneNumber(phoneNumber);
       logger.info(`Formatted number for WhatsApp check: ${formattedNumber}`);
   
-      const isRegistered = await Promise.race([
-        this.client.isRegisteredUser(`${formattedNumber}@c.us`),
-        new Promise((_, reject) => setTimeout(() => reject(new Error('isRegisteredUser timeout')), 30000))
-      ]);
+      const response = await axios.get(`https://gate.whapi.cloud/contacts/${formattedNumber}/profile`, {
+        headers: {
+          'accept': 'application/json',
+          'authorization': `Bearer ${this.whapiToken}`
+        }
+      });
   
+      const isRegistered = response.status === 200;
       logger.info(`Is number ${formattedNumber} registered on WhatsApp: ${isRegistered}`);
       return isRegistered;
     } catch (error) {
@@ -67,14 +52,6 @@ class WhatsAppChecker {
         return this.checkWhatsApp(phoneNumber, retries - 1);
       }
       return false;
-    }
-  }
-
-  async disconnect() {
-    if (this.client) {
-      logger.info('Disconnecting WhatsApp client');
-      await this.whatsAppMainSessionService.disconnectMainClient();
-      this.client = null;
     }
   }
 }

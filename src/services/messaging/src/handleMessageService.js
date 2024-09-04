@@ -1,7 +1,5 @@
 // src/services/messaging/src/handleMessageService.js
 
-// src/services/messaging/src/handleMessageService.js
-
 const logger = require('../../../utils/logger');
 const { sendResponse } = require('./messageSender');
 const { processMessage } = require('./messageProcessor');
@@ -76,13 +74,14 @@ function getBotStateManager(platform) {
 
 async function extractMessageInfo(event, platform) {
   if (platform === 'whatsapp' || platform === 'waba') {
-    if (!event.body) {
-      logger.warn(`${platform} event does not contain a message body`);
+    if (!event.messages || event.messages.length === 0) {
+      logger.warn(`${platform} event does not contain messages`);
       return {};
     }
-    logger.info(`Extracted ${platform} message: ${event.body}, from ${event.from} and chatId ${event.chatId}`);
-    return { senderId: event.from, messageText: event.body, chatId: event.chatId };
-  } else {
+    const message = event.messages[0];
+    logger.info(`Extracted ${platform} message: ${message.text.body}, from ${message.from}`);
+    return { senderId: message.from, messageText: message.text.body, chatId: message.from };
+  }  else {
     const message = event.message;
     if (!message) {
       logger.warn(`Telegram event does not contain a message`);

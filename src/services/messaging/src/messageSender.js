@@ -38,7 +38,9 @@ async function sendMessage(userId, message, phoneNumber, platform = 'telegram') 
     switch (platform) {
       case 'whatsapp':
         const whatsappClient = await WhatsAppSessionService.createOrGetSession(phoneNumber);
-        result = await retryOperation(() => whatsappClient.sendMessage(userId, message));
+        result = await retryOperation(() => whatsappClient.sendMessage(userId, {
+          body: message
+        }));
         break;
       case 'waba':
         result = await retryOperation(() => WABASessionService.sendMessage(phoneNumber, userId, message));
