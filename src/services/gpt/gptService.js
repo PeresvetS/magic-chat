@@ -144,16 +144,6 @@ async function generateResponse(lead, messages, campaign) {
         description: "Change the status of the current lead to PROCESSED_POSITIVE and notify the user",
         parameters: { type: "object", properties: {}, required: [] },
       },
-      {
-        name: "update_bitrix_lead",
-        description: "Update the status of the current lead in Bitrix24",
-        parameters: { type: "object", properties: {}, required: [] },
-      },
-      {
-        name: "send_lead_to_amo",
-        description: "Send the current lead to AmoCRM (Not implemented yet)",
-        parameters: { type: "object", properties: {}, required: [] },
-      },
     ];
 
     const response = await openai.chat.completions.create({

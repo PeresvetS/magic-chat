@@ -54,6 +54,22 @@ class LeadsService {
     }
   }
 
+  async createLead(platform, chatId, userId) {
+    try {
+      const defaultLeadsDB = await this.getOrCreateDefaultLeadsDB(userId);
+      
+      if (!defaultLeadsDB) {
+        throw new Error(`No default LeadsDB found for user ${userId}`);
+      }
+      
+      const lead = await leadsRepo.createLead(platform, chatId, userId, defaultLeadsDB.id);
+      return lead;
+    } catch (error) {
+      logger.error('Error creating lead:', error);
+      throw error;
+    }
+  }
+
   async attachLeadsDBToCampaignByName(leadsDBName, campaignName, telegramId) {
     try {
       logger.info(`attachLeadsDBToCampaignByName: ${leadsDBName}, ${campaignName}, ${telegramId}`);

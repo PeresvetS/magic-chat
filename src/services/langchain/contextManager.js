@@ -15,7 +15,7 @@ class ContextManager {
     this.memory = new ConversationSummaryMemory({
       memoryKey: "chat_history",
       llm: new ChatOpenAI({ temperature: 0, modelName: "gpt-4o-mini" }),
-      maxTokenLimit: 1000
+      maxTokenLimit: 500
     });
     this.chatHistory = [];
   }

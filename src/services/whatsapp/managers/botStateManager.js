@@ -18,12 +18,7 @@ class BotStateManager {
   }
 
   async getClient(phoneNumber) {
-    let client = await WhatsAppSessionService.createOrGetSession(phoneNumber);
-    if (!client || !client.isConnected()) {
-      logger.warn(`Client for ${phoneNumber} is not connected. Attempting to reconnect...`);
-      client = await WhatsAppSessionService.reconnectSession(phoneNumber);
-    }
-    return client;
+    return WhatsAppSessionService.createOrGetSession(phoneNumber);
   }
 
   async setOffline(phoneNumber, userId) {
