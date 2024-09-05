@@ -39,22 +39,6 @@ class LeadsService {
     }
   }
 
-  async createLead(platform, chatId, userId) {
-    try {
-      const defaultLeadsDB = await this.getOrCreateDefaultLeadsDB(userId);
-      
-      if (!defaultLeadsDB) {
-        throw new Error(`No default LeadsDB found for user ${userId}`);
-      }
-      
-      const lead = await leadsRepo.createLead(platform, chatId, userId, defaultLeadsDB.id);
-      return lead;
-    } catch (error) {
-      logger.error('Error creating lead:', error);
-      throw error;
-    }
-  }
-
   async getLeadsDBByName(telegramId, name) {
     try {
       const userId = await this.getUserIdByTelegramId(telegramId);
@@ -207,11 +191,65 @@ class LeadsService {
     }
   }
 
-  async getOrCreatetLeadByPhone (phone, platform, chatId, campaignId) {
+  async getOrCreatetLeadByPhone(phone, platform, chatId, campaignId) {
     try {
-      await leadsRepo.getOrCreatetLeadByPhone(phone, platform, chatId, campaignId);
+      logger.info(`Getting or creating lead for phone: ${phone}, platform: ${platform}, chatId: ${chatId}, campaignId: ${campaignId}`);
+
+      // Получаем кампанию
+      const campaign = await CampaignMailingService.getCampaignById(campaignId);
+      if (!campaign) {
+        throw new Error(`Campaign with id ${campaignId} not found`);
+      }
+
+      // Получаем или создаем LeadsDB для пользователя
+      const defaultLeadsDB = await this.getOrCreateDefaultLeadsDB(campaign.userId);
+
+      // Форматируем номер телефона
+      const formattedPhone = this.formatPhoneNumber(phone);
+
+      // Пытаемся найти существующий лид
+      let lead = await leadsRepo.getLeadByPhone(formattedPhone);
+
+      if (!lead) {
+        // Если лид не найден, создаем новый
+        const leadData = {
+          userId: campaign.userId,
+          leadsDBId: defaultLeadsDB.id, // Используем ID LeadsDB вместо номера телефона
+          phone: formattedPhone,
+          status: 'NEW',
+          campaignId: campaignId
+        };
+
+        // Добавляем chatId в зависимости от платформы
+        if (platform === 'telegram') {
+          leadData.telegramChatId = chatId;
+        } else if (platform === 'whatsapp' || platform === 'waba') {
+          leadData.whatsappChatId = chatId;
+        }
+
+        lead = await leadsRepo.createLead(leadData);
+        logger.info(`Created new lead: ${JSON.stringify(lead)}`);
+      } else {
+        // Если лид найден, обновляем его данные
+        const updateData = {
+          campaignId: campaignId,
+          status: 'NEW'
+        };
+
+        if (platform === 'telegram') {
+          updateData.telegramChatId = chatId;
+        } else if (platform === 'whatsapp' || platform === 'waba') {
+          updateData.whatsappChatId = chatId;
+        }
+
+        lead = await leadsRepo.updateLead(lead.id, updateData);
+        logger.info(`Updated existing lead: ${JSON.stringify(lead)}`);
+      }
+
+      return lead;
     } catch (error) {
-      logger.error('Error getting or creating lead by phone:', error); 
+      logger.error('Error getting or creating lead by phone:', error);
+      throw error;
     }
   }
 

@@ -13,37 +13,37 @@ class WhatsAppSessionService {
   constructor() {
     this.clients = new Map();
     this.messageHandlers = [];
-    this.tempDir = path.join(process.cwd(), 'temp');
-    this.sessionDir = path.join(this.tempDir, '.wwebjs_auth');
+    this.sessionDir = path.join(process.cwd(), '.wwebjs_auth');
     this.authPromises = new Map();
     this.authTimeout = 600000; // 10 минут
     this.sessionCache = new LRUCache({
       max: 100,
       ttl: 1000 * 60 * 60 
     });
-    // this.autoSaveInterval = setInterval(() => this.autoSaveSessions(), 5 * 60 * 1000); // Каждые 5 минут
+    this.autoSaveInterval = setInterval(() => this.autoSaveSessions(), 5 * 60 * 1000); // Каждые 5 минут
   }
 
-  // async autoSaveSessions() {
-  //   for (const [phoneNumber, client] of this.clients.entries()) {
-  //     if (client.isReady) {
-  //       await this.saveSession(phoneNumber, client);
-  //     }
-  //   }
-  // }
+  async autoSaveSessions() {
+    for (const [phoneNumber, client] of this.clients.entries()) {
+      if (client.isReady) {
+        await this.saveSession(this.cleanPhoneNumber(phoneNumber), client);
+      }
+    }
+  }
 
   async loadSession(phoneNumber) {
-    const sessionDir = path.join(this.sessionDir, `session-${phoneNumber}`);
+    const cleanPhoneNumber = this.cleanPhoneNumber(phoneNumber);
+    const sessionDir = path.join(this.sessionDir, `session-${cleanPhoneNumber}`);
     try {
       const sessionFile = path.join(sessionDir, 'session.json');
       const sessionData = await fs.readFile(sessionFile, 'utf8');
-      logger.info(`Сессия WhatsApp загружена для номера ${phoneNumber}`);
+      logger.info(`Сессия WhatsApp загружена для номера ${cleanPhoneNumber}`);
       return JSON.parse(sessionData);
     } catch (error) {
       if (error.code === 'ENOENT') {
-        logger.info(`Сессия WhatsApp не найдена для номера ${phoneNumber}`);
+        logger.info(`Сессия WhatsApp не найдена для номера ${cleanPhoneNumber}`);
       } else {
-        logger.error(`Ошибка при загрузке сессии WhatsApp для номера ${phoneNumber}:`, error);
+        logger.error(`Ошибка при загрузке сессии WhatsApp для номера ${cleanPhoneNumber}:`, error);
       }
       return null;
     }
@@ -55,17 +55,18 @@ class WhatsAppSessionService {
   }
 
   async createOrGetSession(phoneNumber) {
+    const cleanPhoneNumber = this.cleanPhoneNumber(phoneNumber);
     logger.info(`Creating or getting WhatsApp session for ${phoneNumber}`);
-  
-    if (this.clients.has(phoneNumber)) {
-      logger.debug(`Using existing WhatsApp client for ${phoneNumber}`);
-      const existingClient = this.clients.get(phoneNumber);
+
+    if (this.clients.has(cleanPhoneNumber)) {
+      const existingClient = this.clients.get(cleanPhoneNumber);
+      logger.info(`existingClient = ${util.inspect(existingClient)}`);
       if (existingClient.isReady) {
         return existingClient;
       }
     }
   
-    const cleanPhoneNumber = this.cleanPhoneNumber(phoneNumber);
+    
     const sessionData = await this.loadSession(cleanPhoneNumber);
   
     const clientOptions = {
@@ -91,11 +92,11 @@ class WhatsAppSessionService {
   
     try {
       await this.initializeClient(newClient, phoneNumber);
-      this.clients.set(phoneNumber, newClient);
-      this.sessionCache.set(phoneNumber, newClient);
+      this.clients.set(cleanPhoneNumber, newClient);
+      this.sessionCache.set(cleanPhoneNumber, newClient);
       return newClient;
     } catch (error) {
-      logger.error(`Failed to initialize WhatsApp client for ${phoneNumber}:`, error);
+      logger.error(`Failed to initialize WhatsApp client for ${cleanPhoneNumber}:`, error);
       throw error;
     }
   }
@@ -210,9 +211,10 @@ class WhatsAppSessionService {
   }
 
   async reauthorizeSession(phoneNumber) {
-    logger.info(`Attempting to reauthorize WhatsApp session for ${phoneNumber}`);
-    await this.disconnectSession(phoneNumber);
-    return this.createOrGetSession(phoneNumber);
+    const cleanPhoneNumber = this.cleanPhoneNumber(phoneNumber);
+    logger.info(`Attempting to reauthorize WhatsApp session for ${cleanPhoneNumber}`);
+    await this.disconnectSession(cleanPhoneNumber);
+    return this.createOrGetSession(cleanPhoneNumber);
   }
 
   cleanPhoneNumber(phoneNumber) {
@@ -258,8 +260,8 @@ class WhatsAppSessionService {
   
       client.on('ready', async () => {
         logger.info(`WhatsApp client is ready for ${phoneNumber}`);
-        await this.saveSession(phoneNumber, client.pupPage.cookies);
-        this.clients.set(phoneNumber, client);
+        await this.saveSession(cleanPhoneNumber, client.pupPage.cookies);
+        this.clients.set(cleanPhoneNumber, client);
         if (!qrCodeResolved) {
           qrCodeResolved = true;
           resolve({ qr: null, client });
@@ -277,7 +279,8 @@ class WhatsAppSessionService {
     });
   }
 
-  async waitForAuthentication(phoneNumber, callback) {
+  async waitForAuthentication(pluspPhoneNumber, callback) {
+    const phoneNumber = this.cleanPhoneNumber(pluspPhoneNumber);
     logger.info(`Waiting for authentication for ${phoneNumber}`);
     const client = this.clients.get(phoneNumber);
     if (!client) {
@@ -313,7 +316,7 @@ class WhatsAppSessionService {
 
   async updateAuthenticationStatus(phoneNumber, isAuthenticated) {
     try {
-      await phoneNumberService.setPhoneAuthenticated(phoneNumber, 'whatsapp', isAuthenticated);
+      await phoneNumberService.setPhoneAuthenticated(this.cleanPhoneNumber(phoneNumber), 'whatsapp', isAuthenticated);
       logger.info(`Updated WhatsApp authentication status for ${phoneNumber}: ${isAuthenticated}`);
     } catch (error) {
       logger.error(`Error updating WhatsApp authentication status for ${phoneNumber}:`, error);
@@ -321,7 +324,8 @@ class WhatsAppSessionService {
     }
   }
 
-  async saveSession(phoneNumber) {
+  async saveSession(plusPhoneNumber) {
+    const phoneNumber = this.cleanPhoneNumber(plusPhoneNumber);
     const sessionDir = path.join(this.sessionDir, `session-${phoneNumber}`);
     try {
       // Проверяем, существует ли директория сессии

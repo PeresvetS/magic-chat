@@ -185,29 +185,29 @@ module.exports = {
       message += `Забанен: ${info.isBanned ? 'Да' : 'Нет'}\n`;
       message += `Telegram аутентифицирован: ${info.telegramAccount?.isAuthenticated ? 'Да' : 'Нет'}\n`;
       message += `WhatsApp аутентифицирован: ${info.whatsappAccount?.isAuthenticated ? 'Да' : 'Нет'}\n`;
-      message += `WABA аутентифицирован: ${info.wabaAccount?.isAuthenticated ? 'Да' : 'Нет'}\n`;
+      message += `WABA аутентифицирован: ${info.WABAAccount?.isAuthenticated ? 'Да' : 'Нет'}\n`;
       message += `WhatsApp тип: ${info.whatsappAccount?.accountType || 'Не указан'}\n`;
       if (info.isBanned) {
         message += `Тип бана: ${info.banType}\n`;
       }
       message += `Отправлено сообщений в Telegram сегодня: ${info.telegramAccount?.messagesSentToday || 0}\n`;
       message += `Отправлено сообщений в WhatsApp сегодня: ${info.whatsappAccount?.messagesSentToday || 0}\n`;
-      message += `Отправлено сообщений в WABA сегодня: ${info.wabaAccount?.messagesSentToday || 0}\n`;
+      message += `Отправлено сообщений в WABA сегодня: ${info.WABAAccount?.messagesSentToday || 0}\n`;
       message += `Отправлено сообщений в Telegram всего: ${info.telegramAccount?.messagesSentTotal || 0}\n`;
       message += `Отправлено сообщений в WhatsApp всего: ${info.whatsappAccount?.messagesSentTotal || 0}\n`;
-      message += `Отправлено сообщений в WABA всего: ${info.wabaAccount?.messagesSentTotal || 0}\n`;
+      message += `Отправлено сообщений в WABA всего: ${info.WABAAccount?.messagesSentTotal || 0}\n`;
       message += `Охвачено контактов в Telegram сегодня: ${info.telegramAccount?.contactsReachedToday || 0}\n`;
       message += `Охвачено контактов в WhatsApp сегодня: ${info.whatsappAccount?.contactsReachedToday || 0}\n`;
-      message += `Охвачено контактов в WABA сегодня: ${info.wabaAccount?.contactsReachedToday || 0}\n`;
+      message += `Охвачено контактов в WABA сегодня: ${info.WABAAccount?.contactsReachedToday || 0}\n`;
       message += `Охвачено контактов в Telegram всего: ${info.telegramAccount?.contactsReachedTotal || 0}\n`;
       message += `Охвачено контактов в WhatsApp всего: ${info.whatsappAccount?.contactsReachedTotal || 0}\n`;
-      message += `Охвачено контактов в WABA всего: ${info.wabaAccount?.contactsReachedTotal || 0}\n`;
+      message += `Охвачено контактов в WABA всего: ${info.WABAAccount?.contactsReachedTotal || 0}\n`;
       message += `Дневной лимит Telegram: ${info.telegramAccount?.dailyLimit || 'Не установлен'}\n`;
       message += `Дневной лимит WhatsApp: ${info.whatsappAccount?.dailyLimit || 'Не установлен'}\n`;
-      message += `Дневной лимит WABA: ${info.wabaAccount?.dailyLimit || 'Не установлен'}\n`;
+      message += `Дневной лимит WABA: ${info.WABAAccount?.dailyLimit || 'Не установлен'}\n`;
       message += `Общий лимит Telegram: ${info.telegramAccount?.totalLimit || 'Не установлен'}\n`;
       message += `Общий лимит WhatsApp: ${info.whatsappAccount?.totalLimit || 'Не установлен'}\n`;
-      message += `Общий лимит WABA: ${info.wabaAccount?.totalLimit || 'Не установлен'}\n`;
+      message += `Общий лимит WABA: ${info.WABAAccount?.totalLimit || 'Не установлен'}\n`;
       bot.sendMessage(msg.chat.id, message);
     } catch (error) {
       logger.error(`Error getting info for phone number ${phoneNumber}:`, error);

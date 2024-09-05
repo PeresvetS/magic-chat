@@ -209,7 +209,7 @@ async function updatePhoneNumberStats(phoneNumber, isNewContact, platform) {
   try {
     const phoneNumberRecord = await prisma.phoneNumber.findUnique({
       where: { phoneNumber },
-      include: { telegramAccount: true, whatsappAccount: true, wabaAccount: true }
+      include: { telegramAccount: true, whatsappAccount: true, WABAAccount: true }
     });
 
     if (!phoneNumberRecord) {
@@ -241,9 +241,9 @@ async function updatePhoneNumberStats(phoneNumber, isNewContact, platform) {
         }
         break;
       case 'waba':
-        if (phoneNumberRecord.wabaAccount) {
+        if (phoneNumberRecord.WABAAccount) {
           await prisma.wABAAccount.update({
-            where: { id: phoneNumberRecord.wabaAccount.id },
+            where: { id: phoneNumberRecord.WABAAccount.id },
             data: updateData
           });
         }
@@ -298,7 +298,7 @@ async function getPhoneNumberInfo(phoneNumber) {
       include: {
         telegramAccount: true,
         whatsappAccount: true,
-        wabaAccount: true
+        WABAAccount: true
       }
     });
   } catch (error) {

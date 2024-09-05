@@ -10,8 +10,7 @@ const fs = require('fs').promises;
 class WhatsAppMainSessionService {
   constructor() {
     this.mainClient = null;
-    this.tempDir = path.join(process.cwd(), 'temp');
-    this.sessionDir = path.join(this.tempDir, '.wwebjs_auth');
+    this.sessionDir = path.join(process.cwd(), '.wwebjs_auth');
     this.authTimeout = 600000; // 10 минут
   }
 

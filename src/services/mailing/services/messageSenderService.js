@@ -258,10 +258,10 @@ class MessageSenderService {
           }
           return phoneNumberInfo.whatsappAccount.contactsReachedToday < phoneNumberInfo.whatsappAccount.dailyLimit;
         case 'waba':
-          if (!phoneNumberInfo.wabaAccount) {
+          if (!phoneNumberInfo.WABAAccount) {
             throw new Error(`No WABA account found for phone number ${phoneNumber}`);
           }
-          return phoneNumberInfo.wabaAccount.contactsReachedToday < phoneNumberInfo.wabaAccount.dailyLimit;
+          return phoneNumberInfo.WABAAccount.contactsReachedToday < phoneNumberInfo.WABAAccount.dailyLimit;
         default:
           throw new Error(`Invalid platform: ${platform}`);
       }
