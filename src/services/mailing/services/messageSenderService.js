@@ -171,42 +171,49 @@ class MessageSenderService {
     try {
       const userId = await this.getCampaigUserId(campaignId);
       logger.info(`Отправка рассылки от пользователя ID с ${userId}`);
-
+  
       if (!await this.checkDailyLimit(senderPhoneNumber, 'whatsapp')) {
         logger.warn(`Достигнут дневной лимит WhatsApp для номера телефона: ${senderPhoneNumber}`);
         return { success: false, error: 'DAILY_LIMIT_REACHED' };
       }
-
-      const client = await WhatsAppSessionService.createOrGetSession(senderPhoneNumber);
-
+  
+      const client = await WhatsAppSessionService.getOrCreateSession(senderPhoneNumber);
+  
       await this.applyDelay('whatsapp');
-
+  
       const formattedNumber = this.formatPhoneNumber(recipientPhoneNumber);
       logger.info(`Форматированный номер для отправки WhatsApp: ${formattedNumber}`);
-
-      const chat = await client.getChatById(formattedNumber);
-      if (!chat) {
+  
+      // Проверяем существование чата перед отправкой
+      const chatExists = await client.checkNumberStatus(`${formattedNumber}@c.us`);
+      if (!chatExists.canReceiveMessage) {
         await LeadsService.setLeadUnavailable(recipientPhoneNumber);
         throw new Error(`Не удалось найти чат ${formattedNumber} в WhatsApp`);
       }
-      const result = await chat.sendMessage(message);
-
-      await this.updateOrCreateLeadChatId(campaignId, recipientPhoneNumber, result.id.remote, 'whatsapp');
-
-      const isNewContact = await this.isNewContact(userId, formattedNumber, 'whatsapp');
-      await this.updateMessageCount(senderPhoneNumber, isNewContact, 'whatsapp');
-      await this.saveDialog(userId, formattedNumber, 'whatsapp', '', message, recipientPhoneNumber);
-      logger.info(`Сообщение отправлено на ${recipientPhoneNumber} через WhatsApp с ${senderPhoneNumber}`);
-      return { success: true, messageId: result.id._serialized };
+  
+      // Отправляем сообщение используя метод sendText из venom-bot
+      const result = await client.sendText(`${formattedNumber}@c.us`, message);
+  
+      if (result && result.id) {
+        await this.updateOrCreateLeadChatId(campaignId, recipientPhoneNumber, result.id.remote || result.id, 'whatsapp');
+  
+        const isNewContact = await this.isNewContact(userId, formattedNumber, 'whatsapp');
+        await this.updateMessageCount(senderPhoneNumber, isNewContact, 'whatsapp');
+        await this.saveDialog(userId, formattedNumber, 'whatsapp', '', message, recipientPhoneNumber);
+        logger.info(`Сообщение отправлено на ${recipientPhoneNumber} через WhatsApp с ${senderPhoneNumber}`);
+        return { success: true, messageId: result.id._serialized || result.id };
+      } else {
+        throw new Error('Не удалось отправить сообщение');
+      }
     } catch (error) {
       logger.error(`Ошибка отправки сообщения WhatsApp для кампании ${campaignId} на ${recipientPhoneNumber}:`, error);
       return { success: false, error: error.message };
     }
   }
 
-  async sendTgAndWa(campaignId, phoneRecipientNumber, message) {
-    const telegramResult = await this.sendTelegramMessage(campaignId, phoneRecipientNumber, message);
-    const whatsappResult = await this.sendWhatsAppMessage(campaignId, phoneRecipientNumber, message);
+  async sendTgAndWa(campaignId, senderPhoneNumber, phoneRecipientNumber, message) {
+    const telegramResult = await this.sendTelegramMessage(campaignId, senderPhoneNumber, phoneRecipientNumber, message);
+    const whatsappResult = await this.sendWhatsAppMessage(campaignId, senderPhoneNumber, phoneRecipientNumber, message);
 
     if (!telegramResult.success && !whatsappResult.success) {
       return {
@@ -221,9 +228,9 @@ class MessageSenderService {
     };
   }
 
-  async sendTgAndWABA(campaignId, phoneRecipientNumber, message) {
-    const telegramResult = await this.sendTelegramMessage(campaignId, phoneRecipientNumber, message);
-    const wabaResult = await this.sendWABAMessage(campaignId, phoneRecipientNumber, message);
+  async sendTgAndWABA(campaignId, senderPhoneNumber, phoneRecipientNumber, message) {
+    const telegramResult = await this.sendTelegramMessage(campaignId, senderPhoneNumber, phoneRecipientNumber, message);
+    const wabaResult = await this.sendWABAMessage(campaignId, senderPhoneNumber, phoneRecipientNumber, message);
 
     if (!telegramResult.success && !wabaResult.success) {
       return {
@@ -258,10 +265,10 @@ class MessageSenderService {
           }
           return phoneNumberInfo.whatsappAccount.contactsReachedToday < phoneNumberInfo.whatsappAccount.dailyLimit;
         case 'waba':
-          if (!phoneNumberInfo.wabaAccount) {
+          if (!phoneNumberInfo.WABAAccount) {
             throw new Error(`No WABA account found for phone number ${phoneNumber}`);
           }
-          return phoneNumberInfo.wabaAccount.contactsReachedToday < phoneNumberInfo.wabaAccount.dailyLimit;
+          return phoneNumberInfo.WABAAccount.contactsReachedToday < phoneNumberInfo.WABAAccount.dailyLimit;
         default:
           throw new Error(`Invalid platform: ${platform}`);
       }

@@ -1,52 +1,114 @@
 // src/services/whatsapp/src/WhatsAppSessionService.js
 
-const util = require('util');
-const path = require('path');
-const fs = require('fs').promises;
+const venom = require('venom-bot');
 const { LRUCache } = require('lru-cache');
 const logger = require('../../../utils/logger');
-const { Client, LocalAuth } = require('whatsapp-web.js');
 const { whatsappSessionsRepo } = require('../../../db');
 const { phoneNumberService } = require('../../phone');
+const path = require('path');
+const fs = require('fs').promises;
 
 class WhatsAppSessionService {
   constructor() {
     this.clients = new Map();
     this.messageHandlers = [];
-    this.tempDir = path.join(process.cwd(), 'temp');
-    this.sessionDir = path.join(this.tempDir, '.wwebjs_auth');
-    this.authPromises = new Map();
-    this.authTimeout = 600000; // 10 минут
     this.sessionCache = new LRUCache({
       max: 100,
       ttl: 1000 * 60 * 60 
     });
-    // this.autoSaveInterval = setInterval(() => this.autoSaveSessions(), 5 * 60 * 1000); // Каждые 5 минут
+    this.sessionsPath = path.join(__dirname, '../../../../tokens');
   }
 
-  // async autoSaveSessions() {
-  //   for (const [phoneNumber, client] of this.clients.entries()) {
-  //     if (client.isReady) {
-  //       await this.saveSession(phoneNumber, client);
-  //     }
-  //   }
-  // }
+  async createSession(phoneNumber, useExistingSession = false) {
+    logger.info(`${useExistingSession ? 'Loading' : 'Creating'} WhatsApp session for ${phoneNumber}`);
+    const cleanPhoneNumber = this.cleanPhoneNumber(phoneNumber);
+    const sessionName = `session-${cleanPhoneNumber}`;
+    const sessionPath = path.join(this.sessionsPath, sessionName);
 
-  async loadSession(phoneNumber) {
-    const sessionDir = path.join(this.sessionDir, `session-${phoneNumber}`);
-    try {
-      const sessionFile = path.join(sessionDir, 'session.json');
-      const sessionData = await fs.readFile(sessionFile, 'utf8');
-      logger.info(`Сессия WhatsApp загружена для номера ${phoneNumber}`);
-      return JSON.parse(sessionData);
-    } catch (error) {
-      if (error.code === 'ENOENT') {
-        logger.info(`Сессия WhatsApp не найдена для номера ${phoneNumber}`);
-      } else {
-        logger.error(`Ошибка при загрузке сессии WhatsApp для номера ${phoneNumber}:`, error);
+    const options = {
+      multidevice: true,
+      headless: 'new',
+      useChrome: true,
+      debug: false,
+      logQR: !useExistingSession, // Отключаем логирование QR, если используем существующую сессию
+      browserArgs: ['--no-sandbox'],
+      createPathFileToken: true,
+      disableWelcome: true,
+      updatesLog: true,
+      autoClose: 60000,
+      folderNameToken: this.sessionsPath,
+      puppeteerOptions: {
+        userDataDir: sessionPath
       }
-      return null;
+    };
+
+    if (useExistingSession) {
+      options.session = sessionName;
     }
+    
+    return new Promise((resolve, reject) => {
+      venom
+        .create(
+          sessionName,
+          (base64Qr, asciiQR, attempts, urlCode) => {
+            logger.info(`QR Code generated for ${phoneNumber}. Attempt: ${attempts}`);
+            // Здесь можно добавить логику для отправки QR-кода пользователю
+          },
+          (statusSession, session) => {
+            logger.info(`Status Session for ${phoneNumber}: ${statusSession}`);
+            if (statusSession === 'isLogged' || statusSession === 'qrReadSuccess' || statusSession === 'inChat') {
+              this.clients.set(phoneNumber, session);
+              this.sessionCache.set(phoneNumber, session);
+              this.setupMessageListener(session, phoneNumber);
+              resolve(session);
+            }
+          },
+          options
+        )
+        .catch((error) => {
+          logger.error(`Error ${useExistingSession ? 'loading' : 'creating'} WhatsApp session for ${phoneNumber}:`, error);
+          reject(error);
+        });
+    });
+  }
+
+  setupMessageListener(client, phoneNumber) {
+    client.onMessage((message) => {
+      this.handleIncomingMessage(message, phoneNumber);
+    });
+  }
+
+  async checkExistingSession(phoneNumber) {
+    const cleanPhoneNumber = this.cleanPhoneNumber(phoneNumber);
+    const sessionPath = path.join(this.sessionsPath, `session-${cleanPhoneNumber}`);
+    try {
+      await fs.access(sessionPath);
+      // Проверяем наличие ключевых файлов сессии
+      const files = await fs.readdir(sessionPath);
+      return files.some(file => file.includes('session') || file.includes('tokens'));
+    } catch (error) {
+      logger.error(`Error checking existing session for ${phoneNumber}:`, error);
+      return false;
+    }
+  }
+ 
+  async getOrCreateSession(phoneNumber) {
+    if (this.clients.has(phoneNumber)) {
+      return this.clients.get(phoneNumber);
+    }
+
+    const sessionExists = await this.checkExistingSession(phoneNumber);
+    if (sessionExists) {
+      logger.info(`Using existing session for ${phoneNumber}`);
+      try {
+        return await this.createSession(phoneNumber, true);
+      } catch (error) {
+        logger.error(`Failed to load existing session for ${phoneNumber}, creating new one:`, error);
+      }
+    }
+
+    logger.info(`Creating new session for ${phoneNumber}`);
+    return this.createSession(phoneNumber, false);
   }
 
   onMessage(handler) {
@@ -54,175 +116,8 @@ class WhatsAppSessionService {
     logger.info(`New message handler registered. Total handlers: ${this.messageHandlers.length}`);
   }
 
-  async createOrGetSession(phoneNumber) {
-    logger.info(`Creating or getting WhatsApp session for ${phoneNumber}`);
-  
-    if (this.clients.has(phoneNumber)) {
-      logger.debug(`Using existing WhatsApp client for ${phoneNumber}`);
-      const existingClient = this.clients.get(phoneNumber);
-      if (existingClient.isReady) {
-        return existingClient;
-      }
-    }
-  
-    const cleanPhoneNumber = this.cleanPhoneNumber(phoneNumber);
-    const sessionData = await this.loadSession(cleanPhoneNumber);
-  
-    const clientOptions = {
-      authStrategy: new LocalAuth({ 
-        clientId: cleanPhoneNumber,
-        dataPath: this.sessionDir,
-      }),
-      puppeteer: {
-        args: ['--no-sandbox', '--disable-setuid-sandbox'],
-        headless: true,
-        handleSIGINT: false,
-        handleSIGTERM: false,
-        handleSIGHUP: false,
-        timeout: 60000 
-      }
-    };
-  
-    if (sessionData) {
-      clientOptions.session = sessionData;
-    }
-  
-    const newClient = new Client(clientOptions);
-  
-    try {
-      await this.initializeClient(newClient, phoneNumber);
-      this.clients.set(phoneNumber, newClient);
-      this.sessionCache.set(phoneNumber, newClient);
-      return newClient;
-    } catch (error) {
-      logger.error(`Failed to initialize WhatsApp client for ${phoneNumber}:`, error);
-      throw error;
-    }
-  }
-
-  async initializeClient(client, phoneNumber) {
-    return new Promise((resolve, reject) => {
-      const initTimeout = setTimeout(() => {
-        logger.error(`WhatsApp client initialization timeout for ${phoneNumber}`);
-        client.destroy().catch(e => logger.error(`Error destroying client: ${e}`));
-;        reject(new Error('WhatsApp client initialization timeout'));
-      }, this.authTimeout);
-  
-      client.on('qr', async (qr) => {
-        const existingSession = await this.loadSession(phoneNumber);
-        if (existingSession) {
-          logger.info(`Существующая сессия найдена для ${phoneNumber}, пропуск генерации QR-кода`);
-          return;
-        }
-        logger.info(`QR code received for ${phoneNumber}`);
-        // Здесь логика для отображения QR-кода пользователю
-      });
-  
-      client.on('loading_screen', (percent, message) => {
-        logger.info(`Loading screen for ${phoneNumber}: ${percent}% - ${message}`);
-      });
-  
-      client.on('ready', async () => {
-        clearTimeout(initTimeout);
-        this.dispose();
-        logger.info(`WhatsApp client ready for ${phoneNumber}`);
-        client.isReady = true;
-        await this.saveSession(phoneNumber, client);
-        resolve(client);
-      });
-  
-      client.on('authenticated', () => {
-        logger.info(`WhatsApp client authenticated for ${phoneNumber}`);
-      });
-  
-      client.on('auth_failure', (msg) => {
-        clearTimeout(initTimeout);
-        this.dispose();
-        logger.error(`WhatsApp authentication failed for ${phoneNumber}: ${msg}`);
-        reject(new Error('WhatsApp authentication failed'));
-      });
-  
-      client.on('disconnected', (reason) => {
-        logger.warn(`WhatsApp client disconnected for ${phoneNumber}: ${reason}`);
-        if (!client.isReady) {
-          clearTimeout(initTimeout);
-          this.dispose();
-          reject(new Error(`WhatsApp client disconnected during initialization: ${reason}`));
-        }
-      });
-  
-      logger.info(`Starting WhatsApp client initialization for ${phoneNumber}`);
-      client.initialize().catch(error => {
-        clearTimeout(initTimeout);
-        this.dispose();
-        logger.error(`Error initializing WhatsApp client for ${phoneNumber}:`, error);
-        reject(error);
-      });
-    });
-  }
-
-
-  async authenticateWithPhoneNumber(phoneNumber) {
-    logger.info(`Attempting to authenticate WhatsApp for ${phoneNumber}`);
-    
-    const cleanPhoneNumber = this.cleanPhoneNumber(phoneNumber);
-    
-    if (this.authPromises.has(cleanPhoneNumber)) {
-      logger.info(`Auth promise already exists for ${phoneNumber}, waiting for authentication`);
-      return this.authPromises.get(cleanPhoneNumber).promise;
-    }
-  
-    const authPromise = new Promise((resolve, reject) => {
-      const client = new Client({
-        authStrategy: new LocalAuth({ clientId: cleanPhoneNumber }),
-        puppeteer: {
-          args: ['--no-sandbox', '--disable-setuid-sandbox'],
-          headless: true
-        }
-      });
-  
-      client.on('qr', (qr) => {
-        logger.info(`QR code received for ${phoneNumber} during phone authentication`);
-        // Здесь можно добавить логику для отображения QR-кода пользователю, если необходимо
-      });
-  
-      client.on('ready', async () => {
-        logger.info(`WhatsApp client is ready for ${phoneNumber}`);
-        await this.saveSession(phoneNumber, client.pupPage.cookies);
-        this.clients.set(phoneNumber, client);
-        resolve(client);
-      });
-  
-      client.on('auth_failure', (msg) => {
-        logger.error(`Authentication failed for ${phoneNumber}: ${msg}`);
-        reject(new Error(`Authentication failed: ${msg}`));
-      });
-  
-      client.initialize().catch(error => {
-        logger.error(`Error initializing WhatsApp client for ${phoneNumber}:`, error);
-        reject(error);
-      });
-    });
-  
-    this.authPromises.set(cleanPhoneNumber, { promise: authPromise });
-  
-    return authPromise;
-  }
-
-  async reauthorizeSession(phoneNumber) {
-    logger.info(`Attempting to reauthorize WhatsApp session for ${phoneNumber}`);
-    await this.disconnectSession(phoneNumber);
-    return this.createOrGetSession(phoneNumber);
-  }
-
-  cleanPhoneNumber(phoneNumber) {
-    return phoneNumber.replace(/[^a-zA-Z0-9_-]/g, '');
-  }
-
-  
   async handleIncomingMessage(message, phoneNumber) {
     logger.info(`Handling incoming WhatsApp message for ${phoneNumber}: ${message.body}`);
-    
     for (const handler of this.messageHandlers) {
       try {
         await handler(message, phoneNumber);
@@ -232,114 +127,52 @@ class WhatsAppSessionService {
     }
   }
 
-
-  async generateQRCode(phoneNumber) {
-    logger.info(`Generating QR code for WhatsApp number ${phoneNumber}`);
-  
-    const cleanPhoneNumber = this.cleanPhoneNumber(phoneNumber);
-  
-    return new Promise((resolve, reject) => {
-      const client = new Client({
-        authStrategy: new LocalAuth({ clientId: cleanPhoneNumber }),
-        puppeteer: {
-          args: ['--no-sandbox', '--disable-setuid-sandbox'],
-          headless: true
-        }
-      });
-  
-      let qrCodeResolved = false;
-  
-      client.on('qr', (qr) => {
-        if (!qrCodeResolved) {
-          qrCodeResolved = true;
-          resolve({ qr, client });
-        }
-      });
-  
-      client.on('ready', async () => {
-        logger.info(`WhatsApp client is ready for ${phoneNumber}`);
-        await this.saveSession(phoneNumber, client.pupPage.cookies);
-        this.clients.set(phoneNumber, client);
-        if (!qrCodeResolved) {
-          qrCodeResolved = true;
-          resolve({ qr: null, client });
-        }
-      });
-  
-      client.on('auth_failure', (msg) => {
-        reject(new Error(`Authentication failed: ${msg}`));
-      });
-  
-      client.initialize().catch(error => {
-        logger.error(`Error initializing WhatsApp client for ${phoneNumber}:`, error);
-        reject(error);
-      });
-    });
-  }
-
-  async waitForAuthentication(phoneNumber, callback) {
-    logger.info(`Waiting for authentication for ${phoneNumber}`);
-    const client = this.clients.get(phoneNumber);
-    if (!client) {
-      logger.error(`No WhatsApp client found for ${phoneNumber}`);
-      throw new Error(`No WhatsApp client found for ${phoneNumber}`);
-    }
-
-    return new Promise((resolve, reject) => {
-      const timeout = setTimeout(() => {
-        logger.error(`Authentication timeout for ${phoneNumber}`);
-        this.clients.delete(phoneNumber);
-        reject(new Error('Authentication timeout'));
-      }, 300000); // 5 minutes timeout
-
-      client.on('authenticated', async () => {
-        clearTimeout(timeout);
-        logger.info(`WhatsApp authenticated for ${phoneNumber}`);
-        await this.updateAuthenticationStatus(phoneNumber, true);
-        await callback(true);
-        resolve(true);
-      });
-
-      client.on('auth_failure', async (msg) => {
-        clearTimeout(timeout);
-        logger.error(`WhatsApp auth failure for ${phoneNumber}: ${msg}`);
-        this.clients.delete(phoneNumber);
-        await this.updateAuthenticationStatus(phoneNumber, false);
-        await callback(false);
-        reject(new Error(`Authentication failed: ${msg}`));
-      });
-    });
-  }
-
-  async updateAuthenticationStatus(phoneNumber, isAuthenticated) {
+  async checkNumber(phoneNumber) {
+    logger.info(`Checking WhatsApp for number ${phoneNumber}`);
     try {
-      await phoneNumberService.setPhoneAuthenticated(phoneNumber, 'whatsapp', isAuthenticated);
-      logger.info(`Updated WhatsApp authentication status for ${phoneNumber}: ${isAuthenticated}`);
+      const client = await this.getOrCreateSession(phoneNumber);
+      const isRegistered = await client.checkNumberStatus(`${phoneNumber}@c.us`);
+      logger.info(`Is number ${phoneNumber} registered on WhatsApp: ${isRegistered.canReceiveMessage}`);
+      return isRegistered.canReceiveMessage;
     } catch (error) {
-      logger.error(`Error updating WhatsApp authentication status for ${phoneNumber}:`, error);
+      logger.error(`Error checking WhatsApp for number ${phoneNumber}:`, error);
+      return false;
+    }
+  }
+
+  async sendMessage(phoneNumber, message) {
+    logger.info(`Sending message to ${phoneNumber}`);
+    try {
+      const client = await this.getOrCreateSession(phoneNumber);
+      await client.sendText(`${phoneNumber}@c.us`, message);
+      logger.info(`Message sent to ${phoneNumber} successfully`);
+    } catch (error) {
+      logger.error(`Error sending message to ${phoneNumber}:`, error);
       throw error;
     }
   }
 
-  async saveSession(phoneNumber) {
-    const sessionDir = path.join(this.sessionDir, `session-${phoneNumber}`);
+  async sendImageAsSticker(phoneNumber, imagePath) {
+    logger.info(`Sending image as sticker to ${phoneNumber}`);
     try {
-      // Проверяем, существует ли директория сессии
-      await fs.access(sessionDir);
-      
-      // Если директория существует, считаем, что сессия сохранена
-      logger.info(`WhatsApp session directory ${sessionDir} exists for ${phoneNumber}`);
-      
-      // Здесь мы могли бы сохранить дополнительную информацию о сессии, если это необходимо
-      await whatsappSessionsRepo.saveSession(phoneNumber, JSON.stringify({ exists: true }));
-      
-      logger.info(`WhatsApp session info saved for ${phoneNumber}`);
+      const client = await this.getOrCreateSession(phoneNumber);
+      await client.sendImageAsSticker(`${phoneNumber}@c.us`, imagePath);
+      logger.info(`Sticker sent to ${phoneNumber} successfully`);
     } catch (error) {
-      if (error.code === 'ENOENT') {
-        logger.warn(`WhatsApp session directory does not exist for ${phoneNumber}`);
-      } else {
-        logger.error(`Error checking/saving WhatsApp session for ${phoneNumber}:`, error);
-      }
+      logger.error(`Error sending sticker to ${phoneNumber}:`, error);
+      throw error;
+    }
+  }
+
+  async getStatus(phoneNumber) {
+    logger.info(`Getting status for ${phoneNumber}`);
+    try {
+      const client = await this.getOrCreateSession(phoneNumber);
+      const status = await client.getStatus(`${phoneNumber}@c.us`);
+      return status;
+    } catch (error) {
+      logger.error(`Error getting status for ${phoneNumber}:`, error);
+      throw error;
     }
   }
 
@@ -347,30 +180,45 @@ class WhatsAppSessionService {
     logger.info(`Disconnecting WhatsApp session for ${phoneNumber}`);
     const client = this.clients.get(phoneNumber);
     if (client) {
-      await client.destroy();
+      try {
+        await client.close();
+        logger.info(`WhatsApp client closed for ${phoneNumber}`);
+      } catch (error) {
+        logger.error(`Error closing WhatsApp client for ${phoneNumber}:`, error);
+      }
       this.clients.delete(phoneNumber);
+      this.sessionCache.del(phoneNumber);
     }
-    await whatsappSessionsRepo.deleteSession(phoneNumber);
-    this.sessionCache.delete(phoneNumber);
-    logger.info(`WhatsApp session disconnected and removed for ${phoneNumber}`);
+
+    try {
+      await whatsappSessionsRepo.deleteSession(phoneNumber);
+    } catch (error) {
+      logger.warn(`Failed to delete WhatsApp session for ${phoneNumber} from database:`, error);
+    }
+
+    try {
+      await phoneNumberService.updatePhoneWhatsAppStatus(phoneNumber, false);
+      logger.info(`WhatsApp status updated for ${phoneNumber}: disconnected`);
+    } catch (error) {
+      logger.error(`Error updating WhatsApp status for ${phoneNumber}:`, error);
+    }
   }
 
+  cleanPhoneNumber(phoneNumber) {
+    return phoneNumber.replace(/[^a-zA-Z0-9]/g, '');
+  }
 
-  async initializeSessions() {
-    logger.info('Initializing WhatsApp sessions');
-    const sessions = await whatsappSessionsRepo.getAllSessions();
-    for (const session of sessions) {
+  async dispose() {
+    for (const [phoneNumber, client] of this.clients.entries()) {
       try {
-        await this.createOrGetSession(session.phoneNumber);
+        await client.close();
+        logger.info(`WhatsApp client closed for ${phoneNumber}`);
       } catch (error) {
-        logger.error(`Error initializing WhatsApp session for ${session.phoneNumber}:`, error);
+        logger.error(`Error closing WhatsApp client for ${phoneNumber}:`, error);
       }
     }
-  }
-
-   // Не забудьте очистить интервал при завершении работы сервиса
-   dispose() {
-    clearInterval(this.autoSaveInterval);
+    this.clients.clear();
+    this.sessionCache.clear();
   }
 }
 

@@ -4,7 +4,6 @@ const { leadsRepo } = require('../../../db');
 const { userRepo } = require('../../../db');
 const logger = require('../../../utils/logger');
 const CampaignMailingService = require('../../../services/campaign/src/campaignsMailingService');
-const { log } = require('winston');
 
 class LeadsService {
 

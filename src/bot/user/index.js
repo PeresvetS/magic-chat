@@ -2,6 +2,7 @@
 
 const path = require('path');
 const qrcode = require('qrcode');
+const venom = require('venom-bot');
 const fs = require('fs').promises;
 const TelegramBot = require('node-telegram-bot-api');
 
@@ -12,10 +13,7 @@ const wabaCommands = require('./commands/wabaCommands');
 const LeadsService = require('../../services/leads/src/LeadsService');
 const { getUserState, clearUserState } = require('./utils/userState');
 const { TelegramSessionService } = require('../../services/telegram');
-const { WhatsAppSessionService } = require('../../services/whatsapp/');
-const { campaignsMailingService } = require('../../services/campaign');
 const { processExcelFile } = require('../../services/leads').xlsProcessor;
-const { checkSubscription } = require('../../middleware/checkSubscription');
 const { setPhoneAuthenticated } = require('../../services/phone').phoneNumberService;
 const PhoneNumberManagerService = require('../../services/phone/src/PhoneNumberManagerService');
 
@@ -241,88 +239,58 @@ async function tryTelegramAuth(bot, query, phoneNumber, authType) {
   }
 }
 
-async function tryWhatsappAuth(bot, query, phoneNumber, authType) {
+async function tryWhatsappAuth(bot, query, phoneNumber) {
   await bot.answerCallbackQuery(query.id);
+  let client;
+  
   try {
     logger.info(`Starting WhatsApp authentication process for ${phoneNumber}`);
+    await bot.sendMessage(query.message.chat.id, 'Начинаем процесс аутентификации WhatsApp. Это может занять некоторое время.');
 
-    if (authType === 'qr') {
-      await bot.sendMessage(query.message.chat.id, 'Начинаем процесс аутентификации WhatsApp с использованием QR-code. Это может занять некоторое время.');
-      const { qr, client } = await WhatsAppSessionService.generateQRCode(phoneNumber);
-      if (!qr) {
-        throw new Error('Failed to generate QR code');
+    client = await venom.create(
+      `session-${phoneNumber}`,
+      (base64Qr, asciiQR, attempts, urlCode) => {
+        logger.info(`QR code generated for ${phoneNumber}. Attempt: ${attempts}`);
+        bot.sendMessage(query.message.chat.id, `Пожалуйста, отсканируйте этот QR-код в приложении WhatsApp для подключения. Попытка: ${attempts}`);
+        bot.sendPhoto(query.message.chat.id, Buffer.from(base64Qr.replace('data:image/png;base64,', ''), 'base64'));
+      },
+      (statusSession) => {
+        logger.info(`Status Session: ${statusSession}`);
+        if (statusSession === 'qrReadSuccess') {
+          bot.sendMessage(query.message.chat.id, 'QR-код успешно отсканирован. Ожидайте завершения процесса аутентификации.');
+        }
+      },
+      {
+        logQR: false,
+        autoClose: 60000,
+        createPathFileToken: true,
+        headless: 'new',
+        multidevice: true,
+        disableWelcome: true,
+        updatesLog: true
       }
-      logger.info(`QR code generated for ${phoneNumber}`);
+    );
 
-      // Генерируем изображение QR-кода
-      const qrImagePath = path.join(__dirname, `../../../temp/${phoneNumber.replace(/[^a-zA-Z0-9]/g, '')}_qr.png`);
-      await qrcode.toFile(qrImagePath, qr);
+    client.onStateChange((state) => {
+      logger.info(`WhatsApp state changed: ${state}`);
+      if (state === 'CONNECTED') {
+        setPhoneAuthenticated(phoneNumber, 'whatsapp', true);
+        bot.sendMessage(query.message.chat.id, `Номер телефона ${phoneNumber} успешно аутентифицирован в WhatsApp.`);
+      }
+    });
 
-      // Отправляем изображение QR-кода
-      await bot.sendPhoto(query.message.chat.id, qrImagePath, {
-        caption: 'Пожалуйста, отсканируйте этот QR-код в приложении WhatsApp для подключения. У вас есть 5 минут на сканирование.'
-      });
-
-      // Удаляем временный файл
-      await fs.unlink(qrImagePath);
-
-      // Ожидаем завершения аутентификации
-      await new Promise((resolve, reject) => {
-        const timeout = setTimeout(() => {
-          reject(new Error('Authentication timeout'));
-        }, 300000); // 5 минут таймаут
-
-        client.on('ready', () => {
-          clearTimeout(timeout);
-          resolve();
-        });
-
-        client.on('auth_failure', (msg) => {
-          clearTimeout(timeout);
-          reject(new Error(`Authentication failed: ${msg}`));
-        });
-      });
-
-    } else if (authType === 'phone') {
-      await bot.sendMessage(query.message.chat.id, 'Начинаем процесс аутентификации WhatsApp с использованием номера телефона. Это может занять некоторое время.');
-      const client = await WhatsAppSessionService.authenticateWithPhoneNumber(phoneNumber);
-      
-      // Ожидаем завершения аутентификации
-      await new Promise((resolve, reject) => {
-        const timeout = setTimeout(() => {
-          reject(new Error('Authentication timeout'));
-        }, 500000); 
-
-        client.on('ready', () => {
-          clearTimeout(timeout);
-          resolve();
-        });
-
-        client.on('auth_failure', (msg) => {
-          clearTimeout(timeout);
-          reject(new Error(`Authentication failed: ${msg}`));
-        });
-      });
-    }
-
-    await setPhoneAuthenticated(phoneNumber, 'whatsapp', true);
+    await client.waitForLogin();
     logger.info(`Authentication process completed for ${phoneNumber}`);
-    await bot.sendMessage(query.message.chat.id, `Номер телефона ${phoneNumber} успешно аутентифицирован в WhatsApp.`);
+
   } catch (error) {
     logger.error(`Error in WhatsApp authentication process for ${phoneNumber}:`, error);
     let errorMessage = 'Произошла ошибка при аутентификации WhatsApp. Попробуйте ещё раз.';
     if (error.message.includes('timeout')) {
       errorMessage = 'Время ожидания аутентификации истекло. Пожалуйста, попробуйте еще раз.';
-    } else if (error.message.includes('auth_failure')) {
-      errorMessage = 'Ошибка аутентификации WhatsApp. Пожалуйста, убедитесь, что вы правильно ввели номер телефона или отсканировали QR-код.';
-    } else if (error.message.includes('Failed to generate QR code')) {
-      errorMessage = 'Не удалось сгенерировать QR-код. Пожалуйста, попробуйте еще раз.';
     }
     await bot.sendMessage(query.message.chat.id, errorMessage);
   }
-
 }
-
 
 
 module.exports = createUserBot();

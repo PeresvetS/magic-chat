@@ -30,7 +30,7 @@ async function getGlobalStats() {
       activeSubscriptions,
       telegramAccounts,
       whatsAppAccounts,
-      wabaAccounts
+      WABAAccount
     ] = await Promise.all([
       prisma.user.count(),
       prisma.parsedUser.count(),
@@ -52,11 +52,11 @@ async function getGlobalStats() {
 
     stats.totalTelegramAccounts = telegramAccounts.length;
     stats.totalWhatsAppAccounts = whatsAppAccounts.length;
-    stats.totalWABAAccounts = wabaAccounts.length;
+    stats.totalWABAAccounts = WABAAccount.length;
 
     stats.activeTelegramAccounts = telegramAccounts.filter(account => account.isAuthenticated).length;
     stats.activeWhatsAppAccounts = whatsAppAccounts.filter(account => account.isAuthenticated).length;
-    stats.activeWABAAccounts = wabaAccounts.filter(account => account.isAuthenticated).length;
+    stats.activeWABAAccounts = WABAAccount.filter(account => account.isAuthenticated).length;
 
     return stats;
 

@@ -2,30 +2,13 @@
 
 const prisma = require('../utils/prisma');
 const logger = require('../../utils/logger');
-
-async function saveSession(phoneNumber, session) {
-  try {
-    if (!session) {
-      throw new Error('Session data is undefined or null');
-    }
-
-    const sessionString = typeof session === 'string' ? session : JSON.stringify(session);
-
-    await prisma.whatsappSession.upsert({
-      where: { phoneNumber },
-      update: { session: sessionString },
-      create: { phoneNumber, session: sessionString }
-    });
-    logger.info(`WhatsApp session saved for ${phoneNumber}`);
-  } catch (error) {
-    logger.error(`Error saving WhatsApp session for ${phoneNumber}:`, error);
-    throw error;
-  }
-}
+const fs = require('fs').promises;
+const path = require('path');
 
 async function deleteSession(phoneNumber) {
   try {
-    await prisma.whatsappSession.delete({ where: { phoneNumber } });
+    const sessionPath = path.join(__dirname, `../../../tokens/session-${phoneNumber}`);
+    await fs.rmdir(sessionPath, { recursive: true });
     logger.info(`WhatsApp session deleted for ${phoneNumber}`);
   } catch (error) {
     logger.error(`Error deleting WhatsApp session for ${phoneNumber}:`, error);
@@ -35,7 +18,11 @@ async function deleteSession(phoneNumber) {
 
 async function getAllSessions() {
   try {
-    return await prisma.whatsappSession.findMany();
+    const tokensDir = path.join(__dirname, '../../../tokens');
+    const sessions = await fs.readdir(tokensDir);
+    return sessions.filter(session => session.startsWith('session-')).map(session => ({
+      phoneNumber: session.replace('session-', '')
+    }));
   } catch (error) {
     logger.error('Error fetching all WhatsApp sessions:', error);
     throw error;
@@ -44,11 +31,13 @@ async function getAllSessions() {
 
 async function getSession(phoneNumber) {
   try {
-    const session = await prisma.whatsappSession.findUnique({
-      where: { phoneNumber }
-    });
-    return session ? JSON.parse(session.session) : null;
+    const sessionPath = path.join(__dirname, `../../../tokens/session-${phoneNumber}`);
+    await fs.access(sessionPath);
+    return true; // Сессия существует
   } catch (error) {
+    if (error.code === 'ENOENT') {
+      return false; // Сессия не существует
+    }
     logger.error(`Error fetching WhatsApp session for ${phoneNumber}:`, error);
     throw error;
   }
@@ -90,10 +79,25 @@ async function updatePhoneNumberWhatsAppStatus(phoneNumber, isAuthenticated, acc
   }
 }
 
+async function checkSessionStatus(phoneNumber) {
+  try {
+    const sessionPath = path.join(__dirname, `../../../tokens/session-${phoneNumber}`);
+    const stats = await fs.stat(sessionPath);
+    const isValid = stats.isDirectory() && (Date.now() - stats.mtime.getTime()) < 7 * 24 * 60 * 60 * 1000; // 7 дней
+    return isValid;
+  } catch (error) {
+    if (error.code === 'ENOENT') {
+      return false; // Сессия не существует
+    }
+    logger.error(`Error checking WhatsApp session status for ${phoneNumber}:`, error);
+    throw error;
+  }
+}
+
 module.exports = {
-  saveSession,
   deleteSession,
   getAllSessions,
   getSession,
-  updatePhoneNumberWhatsAppStatus
+  updatePhoneNumberWhatsAppStatus,
+  checkSessionStatus
 };

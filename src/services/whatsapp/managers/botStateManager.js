@@ -19,7 +19,7 @@ class BotStateManager {
 
   async getClient(phoneNumber) {
     let client = await WhatsAppSessionService.createOrGetSession(phoneNumber);
-    if (!client || !client.isConnected()) {
+    if (!client) {
       logger.warn(`Client for ${phoneNumber} is not connected. Attempting to reconnect...`);
       client = await WhatsAppSessionService.reconnectSession(phoneNumber);
     }
@@ -74,7 +74,7 @@ class BotStateManager {
   async markMessagesAsRead(phoneNumber, userId) {
     try {
       const client = await this.getClient(phoneNumber);
-      await client.sendSeen(userId);
+      await client.markUnseenMessage(userId);
     } catch (error) {
       logger.error(`Failed to mark WhatsApp messages as read: ${error}`);
     }
@@ -82,7 +82,7 @@ class BotStateManager {
 
   async typing(phoneNumber, userId) {
     const client = await this.getClient(phoneNumber);
-    await client.sendPresenceUpdate('composing', userId);
+    await client.startTyping(userId);
   }
 
   async simulateTyping(phoneNumber, userId) {
@@ -189,19 +189,20 @@ class BotStateManager {
     try {
       const client = await this.getClient(phoneNumber);
       
-      // Создаем промис, который разрешится, когда придет событие о наборе текста
+      // В venom-bot нет прямого эквивалента события 'participant-typing'
+      // Вместо этого мы можем использовать общее событие 'state-change'
       const typingPromise = new Promise(resolve => {
         const timeout = setTimeout(() => resolve(false), 5000); // Таймаут 5 секунд
   
-        const onTyping = (participant) => {
-          if (participant === userId) {
+        const onStateChange = (state) => {
+          if (state === 'TYPING' && state.id === userId) {
             clearTimeout(timeout);
-            client.removeListener('participant-typing', onTyping);
+            client.removeListener('state-change', onStateChange);
             resolve(true);
           }
         };
   
-        client.on('typing', onTyping);
+        client.onStateChange(onStateChange);
       });
   
       // Ожидаем результат

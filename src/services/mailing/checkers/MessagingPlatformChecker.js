@@ -32,7 +32,8 @@ class MessagingPlatformChecker {
 
   async checkWhatsApp(phoneNumber) {
     logger.info(`Checking WhatsApp for number ${phoneNumber}`);
-    return await this.whatsappChecker.checkWhatsApp(phoneNumber);
+    const status = await this.whatsappChecker.checkWhatsApp(phoneNumber);
+    return status.canReceiveMessage === true;
   }
 
   async checkWABA(phoneNumber) {
@@ -53,9 +54,6 @@ class MessagingPlatformChecker {
         if (mode === 'both') { 
           whatsappAvailable = await this.checkWhatsApp(phoneNumber);
           if (whatsappAvailable) return 'whatsapp';
-
-          // wabaAvailable = await this.checkWABA(phoneNumber);
-          // if (wabaAvailable) return 'waba';
         } 
         await LeadsService.setLeadUnavailable(phoneNumber);
         return 'none';
@@ -86,8 +84,10 @@ class MessagingPlatformChecker {
       }
 
       case 'tgwa': {
-        telegramAvailable = await this.checkTelegram(phoneNumber);
-        whatsappAvailable = await this.checkWhatsApp(phoneNumber);
+        const [telegramAvailable, whatsappAvailable] = await Promise.all([
+          this.checkTelegram(phoneNumber),
+          this.checkWhatsApp(phoneNumber)
+        ]);
         if (telegramAvailable && whatsappAvailable) return 'tgwa';
         if (telegramAvailable) return 'telegram';
         if (whatsappAvailable) return 'whatsapp';
@@ -96,8 +96,10 @@ class MessagingPlatformChecker {
       }
 
       case 'tgwaba': {
-        telegramAvailable = await this.checkTelegram(phoneNumber);
-        wabaAvailable = await this.checkWABA(phoneNumber);
+        const [telegramAvailable, wabaAvailable] = await Promise.all([
+          this.checkTelegram(phoneNumber),
+          this.checkWABA(phoneNumber)
+        ]);
         if (telegramAvailable && wabaAvailable) return 'tgwaba';
         if (telegramAvailable) return 'telegram';
         if (wabaAvailable) return 'waba';

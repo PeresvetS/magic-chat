@@ -33,7 +33,6 @@
     "qrcode": "^1.5.4",
     "telegram": "^2.23.10",
     "whatsapp-api-js": "^4.0.2",
-    "whatsapp-web.js": "^1.25.0",
     "winston": "^3.13.1",
     "winston-daily-rotate-file": "^5.0.0",
     "xlsx": "^0.18.5"

@@ -34,8 +34,8 @@ class CampaignMailingService {
         throw new Error('Phone number is banned');
       }
       if (platform === 'waba') {
-        const wabaAccount = await WABAAccountService.getAccount(phoneNumber);
-        if (!wabaAccount || !wabaAccount.isAuthenticated) {
+        const WABAAccount = await WABAAccountService.getAccount(phoneNumber);
+        if (!WABAAccount || !WABAAccount.isAuthenticated) {
           throw new Error('Phone number is not WABA authenticated');
         }
       }
@@ -85,8 +85,8 @@ class CampaignMailingService {
       }
 
       if (platform === 'waba') {
-        const wabaAccount = await WABAAccountService.getAccount(phoneNumber);
-        if (!wabaAccount || !wabaAccount.isAuthenticated) {
+        const WABAAccount = await WABAAccountService.getAccount(phoneNumber);
+        if (!WABAAccount || !WABAAccount.isAuthenticated) {
           throw new Error('Phone number is not WABA authenticated');
         }
       }

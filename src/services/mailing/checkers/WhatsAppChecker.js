@@ -1,63 +1,56 @@
 // src/services/mailing/checkers/WhatsAppChecker.js
 
 const logger = require('../../../utils/logger');
-const { parsePhoneNumber } = require('libphonenumber-js')
-const WhatsAppMainSessionService = require('../../whatsapp').WhatsAppMainSessionService;
+const { parsePhoneNumber } = require('libphonenumber-js');
+const { safeStringify } = require('../../../utils/helpers');
+const WhatsAppMainSessionService = require('../../whatsapp/services/WhatsAppMainSessionService');
 
 class WhatsAppChecker {
   constructor() {
-    this.client = null;
-    this.whatsAppMainSessionService = WhatsAppMainSessionService;
+    this.mainSessionService = WhatsAppMainSessionService;
   }
 
   async initialize() {
-    if (!this.client) {
-      logger.info('Initializing WhatsApp main client');
-      try {
-        this.client = await this.whatsAppMainSessionService.getMainClient();
-        if (!this.client) {
-          throw new Error('Failed to get main WhatsApp client');
-        }
-        logger.info('WhatsApp main client initialized successfully');
-      } catch (error) {
-        logger.error('Error initializing WhatsApp main client:', error);
-        throw error;
-      }
-    } else {
-      logger.info('WhatsApp main client already initialized');
-    }
+    // Инициализация не требуется, так как WhatsAppMainSessionService сам управляет инициализацией
+    logger.info('WhatsApp checker initialized');
   }
 
   formatPhoneNumber(phoneNumber) {
     try {
-      const parsedNumber = parsePhoneNumber(phoneNumber, 'ID') // 'ID' - код страны по умолчанию
+      const parsedNumber = parsePhoneNumber(phoneNumber, 'ID');
       if (parsedNumber.isValid()) {
-        return parsedNumber.format('E.164').slice(1) // Удаляем начальный '+'
+        return parsedNumber.format('E.164').slice(1);
       } else {
-        logger.warn(`Invalid phone number: ${phoneNumber}`)
-        return null
+        logger.warn(`Invalid phone number: ${phoneNumber}`);
+        return null;
       }
     } catch (error) {
-      logger.error(`Error formatting phone number ${phoneNumber}:`, error)
-      return null
+      logger.error(`Error formatting phone number ${phoneNumber}:`, error);
+      return null;
     }
   }
-
 
   async checkWhatsApp(phoneNumber, retries = 3) {
     logger.info(`Checking WhatsApp for number ${phoneNumber}`);
     try {
-      await this.initialize();
-  
       const formattedNumber = this.formatPhoneNumber(phoneNumber);
-      logger.info(`Formatted number for WhatsApp check: ${formattedNumber}`);
-  
-      const isRegistered = await Promise.race([
-        this.client.isRegisteredUser(`${formattedNumber}@c.us`),
-        new Promise((_, reject) => setTimeout(() => reject(new Error('isRegisteredUser timeout')), 30000))
-      ]);
-  
-      logger.info(`Is number ${formattedNumber} registered on WhatsApp: ${isRegistered}`);
+      if (!formattedNumber) {
+        return false;
+      }
+      
+      const client = await this.mainSessionService.getMainClient();
+      if (!client || typeof client !== 'object') {
+        throw new Error('Invalid WhatsApp client returned');
+      }
+
+      logger.info(`Client type: ${typeof client}, isRegisteredUser: ${typeof client.isRegisteredUser}`);
+
+      if (typeof client.isRegisteredUser !== 'function') {
+        throw new Error('isRegisteredUser method not found on WhatsApp client');
+      }
+
+      const isRegistered = await client.isRegisteredUser(`${formattedNumber}@c.us`);
+      logger.info(`Number ${phoneNumber} WhatsApp status: ${isRegistered ? 'registered' : 'not registered'}`);
       return isRegistered;
     } catch (error) {
       logger.error(`Error checking WhatsApp for number ${phoneNumber}:`, error);
@@ -71,11 +64,9 @@ class WhatsAppChecker {
   }
 
   async disconnect() {
-    if (this.client) {
-      logger.info('Disconnecting WhatsApp client');
-      await this.whatsAppMainSessionService.disconnectMainClient();
-      this.client = null;
-    }
+    // Отключение теперь делегируется WhatsAppMainSessionService
+    await this.mainSessionService.disconnectMainClient();
+    logger.info('WhatsApp checker disconnected');
   }
 }
 

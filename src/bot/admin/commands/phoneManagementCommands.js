@@ -2,7 +2,7 @@
 
 const { updatePhoneNumberStatus, setPhoneNumberLimit, getPhoneNumberInfo } = require('../../../services/phone').phoneNumberService;
 const { TelegramSessionService } = require('../../../services/telegram');
-const { WhatsAppMainSessionService } = require('../../../services/whatsapp');
+const { sendQRCode } = require('../../../utils/botHelpers');
 const config = require('../../../config');
 
 module.exports = {
@@ -105,19 +105,27 @@ module.exports = {
         throw new Error('MAIN_WA_PHONE_NUMBER not set in configuration');
       }
 
-      bot.sendMessage(msg.chat.id, `Начинаем процесс авторизации WhatsApp для номера ${mainPhoneNumber}. Следуйте инструкциям.`);
+      await bot.sendMessage(msg.chat.id, `Начинаем процесс авторизации WhatsApp для номера ${mainPhoneNumber}. Подождите, инициализация клиента...`);
 
+      let qrCodeSent = false;
       await WhatsAppMainSessionService.authorizeMainClient(
-        async (qrImageData) => {
-          await bot.sendPhoto(msg.chat.id, Buffer.from(qrImageData.split(',')[1], 'base64'), {
-            caption: 'Отсканируйте этот QR-код в приложении WhatsApp для авторизации основного номера.'
-          });
+        async (qrCode) => {
+          qrCodeSent = true;
+          const qrImageBuffer = Buffer.from(qrCode.replace('data:image/png;base64,', ''), 'base64');
+          await bot.sendPhoto(msg.chat.id, qrImageBuffer, {caption: 'Отсканируйте этот QR-код в приложении WhatsApp.'});
         }
       );
 
-      bot.sendMessage(msg.chat.id, `Основной номер ${mainPhoneNumber} успешно авторизован в WhatsApp.`);
+      if (!qrCodeSent) {
+        await bot.sendMessage(msg.chat.id, 'Авторизация прошла успешно без необходимости сканирования QR-кода.');
+      } else {
+        await bot.sendMessage(msg.chat.id, 'QR-код отправлен. Пожалуйста, отсканируйте его в приложении WhatsApp.');
+      }
+
+      await bot.sendMessage(msg.chat.id, `Основной номер ${mainPhoneNumber} успешно авторизован в WhatsApp.`);
     } catch (error) {
-      bot.sendMessage(msg.chat.id, `Ошибка при авторизации основного номера WhatsApp: ${error.message}`);
+      logger.error('Error authorizing main WhatsApp number:', error);
+      await bot.sendMessage(msg.chat.id, `Ошибка при авторизации основного номера WhatsApp: ${error.message}`);
     }
   },
 };

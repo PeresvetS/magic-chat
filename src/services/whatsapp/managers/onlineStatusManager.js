@@ -18,7 +18,7 @@ class OnlineStatusManager {
           logger.info(`Cleared existing timeout for WhatsApp user ${userId}`);
         }
         this.onlineUsers.set(userId, setTimeout(() => this.setOffline(userId, client), this.timeoutDuration));
-        await client.sendPresenceUpdate('available', userId);
+        await client.sendPresenceAvailable();
         logger.info(`Online status set for WhatsApp user ${userId}`);
         return true;
       } catch (error) {
@@ -31,7 +31,7 @@ class OnlineStatusManager {
       try {
         logger.info(`Setting offline status for WhatsApp user ${userId}`);
         this.onlineUsers.delete(userId);
-        await client.sendPresenceUpdate('unavailable', userId);
+        await client.sendPresenceUnavailable();
         logger.info(`Offline status set for WhatsApp user ${userId}`);
       } catch (error) {
         logger.error(`Error setting offline status for WhatsApp user ${userId}:`, safeStringify(error));

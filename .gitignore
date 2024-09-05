@@ -2,5 +2,4 @@ temp
 *.log
 node_modules
 .env
-.wwebjs_auth
-.wwebjs_cache
+tokens
