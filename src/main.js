@@ -26,20 +26,21 @@ app.use(requestLogger);
 app.use('/api', webhookRouter);
 
 async function checkApplicationState() {
-  // // Проверка состояния Telegram сессий
-  // await TelegramSessionService.checkAllSessions();
-
-  // // Проверка состояния WhatsApp сессий
-  // await WhatsAppSessionService.checkAllSessions();
-
-  // Проверка состояния ботов
   if (!adminBot.isRunning()) {
-    logger.warn('Admin bot is not running, attempting to restart...');
-    await adminBot.launch();
+    await restartBot(adminBot, 'Admin');
   }
   if (!userBot.isRunning()) {
-    logger.warn('User bot is not running, attempting to restart...');
-    await userBot.launch();
+    await restartBot(userBot, 'User');
+  }
+}
+
+async function restartBot(bot, botType) {
+  logger.warn(`${botType} bot is not running, attempting to restart...`);
+  try {
+    await bot.restart();
+    logger.info(`${botType} bot restarted successfully`);
+  } catch (error) {
+    logger.error(`Error restarting ${botType} bot:`, error);
   }
 }
 
@@ -165,7 +166,7 @@ async function main() {
           logger.error('Error during application state check:', error);
         }
       },
-      5 * 60 * 1000,
+      3 * 60 * 1000,
     ); // Проверка каждые 5 минут
   } catch (error) {
     logger.error('Error in main function:', error);
