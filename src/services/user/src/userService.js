@@ -6,6 +6,7 @@ const logger = require('../../../utils/logger');
 const { getUserSubscriptionInfo } = require('./subscriptionService');
 const { getUserPhoneNumbers } = require('../../phone').phoneNumberService;
 
+
 async function getUserInfo(telegramId) {
   try {
     const user = await this.getUserByTgId(telegramId);
@@ -114,14 +115,6 @@ async function updateUserBanStatus(telegramId, isBanned) {
   }
 }
 
-async function ensureUserExistsById(id) {
-  const user = await userRepo.getUserById(id);
-  if (user === null) {
-    throw new Error(`User with ID ${id} not found`);
-  }
-  return user;
-}
-
 module.exports = {
   banUser,
   unbanUser,
@@ -130,5 +123,4 @@ module.exports = {
   getAllUsers,
   getUserByTgId,
   getUserByIdentifier,
-  ensureUserExistsById,
 };

@@ -13,9 +13,7 @@ const LeadsService = require('../../services/leads/src/LeadsService');
 const { getUserState, clearUserState } = require('./utils/userState');
 const { TelegramSessionService } = require('../../services/telegram');
 const { WhatsAppSessionService } = require('../../services/whatsapp');
-const { campaignsMailingService } = require('../../services/campaign');
 const { processExcelFile } = require('../../services/leads').xlsProcessor;
-const { checkSubscription } = require('../../middleware/checkSubscription');
 const { setPhoneAuthenticated } =
   require('../../services/phone').phoneNumberService;
 const PhoneNumberManagerService = require('../../services/phone/src/PhoneNumberManagerService');
@@ -24,11 +22,8 @@ const phoneCommands = require('./commands/phoneCommands');
 const leadsCommands = require('./commands/leadsCommands');
 const promptCommands = require('./commands/promptCommands');
 const mailingCommands = require('./commands/mailingCommads');
-// const parsingCommands = require('./commands/parsingCommands');
 const crmSettingsCommands = require('./commands/crmSettingsCommands');
 const subscriptionCommands = require('./commands/subscriptionCommands');
-
-const userStates = {};
 
 function createUserBot() {
   const bot = new TelegramBot(config.USER_BOT_TOKEN, { polling: false });
@@ -37,7 +32,6 @@ function createUserBot() {
   const commandModules = [
     subscriptionCommands,
     crmSettingsCommands,
-    // parsingCommands,
     mailingCommands,
     promptCommands,
     phoneCommands,
