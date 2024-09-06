@@ -18,3 +18,4 @@ if (isProduction) {
 module.exports = {
   databaseUrl
 };
+
