@@ -40,6 +40,19 @@ function createUserBot() {
     wabaCommands,
   ];
 
+  function handlePollingError(error, bot, botType) {
+    logger.error(`${botType} bot polling error:`, error);
+    if (error.code === 'ETELEGRAM' && error.message.includes('terminated by other getUpdates request')) {
+      logger.warn(`${botType} bot: Another instance is running. Attempting to restart...`);
+      setTimeout(() => {
+        bot.stopPolling()
+          .then(() => bot.startPolling())
+          .then(() => logger.info(`${botType} bot restarted successfully`))
+          .catch(e => logger.error(`Error restarting ${botType} bot:`, e));
+      }, 5000); // Подождем 5 секунд перед перезапуском
+    }
+  }
+
   PhoneNumberManagerService.setNotificationCallback((telegramId, message) => {
     bot.sendMessage(telegramId, message);
   });
@@ -211,25 +224,13 @@ function createUserBot() {
     }
   });
 
-  bot.on('polling_error', (error) => {
-    logger.error('Polling error:', error);
-    if (error.code === 'ETELEGRAM' && error.message.includes('Bad Gateway')) {
-      logger.warn('Telegram API временно недоступен. Переподключение...');
-      isRunning = false;
-      bot.stopPolling().then(() => {
-        setTimeout(() => {
-          bot.startPolling();
-          isRunning = true;
-        }, 5000); // Попытка переподключения через 5 секунд
-      });
-    }
-  });
+  bot.on('polling_error', (error) => handlePollingError(error, bot, 'User'));
 
   return {
     bot,
     launch: () => {
       logger.info('Starting bot polling');
-      bot.startPolling();
+      bot.startPolling({ restart: true, polling: true });
       isRunning = true;
       logger.info('Bot polling started successfully');
     },
@@ -240,6 +241,15 @@ function createUserBot() {
       logger.info('Bot polling stopped successfully');
     },
     isRunning: () => isRunning,
+    restart: async () => {
+      logger.info('Restarting bot');
+      await bot.stopPolling();
+      isRunning = false;
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      await bot.startPolling({ restart: true, polling: true });
+      isRunning = true;
+      logger.info('Bot restarted successfully');
+    }
   };
 }
 
