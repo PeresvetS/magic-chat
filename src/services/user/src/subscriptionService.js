@@ -1,9 +1,9 @@
 // src/services/user/src/subscriptionService.js
 
 const logger = require('../../../utils/logger');
-const { ensureUserExistsById } = require('./userService');
+const { ensureUserExistsById } = require('./utils');
 const { userRepo, subscriptionsRepo } = require('../../../db');
-const с = require('../../../config/constants');
+const с = require('../../../config');
 
 async function addUserSubscription(userIdentifier, durationDays, isRepeating) {
   try {
