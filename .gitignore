@@ -1,11 +1,8 @@
 temp
 *.log
+logs/*
 .env
 .wwebjs_auth
 .wwebjs_cache
 node_modules
-sessions/*
-!sessions/.keep
-dialogs/*
-!dialogs/.keep
 package-lock.json

@@ -22,8 +22,4 @@ COPY . .
 # Экспонирование порта для доступа к приложению
 EXPOSE 3000
 
-# Генерация Prisma клиента (если требуется)
-RUN npx prisma generate
-
-# Выполнение миграций и запуск приложения при старте контейнера
-CMD ["sh", "-c", "npx prisma migrate deploy && node ./index.js"]
+CMD ["yarn", "start"]

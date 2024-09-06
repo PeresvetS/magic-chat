@@ -29,6 +29,7 @@ const config = {
   // WABA_APP_ID: process.env.WABA_APP_ID,
   // WABA_APP_SECRET: process.env.WABA_APP_SECRET,
   // WABA_PHONE_NUMBER_ID: process.env.WABA_PHONE_NUMBER_ID,
+  NGROK_AUTHTOKEN: process.env.NGROK_AUTHTOKEN,
 };
 
 // Логирование конфигурации
