@@ -6,8 +6,8 @@ const WABAAccountService = require('./services/WABAAccountService');
 const onlineStatusManager = require('./managers/onlineStatusManager');
 
 module.exports = {
-    botStateManager,
-    WABASessionService,
-    WABAAccountService, 
-    onlineStatusManager,
+  botStateManager,
+  WABASessionService,
+  WABAAccountService,
+  onlineStatusManager,
 };

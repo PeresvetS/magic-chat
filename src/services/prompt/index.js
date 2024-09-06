@@ -3,5 +3,5 @@
 const promptService = require('./promptService');
 
 module.exports = {
-  promptService
+  promptService,
 };

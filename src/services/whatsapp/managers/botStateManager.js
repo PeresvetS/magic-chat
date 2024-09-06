@@ -63,7 +63,10 @@ class BotStateManager {
 
   resetOfflineTimer(phoneNumber, userId) {
     clearTimeout(this.offlineTimer);
-    this.offlineTimer = setTimeout(() => this.setOffline(phoneNumber, userId), Math.random() * 10000 + 20000); // 20-30 seconds
+    this.offlineTimer = setTimeout(
+      () => this.setOffline(phoneNumber, userId),
+      Math.random() * 10000 + 20000,
+    ); // 20-30 seconds
   }
 
   async markMessagesAsRead(phoneNumber, userId) {
@@ -83,7 +86,7 @@ class BotStateManager {
   async simulateTyping(phoneNumber, userId) {
     const typingDuration = Math.random() * 6000 + 2000; // 2-8 seconds
     let elapsedTime = 0;
-    const typingInterval = 2000; 
+    const typingInterval = 2000;
 
     while (elapsedTime < typingDuration) {
       try {
@@ -100,13 +103,17 @@ class BotStateManager {
   }
 
   async handleIncomingMessage(phoneNumber, userId, message) {
-    logger.info(`Начало обработки сообщения для пользователя WhatsApp ${userId}: ${message}`);
+    logger.info(
+      `Начало обработки сообщения для пользователя WhatsApp ${userId}: ${message}`,
+    );
 
     this.messageBuffer.push(message);
     this.lastMessageTimestamp.set(userId, Date.now());
 
     if (this.processingMessage) {
-      logger.info(`Сообщение добавлено в буфер для пользователя WhatsApp ${userId}`);
+      logger.info(
+        `Сообщение добавлено в буфер для пользователя WhatsApp ${userId}`,
+      );
       return null;
     }
 
@@ -132,7 +139,7 @@ class BotStateManager {
       }
 
       while (!this.preOnlineComplete.get(userId)) {
-        await new Promise(resolve => setTimeout(resolve, 100));
+        await new Promise((resolve) => setTimeout(resolve, 100));
       }
 
       await this.handleTypingState(phoneNumber, userId);
@@ -141,10 +148,14 @@ class BotStateManager {
       this.messageBuffer = [];
       this.processingMessage = false;
 
-      logger.info(`Завершена обработка сообщения для пользователя WhatsApp ${userId}`);
+      logger.info(
+        `Завершена обработка сообщения для пользователя WhatsApp ${userId}`,
+      );
       return combinedMessage;
     } catch (error) {
-      logger.error(`Ошибка при обработке сообщения для пользователя WhatsApp ${userId}: ${error.message}`);
+      logger.error(
+        `Ошибка при обработке сообщения для пользователя WhatsApp ${userId}: ${error.message}`,
+      );
       this.processingMessage = false;
       throw error;
     }
@@ -166,7 +177,7 @@ class BotStateManager {
         await delay(checkInterval);
         totalWaitTime += checkInterval;
 
-        if (!await this.checkUserTyping(phoneNumber, userId)) {
+        if (!(await this.checkUserTyping(phoneNumber, userId))) {
           break;
         }
       } else {
@@ -183,11 +194,11 @@ class BotStateManager {
   async checkUserTyping(phoneNumber, userId) {
     try {
       const client = await this.getClient(phoneNumber);
-      
+
       // Создаем промис, который разрешится, когда придет событие о наборе текста
-      const typingPromise = new Promise(resolve => {
+      const typingPromise = new Promise((resolve) => {
         const timeout = setTimeout(() => resolve(false), 5000); // Таймаут 5 секунд
-  
+
         const onTyping = (participant) => {
           if (participant === userId) {
             clearTimeout(timeout);
@@ -195,13 +206,13 @@ class BotStateManager {
             resolve(true);
           }
         };
-  
+
         client.on('typing', onTyping);
       });
-  
+
       // Ожидаем результат
       const isTyping = await typingPromise;
-      
+
       logger.info(`User ${userId} typing status: ${isTyping}`);
       return isTyping;
     } catch (error) {

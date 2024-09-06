@@ -66,9 +66,13 @@ class WABAAccountService {
   }
 
   async setAuthenticated(phoneNumber, isAuthenticated) {
-    logger.info(`Setting WABA account authentication status for ${phoneNumber} to ${isAuthenticated}`);
+    logger.info(
+      `Setting WABA account authentication status for ${phoneNumber} to ${isAuthenticated}`,
+    );
     try {
-      const account = await this.updateAccount(phoneNumber, { isAuthenticated });
+      const account = await this.updateAccount(phoneNumber, {
+        isAuthenticated,
+      });
       if (isAuthenticated) {
         await WABASessionService.createOrGetSession(phoneNumber);
       } else {
@@ -76,7 +80,10 @@ class WABAAccountService {
       }
       return account;
     } catch (error) {
-      logger.error(`Error setting WABA account authentication status for ${phoneNumber}:`, error);
+      logger.error(
+        `Error setting WABA account authentication status for ${phoneNumber}:`,
+        error,
+      );
       throw error;
     }
   }
@@ -92,7 +99,10 @@ class WABAAccountService {
       });
       return account;
     } catch (error) {
-      logger.error(`Error updating message stats for WABA account ${phoneNumber}:`, error);
+      logger.error(
+        `Error updating message stats for WABA account ${phoneNumber}:`,
+        error,
+      );
       throw error;
     }
   }

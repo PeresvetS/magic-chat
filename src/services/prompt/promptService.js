@@ -1,6 +1,7 @@
 // src/services/prompt/promptService.js
 
 const { PrismaClient } = require('@prisma/client');
+
 const logger = require('../../utils/logger');
 
 const prisma = new PrismaClient();
@@ -11,8 +12,8 @@ const promptService = {
       const prompt = await prisma.prompt.create({
         data: {
           name,
-          content
-        }
+          content,
+        },
       });
       logger.info(`Prompt created: ${prompt.id}`);
       return prompt;
@@ -25,7 +26,7 @@ const promptService = {
   async getPromptById(id) {
     try {
       const prompt = await prisma.prompt.findUnique({
-        where: { id }
+        where: { id },
       });
       return prompt;
     } catch (error) {
@@ -37,7 +38,7 @@ const promptService = {
   async getPromptByName(name) {
     try {
       const prompt = await prisma.prompt.findUnique({
-        where: { name }
+        where: { name },
       });
       return prompt;
     } catch (error) {
@@ -50,7 +51,7 @@ const promptService = {
     try {
       const updatedPrompt = await prisma.prompt.update({
         where: { id },
-        data: { content }
+        data: { content },
       });
       logger.info(`Prompt updated: ${id}`);
       return updatedPrompt;
@@ -63,7 +64,7 @@ const promptService = {
   async deletePrompt(id) {
     try {
       await prisma.prompt.delete({
-        where: { id }
+        where: { id },
       });
       logger.info(`Prompt deleted: ${id}`);
     } catch (error) {

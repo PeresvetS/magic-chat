@@ -6,8 +6,8 @@ const onlineStatusManager = require('./managers/onlineStatusManager');
 const TelegramSessionService = require('./services/telegramSessionService');
 
 module.exports = {
-    sessionManager,
-    botStateManager,
-    onlineStatusManager,
-    TelegramSessionService, 
+  sessionManager,
+  botStateManager,
+  onlineStatusManager,
+  TelegramSessionService,
 };

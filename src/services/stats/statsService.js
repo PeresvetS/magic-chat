@@ -18,7 +18,7 @@ async function getGlobalStats() {
       totalWABAAccounts: 0,
       activeTelegramAccounts: 0,
       activeWhatsAppAccounts: 0,
-      activeWABAAccounts: 0
+      activeWABAAccounts: 0,
     };
 
     // Получаем статистику из базы данных с использованием Prisma
@@ -31,7 +31,7 @@ async function getGlobalStats() {
       activeSubscriptions,
       telegramAccounts,
       whatsAppAccounts,
-      WABAAccounts
+      WABAAccounts,
     ] = await Promise.all([
       prisma.user.count(),
       prisma.parsedUser.count(),
@@ -41,7 +41,7 @@ async function getGlobalStats() {
       prisma.subscription.count({ where: { endDate: { gt: new Date() } } }),
       prisma.telegramAccount.findMany(),
       prisma.whatsappAccount.findMany(),
-      prisma.wABAAccount.findMany()
+      prisma.wABAAccount.findMany(),
     ]);
 
     stats.totalUsers = totalUsers;
@@ -55,12 +55,17 @@ async function getGlobalStats() {
     stats.totalWhatsAppAccounts = whatsAppAccounts.length;
     stats.totalWABAAccounts = WABAAccounts.length;
 
-    stats.activeTelegramAccounts = telegramAccounts.filter(account => account.isAuthenticated).length;
-    stats.activeWhatsAppAccounts = whatsAppAccounts.filter(account => account.isAuthenticated).length;
-    stats.activeWABAAccounts = WABAAccounts.filter(account => account.isAuthenticated).length;
+    stats.activeTelegramAccounts = telegramAccounts.filter(
+      (account) => account.isAuthenticated,
+    ).length;
+    stats.activeWhatsAppAccounts = whatsAppAccounts.filter(
+      (account) => account.isAuthenticated,
+    ).length;
+    stats.activeWABAAccounts = WABAAccounts.filter(
+      (account) => account.isAuthenticated,
+    ).length;
 
     return stats;
-
   } catch (error) {
     logger.error('Error getting global stats:', error);
     throw error;
@@ -70,7 +75,9 @@ async function getGlobalStats() {
 async function saveMessageStats(userId, phoneNumber, tokenCount) {
   try {
     await messageStatsRepo.saveMessageStats(userId, phoneNumber, tokenCount);
-    logger.info(`Saved message stats for user ${userId}: ${tokenCount} tokens used`);
+    logger.info(
+      `Saved message stats for user ${userId}: ${tokenCount} tokens used`,
+    );
   } catch (error) {
     logger.error('Error saving message stats:', error);
   }
@@ -78,5 +85,5 @@ async function saveMessageStats(userId, phoneNumber, tokenCount) {
 
 module.exports = {
   getGlobalStats,
-  saveMessageStats
+  saveMessageStats,
 };

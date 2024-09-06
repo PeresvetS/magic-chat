@@ -64,7 +64,10 @@ class WABABotStateManager {
 
   resetOfflineTimer(phoneNumber, userId) {
     clearTimeout(this.offlineTimer);
-    this.offlineTimer = setTimeout(() => this.setOffline(phoneNumber, userId), Math.random() * 10000 + 20000); // 20-30 seconds
+    this.offlineTimer = setTimeout(
+      () => this.setOffline(phoneNumber, userId),
+      Math.random() * 10000 + 20000,
+    ); // 20-30 seconds
   }
 
   async markMessagesAsRead(phoneNumber, userId) {
@@ -81,7 +84,7 @@ class WABABotStateManager {
     const typingDuration = Math.random() * 8000 + 4000; // 4-12 seconds
     logger.info(`Simulating WABA typing for ${typingDuration}ms`);
     let elapsedTime = 0;
-    const typingInterval = 2000; 
+    const typingInterval = 2000;
 
     while (elapsedTime < typingDuration) {
       try {
@@ -104,27 +107,31 @@ class WABABotStateManager {
   }
 
   async handleIncomingMessage(phoneNumber, userId, message) {
-    logger.info(`Начало обработки WABA сообщения для пользователя ${userId}: ${message}`);
-  
+    logger.info(
+      `Начало обработки WABA сообщения для пользователя ${userId}: ${message}`,
+    );
+
     this.messageBuffer.push(message);
     this.lastMessageTimestamp.set(userId, Date.now());
-  
+
     if (this.processingMessage) {
-      logger.info(`WABA сообщение добавлено в буфер для пользователя ${userId}`);
+      logger.info(
+        `WABA сообщение добавлено в буфер для пользователя ${userId}`,
+      );
       return null;
     }
-  
+
     this.processingMessage = true;
     let status = this.state;
 
     logger.info(`Состояние WABA бота: ${status}`);
-  
+
     if (this.state === 'offline' && OnlineStatusManager.isOnline(userId)) {
       status = 'pre-online';
     }
-  
+
     this.resetOfflineTimer(phoneNumber, userId);
-  
+
     try {
       switch (status) {
         case 'offline':
@@ -136,21 +143,25 @@ class WABABotStateManager {
           await this.markMessagesAsRead(phoneNumber, userId);
           break;
       }
-  
+
       while (!this.preOnlineComplete.get(userId)) {
-        await new Promise(resolve => setTimeout(resolve, 100));
+        await new Promise((resolve) => setTimeout(resolve, 100));
       }
-  
+
       await this.handleTypingState(phoneNumber, userId);
-  
+
       const combinedMessage = this.messageBuffer.join('\n');
       this.messageBuffer = [];
       this.processingMessage = false;
-      
-      logger.info(`Завершена обработка WABA сообщения для пользователя ${userId}`);
+
+      logger.info(
+        `Завершена обработка WABA сообщения для пользователя ${userId}`,
+      );
       return combinedMessage;
     } catch (error) {
-      logger.error(`Ошибка при обработке WABA сообщения для пользователя ${userId}: ${error.message}`);
+      logger.error(
+        `Ошибка при обработке WABA сообщения для пользователя ${userId}: ${error.message}`,
+      );
       this.processingMessage = false;
       throw error;
     }
@@ -166,14 +177,14 @@ class WABABotStateManager {
       if (!userIsTyping) {
         await delay(checkInterval);
         totalWaitTime += checkInterval;
-        
-        if (!await this.checkUserTyping(phoneNumber, userId)) {
+
+        if (!(await this.checkUserTyping(phoneNumber, userId))) {
           break;
         }
       } else {
         totalWaitTime = 0;
       }
-      
+
       await delay(checkInterval);
       totalWaitTime += checkInterval;
     }

@@ -3,17 +3,16 @@
 const logger = require('../../../utils/logger');
 const { ensureUserExistsById } = require('./userService');
 const { userRepo, subscriptionsRepo } = require('../../../db');
+const с = require('../../../config/constants');
 
 async function addUserSubscription(userIdentifier, durationDays, isRepeating) {
   try {
     let userId;
     let user;
 
-    if (isNaN(userIdentifier)) {
-      // Если userIdentifier - строка (предполагаем, что это username)
+    if (Number.Number.isNaN(userIdentifier)) {
       user = await userRepo.getUserByUsername(userIdentifier);
     } else {
-      // Если userIdentifier - число (предполагаем, что это telegram_id)
       user = await userRepo.getUserByTgId(userIdentifier);
     }
 
@@ -21,10 +20,14 @@ async function addUserSubscription(userIdentifier, durationDays, isRepeating) {
       // Если пользователь не найден, создаем нового
       user = await userRepo.createUser(userIdentifier, null, null, null);
       logger.info(`New user created with ID: ${userId}`);
-    } 
+    }
     userId = user.id;
 
-    const subscriptionId = await subscriptionsRepo.addSubscription(userId, durationDays, isRepeating);
+    const subscriptionId = await subscriptionsRepo.addSubscription(
+      userId,
+      durationDays,
+      isRepeating,
+    );
 
     logger.info(`Subscription added for user ${userId}`);
     return subscriptionId;
@@ -38,14 +41,18 @@ async function getUserSubscriptionInfo(userId) {
   try {
     await ensureUserExistsById(userId);
     logger.info(`Getting subscription info for user ID: ${userId}`);
-    const subscriptionInfo = await subscriptionsRepo.getSubscriptionInfo(userId);
+    const subscriptionInfo =
+      await subscriptionsRepo.getSubscriptionInfo(userId);
 
     if (!subscriptionInfo) {
       logger.info(`No active subscription found for user ${userId}`);
       return null;
     }
 
-    logger.info(`Subscription info retrieved for user ${userId}:`, subscriptionInfo);
+    logger.info(
+      `Subscription info retrieved for user ${userId}:`,
+      subscriptionInfo,
+    );
     return subscriptionInfo;
   } catch (error) {
     logger.error('Error getting subscription info:', error);
@@ -56,8 +63,11 @@ async function getUserSubscriptionInfo(userId) {
 async function checkUserSubscription(userId) {
   try {
     await ensureUserExistsById(userId);
-    const hasActiveSubscription = await subscriptionsRepo.checkSubscription(userId);
-    logger.info(`User ${userId} has active subscription: ${hasActiveSubscription}`);
+    const hasActiveSubscription =
+      await subscriptionsRepo.checkSubscription(userId);
+    logger.info(
+      `User ${userId} has active subscription: ${hasActiveSubscription}`,
+    );
     return hasActiveSubscription;
   } catch (error) {
     logger.error('Error checking subscription:', error);
@@ -69,25 +79,39 @@ async function updateUserSubscription(userId, durationDays) {
   try {
     await ensureUserExistsById(userId);
 
-    const currentSubscription = await subscriptionsRepo.getSubscriptionInfo(userId);
+    const currentSubscription =
+      await subscriptionsRepo.getSubscriptionInfo(userId);
 
     if (!currentSubscription) {
       // Если активной подписки нет, создаем новую
-      return await addUserSubscription(userId, Math.max(durationDays, 0), false);
+      return await addUserSubscription(
+        userId,
+        Math.max(durationDays, 0),
+        false,
+      );
     }
 
-    const newEndDate = new Date(Math.max(
-      currentSubscription.endDate.getTime(),
-      Date.now() + durationDays * 24 * 60 * 60 * 1000
-    ));
-
-    const updatedSubscription = await subscriptions.updateSubscription(
-      userId,
-      newEndDate,
-      currentSubscription.isRepeating
+    const newEndDate = new Date(
+      Math.max(
+        currentSubscription.endDate.getTime(),
+        Date.now() +
+          durationDays *
+            с.HOURS_IN_A_DAY *
+            с.MINUTES_IN_AN_HOUR *
+            с.SECONDS_IN_A_MINUTE *
+            с.MILLISECONDS_IN_A_SECOND,
+      ),
     );
 
-    logger.info(`Subscription updated for user ${userId}. Duration change: ${durationDays} days`);
+    const updatedSubscription = await subscriptionsRepo.updateSubscription(
+      userId,
+      newEndDate,
+      currentSubscription.isRepeating,
+    );
+
+    logger.info(
+      `Subscription updated for user ${userId}. Duration change: ${durationDays} days`,
+    );
     return updatedSubscription;
   } catch (error) {
     logger.error('Error updating subscription:', error);
@@ -99,5 +123,5 @@ module.exports = {
   addUserSubscription,
   getUserSubscriptionInfo,
   checkUserSubscription,
-  updateUserSubscription
+  updateUserSubscription,
 };

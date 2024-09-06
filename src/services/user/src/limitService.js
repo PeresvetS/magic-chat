@@ -7,7 +7,7 @@ const { ensureUserExistsById } = require('./userService');
 async function setLimit(userId, limitType, limitValue) {
   try {
     await ensureUserExistsById(userId);
-    await userRepo.setLimit(userId, limitType, limitValue);
+    await userLimitsRepo.setLimit(userId, limitType, limitValue);
     logger.info(`Set ${limitType} limit to ${limitValue} for user ${userId}`);
   } catch (error) {
     logger.error('Error setting limit:', error);
@@ -25,7 +25,7 @@ async function getLimits(userId) {
       phones: limits?.phonesLimit ?? null,
       campaigns: limits?.campaignsLimit ?? null,
       contacts: limits?.contactsLimit ?? null,
-      leads: limits?.leadsLimit ?? null
+      leads: limits?.leadsLimit ?? null,
     };
   } catch (error) {
     logger.error('Error getting limits:', error);
@@ -48,7 +48,10 @@ async function checkLimit(userIdentifier, limitType) {
       return true; // No specific limit set, allow action
     }
 
-    const currentUsage = await userLimitsRepo.getCurrentUsage(userId, limitType);
+    const currentUsage = await userLimitsRepo.getCurrentUsage(
+      userId,
+      limitType,
+    );
     return currentUsage < limitValue;
   } catch (error) {
     logger.error('Error checking limit:', error);
