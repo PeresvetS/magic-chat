@@ -2,6 +2,7 @@
 
 const path = require('path');
 const fs = require('fs').promises;
+
 const logger = require('./logger');
 
 async function saveDialogToFile(userId, userMessage, botResponse) {
@@ -18,5 +19,5 @@ async function saveDialogToFile(userId, userMessage, botResponse) {
 }
 
 module.exports = {
-  saveDialogToFile
+  saveDialogToFile,
 };

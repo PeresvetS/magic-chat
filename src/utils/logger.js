@@ -1,14 +1,14 @@
 // src/utils/logger.js
 
 const winston = require('winston');
-const config = require('../config');
+
 require('winston-daily-rotate-file');
 const { safeStringify } = require('./helpers');
 
 const { combine, timestamp, printf, errors, splat } = winston.format;
 
 // Создаем кастомный формат для логов
-const myFormat = printf(({ level, message, timestamp, ...metadata }) => {
+const myFormat = printf(({ level, message, timestamps, ...metadata }) => {
   let msg = `${timestamp} [${level}] : ${message}`;
   if (Object.keys(metadata).length > 0) {
     msg += ` ${safeStringify(metadata)}`;
@@ -22,10 +22,7 @@ const fileRotateTransport = new winston.transports.DailyRotateFile({
   datePattern: 'YYYY-MM-DD',
   maxSize: '20m',
   maxFiles: '14d',
-  format: combine(
-    timestamp(),
-    myFormat
-  )
+  format: combine(timestamp(), myFormat),
 });
 
 // Конфигурация для ротации файлов с ошибками
@@ -35,33 +32,21 @@ const errorFileRotateTransport = new winston.transports.DailyRotateFile({
   maxSize: '20m',
   maxFiles: '14d',
   level: 'error',
-  format: combine(
-    timestamp(),
-    myFormat
-  )
+  format: combine(timestamp(), myFormat),
 });
 
 const logger = winston.createLogger({
   level: process.env.LOG_LEVEL || 'info',
-  format: combine(
-    timestamp(),
-    errors({ stack: true }),
-    splat(),
-    myFormat
-  ),
+  format: combine(timestamp(), errors({ stack: true }), splat(), myFormat),
   defaultMeta: { service: 'tg-wa-service' },
-  transports: [
-    fileRotateTransport,
-    errorFileRotateTransport
-  ],
+  transports: [fileRotateTransport, errorFileRotateTransport],
 });
 
-logger.add(new winston.transports.Console({
-  format: combine(
-    winston.format.colorize(),
-    winston.format.simple()
-  )
-}));
+logger.add(
+  new winston.transports.Console({
+    format: combine(winston.format.colorize(), winston.format.simple()),
+  }),
+);
 
 function logEnvironmentInfo() {
   logger.info('Environment Information:');
@@ -69,12 +54,16 @@ function logEnvironmentInfo() {
   logger.info(`Architecture: ${process.arch}`);
   logger.info(`Platform: ${process.platform}`);
   logger.info(`Node Version: ${process.version}`);
-  
+
   logger.info(`Current Working Directory: ${process.cwd()}`);
 
   logger.info('Environment Variables:');
-  Object.keys(process.env).forEach(key => {
-    if (!key.toLowerCase().includes('key') && !key.toLowerCase().includes('secret') && !key.toLowerCase().includes('password')) {
+  Object.keys(process.env).forEach((key) => {
+    if (
+      !key.toLowerCase().includes('key') &&
+      !key.toLowerCase().includes('secret') &&
+      !key.toLowerCase().includes('password')
+    ) {
       logger.info(`  ${key}: ${process.env[key]}`);
     }
   });

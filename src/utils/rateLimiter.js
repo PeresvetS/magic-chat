@@ -14,8 +14,12 @@ class RateLimiter {
       const elapsed = now - this.lastRequestTime[key];
       if (elapsed < this.minInterval) {
         const delay = this.minInterval - elapsed;
-        logger.info(`Rate limiting: Waiting for ${delay}ms before next request for ${key}`);
-        await new Promise(resolve => setTimeout(resolve, delay));
+        logger.info(
+          `Rate limiting: Waiting for ${delay}ms before next request for ${key}`,
+        );
+        await new Promise((resolve) => {
+          setTimeout(resolve, delay);
+        });
       }
     }
     this.lastRequestTime[key] = Date.now();
