@@ -31,14 +31,18 @@ function createAdminBot() {
     logger.error(`${botType} bot polling error:`, error);
     if (error.code === 'ETELEGRAM' && error.message.includes('terminated by other getUpdates request')) {
       logger.warn(`${botType} bot: Another instance is running. Attempting to restart...`);
-      setTimeout(() => {
-        bot.stopPolling()
-          .then(() => bot.startPolling())
-          .then(() => logger.info(`${botType} bot restarted successfully`))
-          .catch(e => logger.error(`Error restarting ${botType} bot:`, e));
+      setTimeout(async () => {
+        try {
+          await bot.stopPolling();  // Убедитесь, что polling остановлен
+          await bot.startPolling(); // Перезапуск polling
+          logger.info(`${botType} bot restarted successfully`);
+        } catch (e) {
+          logger.error(`Error restarting ${botType} bot:`, e);
+        }
       }, 5000); // Подождем 5 секунд перед перезапуском
     }
   }
+  
 
   commandModules.forEach((module) => {
     Object.entries(module).forEach(([command, handler]) => {
