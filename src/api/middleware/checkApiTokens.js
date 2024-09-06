@@ -1,9 +1,9 @@
 // src/api/middleware/checkApiTokens.js
 
-const logger = require('../../utils/logger');
 const { crmRepo } = require('../../db/');
-const { safeStringify } = require('../../utils/helpers');
 const querystring = require('querystring');
+const logger = require('../../utils/logger');
+const { safeStringify } = require('../../utils/helpers');
 
 const checkBitrixToken = async (req, res, next) => {
     let rawBody = req.body;

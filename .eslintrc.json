@@ -8,7 +8,8 @@
     "prettier"
   ],
   "plugins": [
-    "import"
+    "import",
+    "prettier"
   ],
   "rules": {
     "prettier/prettier": "error",

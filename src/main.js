@@ -1,3 +1,5 @@
+// src/main.js
+
 const cron = require('node-cron');
 const express = require('express');
 const config = require('./config');
@@ -5,6 +7,7 @@ const userBot = require('./bot/user');
 const adminBot = require('./bot/admin');
 const logger = require('./utils/logger');
 const bodyParser = require('body-parser');
+const { retryOperation } = require('./utils/helpers');
 const webhookRouter = require('./api/routes/webhooks');
 const { phoneNumberService } = require('./services/phone');
 // const { WABASessionService } = require('./services/waba');
@@ -20,18 +23,6 @@ app.use(bodyParser.raw({ type: 'application/x-www-form-urlencoded' }));
 app.use(express.json());
 app.use(requestLogger);
 app.use('/api', webhookRouter);
-
-async function retryOperation(operation, maxRetries, delay) {
-  for (let i = 0; i < maxRetries; i++) {
-    try {
-      return await operation();
-    } catch (error) {
-      if (i === maxRetries - 1) throw error;
-      logger.warn(`Operation failed, retrying in ${delay}ms...`);
-      await new Promise(resolve => setTimeout(resolve, delay));
-    }
-  }
-}
 
 async function checkApplicationState() {
   // // Проверка состояния Telegram сессий
@@ -49,8 +40,6 @@ async function checkApplicationState() {
     logger.warn('User bot is not running, attempting to restart...');
     await userBot.launch();
   }
-  
-  // Здесь можно добавить дополнительные проверки
 }
 
 async function main() {

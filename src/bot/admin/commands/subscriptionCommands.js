@@ -1,8 +1,8 @@
 // src/bot/admin/commands/subscriptionCommands.js
 
-const { subscriptionService, userService } = require('../../../services/user');
 const logger = require('../../../utils/logger');
-const { stringifyWithBigInt } = require('../../../utils/helpers');
+const { safeStringify } = require('../../../utils/helpers');
+const { subscriptionService, userService } = require('../../../services/user');
 
 module.exports = {
   '/add_subscription ([\\w\\.@]+) (\\d+) (days|months) (repeat|once)': async (bot, msg, match) => {
@@ -32,7 +32,7 @@ module.exports = {
         throw new Error('Пользователь не найден');
       }
 
-      logger.info(`User found: ${stringifyWithBigInt(user)}`);
+      logger.info(`User found: ${safeStringify(user)}`);
 
       const subscriptionInfo = await subscriptionService.getUserSubscriptionInfo(user.id);
       logger.info(`Subscription info: ${JSON.stringify(subscriptionInfo)}`);

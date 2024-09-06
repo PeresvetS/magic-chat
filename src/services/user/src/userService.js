@@ -1,10 +1,10 @@
 // src/services/user/src/userService.js
 
-const logger = require('../../../utils/logger');
 const { userRepo } = require('../../../db');
-const { getUserPhoneNumbers } = require('../../phone').phoneNumberService;
 const { getLimits } = require('./limitService');
+const logger = require('../../../utils/logger');
 const { getUserSubscriptionInfo } = require('./subscriptionService');
+const { getUserPhoneNumbers } = require('../../phone').phoneNumberService;
 
 async function getUserInfo(telegramId) {
   try {
@@ -111,12 +111,21 @@ async function getUserByTgId(telegramId) {
   }
 }
 
+async function ensureUserExistsById(id) {
+  const user = await userRepo.getUserById(id);
+  if (user === null) {
+    throw new Error(`User with ID ${id} not found`);
+  }
+  return user;
+}
+
 module.exports = {
-  getUserInfo,
-  createUser,
   banUser,
   unbanUser,
+  createUser,
+  getUserInfo,
   getAllUsers,
-  getUserByIdentifier,
   getUserByTgId,
+  getUserByIdentifier,
+  ensureUserExistsById,
 };

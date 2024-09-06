@@ -1,9 +1,7 @@
 // src/services/conversation/conversationService.js
 
-// сервис для API
-
-const { phoneNumberRepo } = require('../../../db');
 const logger = require('../../../utils/logger');
+const { phoneNumberRepo } = require('../../../db');
 
 async function cleanupInactiveConversations(activeConversations) {
   const now = Date.now();

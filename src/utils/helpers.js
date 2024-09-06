@@ -2,10 +2,6 @@
 
 const logger = require('./logger');
 
-function splitIntoSentences(text) {
-  return text.match(/[^\.!\?]+[\.!\?]+/g) || [text];
-}
-
 async function delay(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
@@ -25,20 +21,6 @@ const safeStringify = (obj) => {
     }
     return value;
   }, 2);
-};
-
-const safeJSONParse = (str) => {
-  try {
-    return JSON.parse(str, (key, value) => {
-      if (typeof value === 'string' && /^\d+n$/.test(value)) {
-        return BigInt(value.slice(0, -1));
-      }
-      return value;
-    });
-  } catch (error) {
-    logger.error('Error parsing JSON', { error: error.message, str });
-    return null;
-  }
 };
 
 // Функция для парсинга PHP-сериализованных данных
@@ -85,26 +67,21 @@ const parsePHPSerialized = (data) => {
   return result;
 };
 
-function stringifyWithBigInt(obj) {
-  return JSON.stringify(obj, (key, value) =>
-    typeof value === 'bigint' ? value.toString() + 'n' : value
-  );
-}
-
-function chunkArray(array, size) {
-  const chunks = [];
-  for (let i = 0; i < array.length; i += size) {
-    chunks.push(array.slice(i, i + size));
+async function retryOperation(operation, maxRetries, delay) {
+  for (let i = 0; i < maxRetries; i++) {
+    try {
+      return await operation();
+    } catch (error) {
+      if (i === maxRetries - 1) throw error;
+      logger.warn(`Operation failed, retrying in ${delay}ms...`);
+      await new Promise(resolve => setTimeout(resolve, delay));
+    }
   }
-  return chunks;
 }
 
 module.exports = {
-  splitIntoSentences,
   delay,
   safeStringify,
-  safeJSONParse,
+  retryOperation,
   parsePHPSerialized, 
-  stringifyWithBigInt,
-  chunkArray
 };

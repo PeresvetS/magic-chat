@@ -33,7 +33,7 @@ const userStates = {};
 function createUserBot() {
   const bot = new TelegramBot(config.USER_BOT_TOKEN, { polling: false });
   let isRunning = false;
-  // const bot = new TelegramBot(token, { polling: true, filepath: false });
+  
   const commandModules = [
     subscriptionCommands,
     crmSettingsCommands,

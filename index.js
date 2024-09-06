@@ -2,7 +2,7 @@
 
 const fs = require('fs');
 const path = require('path');
-const { main } = require('./src/index');
+const { main } = require('./src/main');
 const logger = require('./src/utils/logger');
 const { safeStringify } = require('./src/utils/helpers');
 
@@ -53,8 +53,6 @@ logger.info('Starting application...');
 if (acquireLock()) {
   main().catch(error => {
     logger.error('Unhandled error in main function:', safeStringify(error));
-    // releaseLock();
-    // process.exit(1);
   });
 } else {
   logger.warn('Exiting due to another instance running');
@@ -73,12 +71,10 @@ process.on('SIGTERM', () => {
   process.exit(0);
 });
 
-// Добавляем обработчик необработанных исключений
 process.on('uncaughtException', (error) => {
   logger.error('Uncaught Exception:', safeStringify(error));
 });
 
-// Добавляем обработчик необработанных отклонений промисов
 process.on('unhandledRejection', (reason, promise) => {
   logger.error('Unhandled Rejection at:', safeStringify(promise));
   logger.error('Reason:', safeStringify(reason)); 

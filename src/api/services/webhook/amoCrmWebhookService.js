@@ -1,8 +1,8 @@
 // src/api/services/webhook/amoCrmWebhookService.js
 
 const logger = require('../../../utils/logger');
-const LeadsService = require('../../../services/leads/src/LeadsService');
 const { safeStringify } = require('../../../utils/helpers');
+const LeadsService = require('../../../services/leads/src/LeadsService');
 
 async function processAmoCrmWebhook(data, user) {
   try {
@@ -11,7 +11,6 @@ async function processAmoCrmWebhook(data, user) {
       data: safeStringify(data) 
     });
 
-    // Предположим, что data содержит информацию о лиде
     const leadData = {
       amoCrm_id: data.id,
       name: data.name || '',

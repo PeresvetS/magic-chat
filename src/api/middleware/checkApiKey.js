@@ -1,7 +1,7 @@
 // src/api/middleware/checkApiKey.js
 
-const logger = require('../../utils/logger');
 const config = require('../../config');
+const logger = require('../../utils/logger');
 
 const checkApiKey = (req, res, next) => {
   const apiKey = req.header('X-API-Key');

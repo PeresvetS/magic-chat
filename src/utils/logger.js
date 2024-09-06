@@ -1,8 +1,8 @@
 // src/utils/logger.js
 
 const winston = require('winston');
-require('winston-daily-rotate-file');
 const config = require('../config');
+require('winston-daily-rotate-file');
 const { safeStringify } = require('./helpers');
 
 const { combine, timestamp, printf, errors, splat } = winston.format;
@@ -65,11 +65,13 @@ logger.add(new winston.transports.Console({
 
 function logEnvironmentInfo() {
   logger.info('Environment Information:');
-  logger.info(`Node Version: ${process.version}`);
-  logger.info(`Platform: ${process.platform}`);
-  logger.info(`Architecture: ${process.arch}`);
   logger.info(`Process ID: ${process.pid}`);
+  logger.info(`Architecture: ${process.arch}`);
+  logger.info(`Platform: ${process.platform}`);
+  logger.info(`Node Version: ${process.version}`);
+  
   logger.info(`Current Working Directory: ${process.cwd()}`);
+
   logger.info('Environment Variables:');
   Object.keys(process.env).forEach(key => {
     if (!key.toLowerCase().includes('key') && !key.toLowerCase().includes('secret') && !key.toLowerCase().includes('password')) {

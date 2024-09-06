@@ -1,10 +1,10 @@
 // src/api/routes/webhooks.js
 
 const express = require('express');
-const { processBitrixWebhook } = require('../services/webhook/bitrixWebhookService');
-const { checkBitrixToken } = require('../middleware/checkApiTokens');
 const logger = require('../../utils/logger');
 const { safeStringify } = require('../../utils/helpers');
+const { checkBitrixToken } = require('../middleware/checkApiTokens');
+const { processBitrixWebhook } = require('../services/webhook/bitrixWebhookService');
 
 const router = express.Router();
 
@@ -28,7 +28,6 @@ router.post('/bitrix', checkBitrixToken, async (req, res) => {
 //   }
 // });
 
-// Добавляем обработчик для корневого пути
 router.get('/', (req, res) => {
   res.json({ message: 'Webhook API is running' });
 });

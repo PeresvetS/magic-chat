@@ -1,18 +1,8 @@
 // src/utils/messageUtils.js
 
-const logger = require('./logger');
-const { messageStatsRepo } = require('../db');
-const fs = require('fs').promises;
 const path = require('path');
-
-async function saveMessageStats(userId, phoneNumber, tokenCount) {
-  try {
-    await messageStatsRepo.saveMessageStats(userId, phoneNumber, tokenCount);
-    logger.info(`Saved message stats for user ${userId}: ${tokenCount} tokens used`);
-  } catch (error) {
-    logger.error('Error saving message stats:', error);
-  }
-}
+const fs = require('fs').promises;
+const logger = require('./logger');
 
 async function saveDialogToFile(userId, userMessage, botResponse) {
   try {
@@ -28,6 +18,5 @@ async function saveDialogToFile(userId, userMessage, botResponse) {
 }
 
 module.exports = {
-  saveMessageStats,
   saveDialogToFile
 };

@@ -3,6 +3,7 @@
 const logger = require('../../../utils/logger');
 const { generateResponse } = require('../../gpt/gptService');
 const ContextManager = require('../../langchain/contextManager');
+const { saveMessageStats } = require('../../stats/statsService');
 const { countTokensForMessages } = require('../../tokenizer/tokenizer');
 const { saveMessageStats, saveDialogToFile } = require('../../../utils/messageUtils');
 

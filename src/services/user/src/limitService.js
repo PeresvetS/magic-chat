@@ -2,7 +2,7 @@
 
 const logger = require('../../../utils/logger');
 const { userLimitsRepo } = require('../../../db');
-const { ensureUserExistsById } = require('../../../utils/userUtils');
+const { ensureUserExistsById } = require('./userService');
 
 async function setLimit(userId, limitType, limitValue) {
   try {

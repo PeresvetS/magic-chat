@@ -1,3 +1,5 @@
+// src/bot/admin/commands/helpCommands.js
+
 module.exports = {
   '/help': async (bot, msg) => {
     const helpText = `
@@ -28,8 +30,6 @@ module.exports = {
 /authorize_wa_main_phone - Авторизовать основной номер WhatsApp телефона
 
 🔧 **Настройки CRM интеграций:**
-/set_bitrix_webhook [WEBHOOK_ID] [INBOUND_URL] [OUTBOUND_TOKEN] - Установить Bitrix интеграцию
-/set_amocrm_webhook [WEBHOOK_ID] [INBOUND_URL] [OUTBOUND_TOKEN] - Установить AmoCRM интеграцию
 /get_crm_info - Получить информацию о текущих CRM интеграциях
 
 ❓ **Прочее:**

@@ -2,6 +2,7 @@
 
 const logger = require('../../utils/logger');
 const prisma = require('../../db/utils/prisma');
+const messageStatsRepo = require('../../db');
 
 async function getGlobalStats() {
   try {
@@ -66,6 +67,16 @@ async function getGlobalStats() {
   }
 }
 
+async function saveMessageStats(userId, phoneNumber, tokenCount) {
+  try {
+    await messageStatsRepo.saveMessageStats(userId, phoneNumber, tokenCount);
+    logger.info(`Saved message stats for user ${userId}: ${tokenCount} tokens used`);
+  } catch (error) {
+    logger.error('Error saving message stats:', error);
+  }
+}
+
 module.exports = {
-  getGlobalStats
+  getGlobalStats,
+  saveMessageStats
 };

@@ -29,8 +29,7 @@ class BitrixLeadService {
         logger.error('Failed to get lead data from Bitrix24', { leadId });
         return null;
       }
-
-      // Извлекаем нужные нам поля
+      
       const { 
         ID, 
         TITLE, 
