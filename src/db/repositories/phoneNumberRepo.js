@@ -9,7 +9,7 @@ async function getPhoneNumber() {
   try {
     const phoneNumber = await prisma.phoneNumber.findFirst({
       orderBy: { createdAt: 'desc' },
-      select: { phoneNumber: true }
+      select: { phoneNumber: true },
     });
     return phoneNumber ? phoneNumber.phoneNumber : null;
   } catch (error) {
@@ -23,7 +23,7 @@ async function setPhoneNumber(phoneNumber, userId = null) {
     const result = await prisma.phoneNumber.upsert({
       where: { phoneNumber },
       update: { updatedAt: new Date() },
-      create: { phoneNumber, userId }
+      create: { phoneNumber, userId },
     });
     logger.info(`Номер телефона ${phoneNumber} успешно сохранен.`);
     return result;
@@ -37,7 +37,7 @@ async function getPhoneNumberHistory() {
   try {
     return await prisma.phoneNumber.findMany({
       select: { phoneNumber: true, userId: true, createdAt: true },
-      orderBy: { createdAt: 'desc' }
+      orderBy: { createdAt: 'desc' },
     });
   } catch (error) {
     logger.error('Ошибка при получении истории номеров телефона:', error);
@@ -49,11 +49,14 @@ async function getMaxInactivityTime(phoneNumber) {
   try {
     const result = await prisma.phoneNumber.findUnique({
       where: { phoneNumber },
-      select: { maxInactivityTime: true }
+      select: { maxInactivityTime: true },
     });
     return result ? result.maxInactivityTime : DEFAULT_MAX_INACTIVITY_TIME;
   } catch (error) {
-    logger.error(`Ошибка при получении MAX_INACTIVITY_TIME для номера ${phoneNumber}:`, error);
+    logger.error(
+      `Ошибка при получении MAX_INACTIVITY_TIME для номера ${phoneNumber}:`,
+      error,
+    );
     return DEFAULT_MAX_INACTIVITY_TIME;
   }
 }
@@ -62,15 +65,22 @@ async function setMaxInactivityTime(phoneNumber, time) {
   try {
     const result = await prisma.phoneNumber.update({
       where: { phoneNumber },
-      data: { maxInactivityTime: time }
+      data: { maxInactivityTime: time },
     });
     if (!result) {
-      logger.warn(`Попытка обновить MAX_INACTIVITY_TIME для несуществующего номера: ${phoneNumber}`);
+      logger.warn(
+        `Попытка обновить MAX_INACTIVITY_TIME для несуществующего номера: ${phoneNumber}`,
+      );
     } else {
-      logger.info(`MAX_INACTIVITY_TIME для номера ${phoneNumber} успешно обновлено: ${time}`);
+      logger.info(
+        `MAX_INACTIVITY_TIME для номера ${phoneNumber} успешно обновлено: ${time}`,
+      );
     }
   } catch (error) {
-    logger.error(`Ошибка при установке MAX_INACTIVITY_TIME для номера ${phoneNumber}:`, error);
+    logger.error(
+      `Ошибка при установке MAX_INACTIVITY_TIME для номера ${phoneNumber}:`,
+      error,
+    );
     throw error;
   }
 }
@@ -78,19 +88,19 @@ async function setMaxInactivityTime(phoneNumber, time) {
 async function getPhoneNumbers(userId) {
   try {
     const phoneNumbers = await prisma.phoneNumber.findMany({
-      where: { userId: userId },
+      where: { userId },
       include: {
         telegramAccount: true,
-        whatsappAccount: true
-      }
+        whatsappAccount: true,
+      },
     });
-    return phoneNumbers.map(pn => ({
+    return phoneNumbers.map((pn) => ({
       phoneNumber: pn.phoneNumber,
       isTelegramAuthenticated: pn.telegramAccount?.isAuthenticated || false,
       isWhatsappAuthenticated: pn.whatsappAccount?.isAuthenticated || false,
-      whatsAppType: pn.whatsappAccount?.accountType || 'regular'
+      whatsAppType: pn.whatsappAccount?.accountType || 'regular',
     }));
-  } catch (error) { 
+  } catch (error) {
     logger.error(`Error getting phone numbers for user ${userId}:`, error);
     throw error;
   }
@@ -99,8 +109,8 @@ async function getPhoneNumbers(userId) {
 async function disablePhoneNumbers(userId) {
   try {
     await prisma.phoneNumber.updateMany({
-      where: { userId: userId },
-      data: { isActive: false }
+      where: { userId },
+      data: { isActive: false },
     });
   } catch (error) {
     logger.error('Error disabling phone numbers:', error);
@@ -112,7 +122,7 @@ async function removePhoneNumber(phoneNumber, platform) {
   try {
     const phoneNumberRecord = await prisma.phoneNumber.findUnique({
       where: { phoneNumber },
-      include: { telegramAccount: true, whatsappAccount: true }
+      include: { telegramAccount: true, whatsappAccount: true },
     });
 
     if (!phoneNumberRecord) {
@@ -121,38 +131,49 @@ async function removePhoneNumber(phoneNumber, platform) {
 
     if (platform === 'telegram' && phoneNumberRecord.telegramAccount) {
       await prisma.telegramAccount.delete({
-        where: { id: phoneNumberRecord.telegramAccount.id }
+        where: { id: phoneNumberRecord.telegramAccount.id },
       });
     } else if (platform === 'whatsapp' && phoneNumberRecord.whatsappAccount) {
       await prisma.whatsappAccount.delete({
-        where: { id: phoneNumberRecord.whatsappAccount.id }
+        where: { id: phoneNumberRecord.whatsappAccount.id },
       });
     }
 
     // Проверяем, остались ли связанные аккаунты после удаления
     const updatedPhoneNumberRecord = await prisma.phoneNumber.findUnique({
       where: { phoneNumber },
-      include: { telegramAccount: true, whatsappAccount: true }
+      include: { telegramAccount: true, whatsappAccount: true },
     });
 
     // Если не осталось связанных аккаунтов, удаляем сам номер телефона
-    if (!updatedPhoneNumberRecord.telegramAccount && !updatedPhoneNumberRecord.whatsappAccount) {
+    if (
+      !updatedPhoneNumberRecord.telegramAccount &&
+      !updatedPhoneNumberRecord.whatsappAccount
+    ) {
       await prisma.phoneNumber.delete({ where: { phoneNumber } });
     }
 
     logger.info(`Удален ${platform} аккаунт для номера ${phoneNumber}`);
   } catch (error) {
-    logger.error(`Ошибка при удалении номера телефона ${phoneNumber} для платформы ${platform}:`, error);
+    logger.error(
+      `Ошибка при удалении номера телефона ${phoneNumber} для платформы ${platform}:`,
+      error,
+    );
     throw error;
   }
 }
 
-async function addPhoneNumber(userId, phoneNumber, platform, isPremium = false) {
+async function addPhoneNumber(
+  userId,
+  phoneNumber,
+  platform,
+  isPremium = false,
+) {
   try {
     const phoneNumberRecord = await prisma.phoneNumber.upsert({
       where: { phoneNumber },
       update: { userId },
-      create: { userId, phoneNumber }
+      create: { userId, phoneNumber },
     });
 
     switch (platform) {
@@ -160,21 +181,32 @@ async function addPhoneNumber(userId, phoneNumber, platform, isPremium = false) 
         await prisma.telegramAccount.upsert({
           where: { phoneNumberId: phoneNumberRecord.id },
           update: { isPremium },
-          create: { phoneNumberId: phoneNumberRecord.id, isPremium, isAuthenticated: false }
+          create: {
+            phoneNumberId: phoneNumberRecord.id,
+            isPremium,
+            isAuthenticated: false,
+          },
         });
         break;
       case 'whatsapp':
         await prisma.whatsappAccount.upsert({
           where: { phoneNumberId: phoneNumberRecord.id },
           update: {},
-          create: { phoneNumberId: phoneNumberRecord.id, isAuthenticated: false, accountType: 'regular' }
+          create: {
+            phoneNumberId: phoneNumberRecord.id,
+            isAuthenticated: false,
+            accountType: 'regular',
+          },
         });
         break;
       case 'waba':
         await prisma.wABAAccount.upsert({
           where: { phoneNumberId: phoneNumberRecord.id },
           update: {},
-          create: { phoneNumberId: phoneNumberRecord.id, isAuthenticated: false }
+          create: {
+            phoneNumberId: phoneNumberRecord.id,
+            isAuthenticated: false,
+          },
         });
         break;
       default:
@@ -183,21 +215,23 @@ async function addPhoneNumber(userId, phoneNumber, platform, isPremium = false) 
 
     return phoneNumberRecord;
   } catch (error) {
-    logger.error(`Error adding/updating phone number ${phoneNumber} for user with ID ${userId}:`, error);
+    logger.error(
+      `Error adding/updating phone number ${phoneNumber} for user with ID ${userId}:`,
+      error,
+    );
     throw error;
   }
 }
-
 
 async function updatePhoneNumberStatus(phoneNumber, isBanned, banType = null) {
   try {
     return await prisma.phoneNumber.update({
       where: { phoneNumber },
-      data: { 
-        isBanned, 
-        banType, 
-        updatedAt: new Date() 
-      }
+      data: {
+        isBanned,
+        banType,
+        updatedAt: new Date(),
+      },
     });
   } catch (error) {
     logger.error('Error updating phone number status:', error);
@@ -209,7 +243,11 @@ async function updatePhoneNumberStats(phoneNumber, isNewContact, platform) {
   try {
     const phoneNumberRecord = await prisma.phoneNumber.findUnique({
       where: { phoneNumber },
-      include: { telegramAccount: true, whatsappAccount: true, WABAAccount: true }
+      include: {
+        telegramAccount: true,
+        whatsappAccount: true,
+        WABAAccount: true,
+      },
     });
 
     if (!phoneNumberRecord) {
@@ -220,7 +258,7 @@ async function updatePhoneNumberStats(phoneNumber, isNewContact, platform) {
       contactsReachedToday: { increment: isNewContact ? 1 : 0 },
       contactsReachedTotal: { increment: isNewContact ? 1 : 0 },
       messagesSentToday: { increment: 1 },
-      messagesSentTotal: { increment: 1 }
+      messagesSentTotal: { increment: 1 },
     };
 
     switch (platform) {
@@ -228,7 +266,7 @@ async function updatePhoneNumberStats(phoneNumber, isNewContact, platform) {
         if (phoneNumberRecord.telegramAccount) {
           await prisma.telegramAccount.update({
             where: { id: phoneNumberRecord.telegramAccount.id },
-            data: updateData
+            data: updateData,
           });
         }
         break;
@@ -236,7 +274,7 @@ async function updatePhoneNumberStats(phoneNumber, isNewContact, platform) {
         if (phoneNumberRecord.whatsappAccount) {
           await prisma.whatsappAccount.update({
             where: { id: phoneNumberRecord.whatsappAccount.id },
-            data: updateData
+            data: updateData,
           });
         }
         break;
@@ -244,7 +282,7 @@ async function updatePhoneNumberStats(phoneNumber, isNewContact, platform) {
         if (phoneNumberRecord.WABAAccount) {
           await prisma.wABAAccount.update({
             where: { id: phoneNumberRecord.WABAAccount.id },
-            data: updateData
+            data: updateData,
           });
         }
         break;
@@ -259,11 +297,16 @@ async function updatePhoneNumberStats(phoneNumber, isNewContact, platform) {
   }
 }
 
-async function setPhoneNumberLimit(phoneNumber, platform, dailyLimit, totalLimit = null) {
+async function setPhoneNumberLimit(
+  phoneNumber,
+  platform,
+  dailyLimit,
+  totalLimit = null,
+) {
   try {
     const phoneNumberRecord = await prisma.phoneNumber.findUnique({
       where: { phoneNumber },
-      include: { telegramAccount: true, whatsappAccount: true }
+      include: { telegramAccount: true, whatsappAccount: true },
     });
 
     if (!phoneNumberRecord) {
@@ -273,15 +316,17 @@ async function setPhoneNumberLimit(phoneNumber, platform, dailyLimit, totalLimit
     if (platform === 'telegram' && phoneNumberRecord.telegramAccount) {
       await prisma.telegramAccount.update({
         where: { id: phoneNumberRecord.telegramAccount.id },
-        data: { dailyLimit, totalLimit }
+        data: { dailyLimit, totalLimit },
       });
     } else if (platform === 'whatsapp' && phoneNumberRecord.whatsappAccount) {
       await prisma.whatsappAccount.update({
         where: { id: phoneNumberRecord.whatsappAccount.id },
-        data: { dailyLimit, totalLimit }
+        data: { dailyLimit, totalLimit },
       });
     } else {
-      throw new Error(`Platform ${platform} account not found for phone number ${phoneNumber}`);
+      throw new Error(
+        `Platform ${platform} account not found for phone number ${phoneNumber}`,
+      );
     }
 
     return phoneNumberRecord;
@@ -298,8 +343,8 @@ async function getPhoneNumberInfo(phoneNumber) {
       include: {
         telegramAccount: true,
         whatsappAccount: true,
-        WABAAccount: true
-      }
+        WABAAccount: true,
+      },
     });
   } catch (error) {
     logger.error('Error getting phone number info:', error);
@@ -310,16 +355,16 @@ async function getPhoneNumberInfo(phoneNumber) {
 async function resetDailyStats() {
   try {
     await prisma.telegramAccount.updateMany({
-      data: { 
-        messagesSentToday: 0, 
-        contactsReachedToday: 0
-      }
+      data: {
+        messagesSentToday: 0,
+        contactsReachedToday: 0,
+      },
     });
     await prisma.whatsappAccount.updateMany({
-      data: { 
-        messagesSentToday: 0, 
-        contactsReachedToday: 0
-      }
+      data: {
+        messagesSentToday: 0,
+        contactsReachedToday: 0,
+      },
     });
   } catch (error) {
     logger.error('Error resetting daily stats:', error);
@@ -331,53 +376,57 @@ async function setPhoneAuthenticated(phoneNumber, platform, isAuthenticated) {
   try {
     const phoneNumberRecord = await prisma.phoneNumber.findUnique({
       where: { phoneNumber },
-      include: { telegramAccount: true, whatsappAccount: true }
+      include: { telegramAccount: true, whatsappAccount: true },
     });
 
     if (!phoneNumberRecord) {
       throw new Error(`Phone number ${phoneNumber} not found`);
     }
-  
+
     if (platform === 'telegram' && phoneNumberRecord.telegramAccount) {
-
       await updateTelegramAccountStatus(phoneNumberRecord, isAuthenticated);
-      logger.info(`Updated Telegram account status for ${phoneNumber}: isAuthenticated=${isAuthenticated}`);
-
+      logger.info(
+        `Updated Telegram account status for ${phoneNumber}: isAuthenticated=${isAuthenticated}`,
+      );
     } else if (platform === 'whatsapp' && phoneNumberRecord.whatsappAccount) {
-
       await updateWhatsAppAccountStatus(phoneNumberRecord, isAuthenticated);
-      logger.info(`Updated WhatsApp account status for ${phoneNumber}: isAuthenticated=${isAuthenticated}`);
-      
+      logger.info(
+        `Updated WhatsApp account status for ${phoneNumber}: isAuthenticated=${isAuthenticated}`,
+      );
     } else {
-      throw new Error(`Platform ${platform} account not found for phone number ${phoneNumber}`);
+      throw new Error(
+        `Platform ${platform} account not found for phone number ${phoneNumber}`,
+      );
     }
 
     return phoneNumberRecord;
   } catch (error) {
-    logger.error(`Error setting authentication status for phone number ${phoneNumber}:`, error);
+    logger.error(
+      `Error setting authentication status for phone number ${phoneNumber}:`,
+      error,
+    );
     throw error;
   }
 }
-
 
 async function updateTelegramAccountStatus(phoneNumberRecord, isAuthenticated) {
   try {
     if (phoneNumberRecord.telegramAccount) {
       await prisma.telegramAccount.update({
         where: { phoneNumberId: phoneNumberRecord.id },
-        data: { 
-          isAuthenticated: isAuthenticated,
-        }
+        data: {
+          isAuthenticated,
+        },
       });
     } else {
       await prisma.telegramAccount.create({
         data: {
           phoneNumber: { connect: { id: phoneNumberRecord.id } },
-          isAuthenticated: isAuthenticated,
+          isAuthenticated,
           isPremium: true,
           dailyLimit: 40,
-          totalLimit: 40
-        }
+          totalLimit: 40,
+        },
       });
     }
   } catch (error) {
@@ -385,33 +434,32 @@ async function updateTelegramAccountStatus(phoneNumberRecord, isAuthenticated) {
   }
 }
 
-
 async function updateWhatsAppAccountStatus(phoneNumberRecord, isAuthenticated) {
   try {
     if (phoneNumberRecord.whatsappAccount) {
-
       await prisma.whatsappAccount.update({
         where: { id: phoneNumberRecord.whatsappAccount.id },
-        data: { isAuthenticated }
+        data: { isAuthenticated },
       });
-
     } else {
       await prisma.whatsappAccount.create({
         data: {
           phoneNumber: { connect: { id: phoneNumberRecord.id } },
-          isAuthenticated: isAuthenticated,
+          isAuthenticated,
           accountType: 'regular',
           dailyLimit: 100,
-          totalLimit: 100
-        }
+          totalLimit: 100,
+        },
       });
     }
   } catch (error) {
-    logger.error(`Error updating WhatsApp account status for ${phoneNumberRecord}:`, error);
+    logger.error(
+      `Error updating WhatsApp account status for ${phoneNumberRecord}:`,
+      error,
+    );
     throw error;
   }
 }
-
 
 module.exports = {
   getPhoneNumber,
@@ -428,5 +476,5 @@ module.exports = {
   getPhoneNumberInfo,
   resetDailyStats,
   setPhoneAuthenticated,
-  removePhoneNumber
+  removePhoneNumber,
 };

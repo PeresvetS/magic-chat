@@ -3,14 +3,18 @@
 const config = require('../../../config');
 const { TelegramSessionService } = require('../../../services/telegram');
 const { WhatsAppMainSessionService } = require('../../../services/whatsapp');
-const { updatePhoneNumberStatus, setPhoneNumberLimit, getPhoneNumberInfo } = require('../../../services/phone').phoneNumberService;
+const { updatePhoneNumberStatus, setPhoneNumberLimit, getPhoneNumberInfo } =
+  require('../../../services/phone').phoneNumberService;
 
 module.exports = {
   '/ban_phone ([+]?[0-9]+) (temporary|permanent)': async (bot, msg, match) => {
     const [, phoneNumber, banType] = match;
     try {
       await updatePhoneNumberStatus(phoneNumber, true, banType);
-      bot.sendMessage(msg.chat.id, `Номер ${phoneNumber} забанен (тип: ${banType}).`);
+      bot.sendMessage(
+        msg.chat.id,
+        `Номер ${phoneNumber} забанен (тип: ${banType}).`,
+      );
     } catch (error) {
       bot.sendMessage(msg.chat.id, `Ошибка при бане номера: ${error.message}`);
     }
@@ -29,10 +33,21 @@ module.exports = {
   '/set_phone_limit ([+]?[0-9]+) (\\d+) (\\d+)?': async (bot, msg, match) => {
     const [, phoneNumber, platform, dailyLimit, totalLimit] = match;
     try {
-      await setPhoneNumberLimit(phoneNumber, platform, parseInt(dailyLimit), totalLimit ? parseInt(totalLimit) : null);
-      bot.sendMessage(msg.chat.id, `Установлены лимиты для номера ${phoneNumber}: ежедневный - ${dailyLimit}, общий - ${totalLimit || 'не установлен'}.`);
+      await setPhoneNumberLimit(
+        phoneNumber,
+        platform,
+        parseInt(dailyLimit),
+        totalLimit ? parseInt(totalLimit) : null,
+      );
+      bot.sendMessage(
+        msg.chat.id,
+        `Установлены лимиты для номера ${phoneNumber}: ежедневный - ${dailyLimit}, общий - ${totalLimit || 'не установлен'}.`,
+      );
     } catch (error) {
-      bot.sendMessage(msg.chat.id, `Ошибка при установке лимитов: ${error.message}`);
+      bot.sendMessage(
+        msg.chat.id,
+        `Ошибка при установке лимитов: ${error.message}`,
+      );
     }
   },
 
@@ -60,7 +75,10 @@ module.exports = {
       message += `Последнее обновление: ${info.updatedAt}`;
       bot.sendMessage(msg.chat.id, message);
     } catch (error) {
-      bot.sendMessage(msg.chat.id, `Ошибка при получении информации о номере: ${error.message}`);
+      bot.sendMessage(
+        msg.chat.id,
+        `Ошибка при получении информации о номере: ${error.message}`,
+      );
     }
   },
 
@@ -71,11 +89,17 @@ module.exports = {
         throw new Error('MAIN_TG_PHONE_NUMBER not set in configuration');
       }
 
-      bot.sendMessage(msg.chat.id, `Начинаем процесс авторизации для номера ${mainPhoneNumber}. Следуйте инструкциям.`);
+      bot.sendMessage(
+        msg.chat.id,
+        `Начинаем процесс авторизации для номера ${mainPhoneNumber}. Следуйте инструкциям.`,
+      );
 
       await TelegramSessionService.authorizeMainClient(
         async () => {
-          await bot.sendMessage(msg.chat.id, 'Введите код авторизации, полученный в Telegram:');
+          await bot.sendMessage(
+            msg.chat.id,
+            'Введите код авторизации, полученный в Telegram:',
+          );
           return new Promise((resolve) => {
             bot.once('message', (codeMsg) => {
               resolve(codeMsg.text.trim());
@@ -83,18 +107,27 @@ module.exports = {
           });
         },
         async () => {
-          await bot.sendMessage(msg.chat.id, 'Введите пароль 2FA (если требуется):');
+          await bot.sendMessage(
+            msg.chat.id,
+            'Введите пароль 2FA (если требуется):',
+          );
           return new Promise((resolve) => {
             bot.once('message', (passwordMsg) => {
               resolve(passwordMsg.text.trim());
             });
           });
-        }
+        },
       );
 
-      bot.sendMessage(msg.chat.id, `Основной номер ${mainPhoneNumber} успешно авторизован.`);
+      bot.sendMessage(
+        msg.chat.id,
+        `Основной номер ${mainPhoneNumber} успешно авторизован.`,
+      );
     } catch (error) {
-      bot.sendMessage(msg.chat.id, `Ошибка при авторизации основного номера: ${error.message}`);
+      bot.sendMessage(
+        msg.chat.id,
+        `Ошибка при авторизации основного номера: ${error.message}`,
+      );
     }
   },
 
@@ -105,19 +138,33 @@ module.exports = {
         throw new Error('MAIN_WA_PHONE_NUMBER not set in configuration');
       }
 
-      bot.sendMessage(msg.chat.id, `Начинаем процесс авторизации WhatsApp для номера ${mainPhoneNumber}. Следуйте инструкциям.`);
+      bot.sendMessage(
+        msg.chat.id,
+        `Начинаем процесс авторизации WhatsApp для номера ${mainPhoneNumber}. Следуйте инструкциям.`,
+      );
 
       await WhatsAppMainSessionService.authorizeMainClient(
         async (qrImageData) => {
-          await bot.sendPhoto(msg.chat.id, Buffer.from(qrImageData.split(',')[1], 'base64'), {
-            caption: 'Отсканируйте этот QR-код в приложении WhatsApp для авторизации основного номера.'
-          });
-        }
+          await bot.sendPhoto(
+            msg.chat.id,
+            Buffer.from(qrImageData.split(',')[1], 'base64'),
+            {
+              caption:
+                'Отсканируйте этот QR-код в приложении WhatsApp для авторизации основного номера.',
+            },
+          );
+        },
       );
 
-      bot.sendMessage(msg.chat.id, `Основной номер ${mainPhoneNumber} успешно авторизован в WhatsApp.`);
+      bot.sendMessage(
+        msg.chat.id,
+        `Основной номер ${mainPhoneNumber} успешно авторизован в WhatsApp.`,
+      );
     } catch (error) {
-      bot.sendMessage(msg.chat.id, `Ошибка при авторизации основного номера WhatsApp: ${error.message}`);
+      bot.sendMessage(
+        msg.chat.id,
+        `Ошибка при авторизации основного номера WhatsApp: ${error.message}`,
+      );
     }
   },
 };

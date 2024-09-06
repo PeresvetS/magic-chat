@@ -3,7 +3,13 @@
 const prisma = require('../utils/prisma');
 const logger = require('../../utils/logger');
 
-async function createParsingCampaign(name, groups, audienceDescription, maxUsers = 100, depth = 2) {
+async function createParsingCampaign(
+  name,
+  groups,
+  audienceDescription,
+  maxUsers = 100,
+  depth = 2,
+) {
   try {
     const campaign = await prisma.CampaignsParsing.create({
       data: {
@@ -12,8 +18,8 @@ async function createParsingCampaign(name, groups, audienceDescription, maxUsers
         audienceDescription,
         status: 'pending',
         maxUsers,
-        depth
-      }
+        depth,
+      },
     });
     return campaign.id;
   } catch (error) {
@@ -26,10 +32,13 @@ async function updateCampaignStatus(campaignId, status) {
   try {
     await prisma.CampaignsParsing.update({
       where: { id: campaignId },
-      data: { status }
+      data: { status },
     });
   } catch (error) {
-    logger.error(`Error updating campaign status for campaign ${campaignId}:`, error);
+    logger.error(
+      `Error updating campaign status for campaign ${campaignId}:`,
+      error,
+    );
     throw error;
   }
 }
@@ -43,8 +52,8 @@ async function getCampaignStats() {
         status: true,
         totalParsed: true,
         processedCount: true,
-        isFullyProcessed: true
-      }
+        isFullyProcessed: true,
+      },
     });
   } catch (error) {
     logger.error('Error getting campaign stats:', error);
@@ -56,10 +65,13 @@ async function markCampaignAsFullyProcessed(campaignId) {
   try {
     await prisma.CampaignsParsing.update({
       where: { id: campaignId },
-      data: { isFullyProcessed: true }
+      data: { isFullyProcessed: true },
     });
   } catch (error) {
-    logger.error(`Error marking campaign ${campaignId} as fully processed:`, error);
+    logger.error(
+      `Error marking campaign ${campaignId} as fully processed:`,
+      error,
+    );
     throw error;
   }
 }
@@ -68,10 +80,13 @@ async function updateCampaignStats(campaignId, totalParsed, processedCount) {
   try {
     await prisma.CampaignsParsing.update({
       where: { id: campaignId },
-      data: { totalParsed, processedCount }
+      data: { totalParsed, processedCount },
     });
   } catch (error) {
-    logger.error(`Error updating campaign stats for campaign ${campaignId}:`, error);
+    logger.error(
+      `Error updating campaign stats for campaign ${campaignId}:`,
+      error,
+    );
     throw error;
   }
 }
@@ -81,5 +96,5 @@ module.exports = {
   updateCampaignStatus,
   getCampaignStats,
   markCampaignAsFullyProcessed,
-  updateCampaignStats
+  updateCampaignStats,
 };

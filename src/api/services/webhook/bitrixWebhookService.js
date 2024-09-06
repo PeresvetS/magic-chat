@@ -10,8 +10,8 @@ async function processBitrixWebhook(data, user) {
   try {
     logger.info('Processing Bitrix webhook', { data: safeStringify(data) });
 
-    let eventName = data.event;
-    let leadId = data['data[FIELDS][ID]'];
+    const eventName = data.event;
+    const leadId = data['data[FIELDS][ID]'];
 
     if (!eventName || !leadId) {
       logger.warn('Invalid request structure', { body: safeStringify(data) });
@@ -25,7 +25,9 @@ async function processBitrixWebhook(data, user) {
       throw new Error('Unsupported event type');
     }
 
-    const bitrixLeadService = new BitrixLeadService(user.bitrixIntegration.bitrixInboundUrl);
+    const bitrixLeadService = new BitrixLeadService(
+      user.bitrixIntegration.bitrixInboundUrl,
+    );
     const leadData = await bitrixLeadService.getLeadData(leadId);
 
     if (!leadData) {
@@ -39,35 +41,38 @@ async function processBitrixWebhook(data, user) {
     // Сохраняем информацию о лиде в базу данных
     const savedLead = await LeadsService.addLeadToCRM(user.id, {
       bitrix_id: leadData.id,
-      name: leadData.name || '', 
-      phone: leadData.phone || '',
-      source: leadData.source || '',
-      status: leadData.status
-    });
-
-    logger.info('Lead saved to database', { 
-      leadId: savedLead.id, 
-      bitrixId: leadData.id, 
-      name: leadData.name || '', 
+      name: leadData.name || '',
       phone: leadData.phone || '',
       source: leadData.source || '',
       status: leadData.status,
-      userId: user.id
     });
 
-    logger.info('Successfully processed Bitrix24 webhook', { leadId: savedLead.id });
+    logger.info('Lead saved to database', {
+      leadId: savedLead.id,
+      bitrixId: leadData.id,
+      name: leadData.name || '',
+      phone: leadData.phone || '',
+      source: leadData.source || '',
+      status: leadData.status,
+      userId: user.id,
+    });
+
+    logger.info('Successfully processed Bitrix24 webhook', {
+      leadId: savedLead.id,
+    });
 
     if (statusName === 'тест') {
       await messageDistributionService.sendMessageToLead(savedLead, user);
     } else {
-      logger.info('Lead status is not "тест", skipping message sending', { statusName });
+      logger.info('Lead status is not "тест", skipping message sending', {
+        statusName,
+      });
     }
-
   } catch (error) {
-    logger.error('Error processing Bitrix24 webhook', { 
-      error: error.message, 
+    logger.error('Error processing Bitrix24 webhook', {
+      error: error.message,
       stack: error.stack,
-      body: safeStringify(data)
+      body: safeStringify(data),
     });
     throw error;
   }

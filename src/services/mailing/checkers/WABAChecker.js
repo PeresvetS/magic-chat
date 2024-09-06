@@ -1,9 +1,10 @@
 // src/services/mailing/checkers/WABAChecker.js
 
-const logger = require('../../../utils/logger');
 const { parsePhoneNumber } = require('libphonenumber-js');
-const WABASessionService = require('../../waba/services/WABASessionService');
 const axios = require('axios');
+
+const logger = require('../../../utils/logger');
+const WABASessionService = require('../../waba/services/WABASessionService');
 
 class WABAChecker {
   constructor() {
@@ -17,16 +18,15 @@ class WABAChecker {
 
   formatPhoneNumber(phoneNumber) {
     try {
-      const parsedNumber = parsePhoneNumber(phoneNumber, 'ID') // 'ID' - код страны по умолчанию
+      const parsedNumber = parsePhoneNumber(phoneNumber, 'ID'); // 'ID' - код страны по умолчанию
       if (parsedNumber.isValid()) {
-        return parsedNumber.format('E.164').slice(1) // Удаляем начальный '+'
-      } else {
-        logger.warn(`Invalid phone number: ${phoneNumber}`)
-        return null
+        return parsedNumber.format('E.164').slice(1); // Удаляем начальный '+'
       }
+      logger.warn(`Invalid phone number: ${phoneNumber}`);
+      return null;
     } catch (error) {
-      logger.error(`Error formatting phone number ${phoneNumber}:`, error)
-      return null
+      logger.error(`Error formatting phone number ${phoneNumber}:`, error);
+      return null;
     }
   }
 
@@ -39,31 +39,36 @@ class WABAChecker {
       }
       logger.info(`Formatted number for WABA check: ${formattedNumber}`);
 
-      const session = await this.wabaSessionService.createOrGetSession(formattedNumber);
+      const session =
+        await this.wabaSessionService.createOrGetSession(formattedNumber);
       const response = await axios.post(
         `https://graph.facebook.com/v17.0/${session.wabaPhoneNumberId}/messages`,
         {
           messaging_product: 'whatsapp',
           to: formattedNumber,
           type: 'contacts',
-          contacts: [{ phone: formattedNumber }]
+          contacts: [{ phone: formattedNumber }],
         },
         {
           headers: {
-            'Authorization': `Bearer ${session.accessToken}`,
-            'Content-Type': 'application/json'
-          }
-        }
+            Authorization: `Bearer ${session.accessToken}`,
+            'Content-Type': 'application/json',
+          },
+        },
       );
 
       const isRegistered = response.data.contacts[0].wa_id !== undefined;
-      logger.info(`Is number ${formattedNumber} registered on WABA: ${isRegistered}`);
+      logger.info(
+        `Is number ${formattedNumber} registered on WABA: ${isRegistered}`,
+      );
       return isRegistered;
     } catch (error) {
       logger.error(`Error checking WABA for number ${phoneNumber}:`, error);
       if (retries > 0) {
-        logger.info(`Retrying WABA check for ${phoneNumber}. Retries left: ${retries - 1}`);
-        await new Promise(resolve => setTimeout(resolve, 5000));
+        logger.info(
+          `Retrying WABA check for ${phoneNumber}. Retries left: ${retries - 1}`,
+        );
+        await new Promise((resolve) => setTimeout(resolve, 5000));
         return this.checkWABA(phoneNumber, retries - 1);
       }
       return false;

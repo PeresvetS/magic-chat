@@ -64,11 +64,11 @@ module.exports = {
 
 ❓ **Прочее:**
 /help - Показать эту справку.
-      `
+      `,
     ];
 
     for (const text of helpTexts) {
       await bot.sendMessage(msg.chat.id, text);
     }
-  }
+  },
 };

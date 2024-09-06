@@ -10,9 +10,9 @@ const phoneNumberCampaignRepo = {
         where: {
           phoneNumber,
           NOT: {
-            campaignId: excludeCampaignId
-          }
-        }
+            campaignId: excludeCampaignId,
+          },
+        },
       });
     } catch (error) {
       logger.error('Error finding existing phone number attachment:', error);
@@ -25,8 +25,8 @@ const phoneNumberCampaignRepo = {
       return await prisma.phoneNumberCampaign.findMany({
         where: {
           campaignId,
-          platform
-        }
+          platform,
+        },
       });
     } catch (error) {
       logger.error('Error finding phone number campaign attachments:', error);
@@ -38,7 +38,7 @@ const phoneNumberCampaignRepo = {
     try {
       return await prisma.phoneNumber.findUnique({
         where: { phoneNumber },
-        include: { telegramAccount: true, whatsappAccount: true }
+        include: { telegramAccount: true, whatsappAccount: true },
       });
     } catch (error) {
       logger.error('Error getting phone number record:', error);
@@ -52,8 +52,8 @@ const phoneNumberCampaignRepo = {
         data: {
           campaignId,
           phoneNumber,
-          platform
-        }
+          platform,
+        },
       });
     } catch (error) {
       logger.error('Error creating phone number campaign attachment:', error);
@@ -66,14 +66,14 @@ const phoneNumberCampaignRepo = {
       return await prisma.phoneNumberCampaign.deleteMany({
         where: {
           campaignId,
-          phoneNumber
-        }
+          phoneNumber,
+        },
       });
     } catch (error) {
       logger.error('Error deleting phone number campaign attachment:', error);
       throw error;
     }
-  }
+  },
 };
 
 module.exports = phoneNumberCampaignRepo;

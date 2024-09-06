@@ -1,21 +1,22 @@
 // src/services/langchain/contextManager.js
 
-const { ConversationSummaryMemory } = require("langchain/memory");
-const { ChatOpenAI } = require("@langchain/openai");
-const { HumanMessage, AIMessage } = require("@langchain/core/messages");
+const { ConversationSummaryMemory } = require('langchain/memory');
+const { ChatOpenAI } = require('@langchain/openai');
+const { HumanMessage, AIMessage } = require('@langchain/core/messages');
+
 const config = require('../../config');
 
 class ContextManager {
   constructor() {
-    const model = new ChatOpenAI({ 
-      temperature: 0, 
-      modelName: "gpt-4o-mini",
-      openAIApiKey: config.OPENAI_API_KEY 
+    const model = new ChatOpenAI({
+      temperature: 0,
+      modelName: 'gpt-4o-mini',
+      openAIApiKey: config.OPENAI_API_KEY,
     });
     this.memory = new ConversationSummaryMemory({
-      memoryKey: "chat_history",
-      llm: new ChatOpenAI({ temperature: 0, modelName: "gpt-4o-mini" }),
-      maxTokenLimit: 500
+      memoryKey: 'chat_history',
+      llm: new ChatOpenAI({ temperature: 0, modelName: 'gpt-4o-mini' }),
+      maxTokenLimit: 500,
     });
     this.chatHistory = [];
   }
@@ -27,7 +28,7 @@ class ContextManager {
       for (const msg of excessMessages) {
         await this.memory.saveContext(
           { input: msg.content },
-          { output: "Summarized in chat history." }
+          { output: 'Summarized in chat history.' },
         );
       }
       this.chatHistory = this.chatHistory.slice(-10);
@@ -38,7 +39,7 @@ class ContextManager {
     const { history } = await this.memory.loadMemoryVariables({});
     return [
       ...(history ? [{ role: 'system', content: history }] : []),
-      ...this.chatHistory
+      ...this.chatHistory,
     ];
   }
 }

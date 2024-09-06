@@ -10,7 +10,7 @@ async function addUserSubscription(userIdentifier, durationDays, isRepeating) {
     let userId;
     let user;
 
-    if (Number.Number.isNaN(userIdentifier)) {
+    if (Number.isNaN(userIdentifier)) {
       user = await userRepo.getUserByUsername(userIdentifier);
     } else {
       user = await userRepo.getUserByTgId(userIdentifier);

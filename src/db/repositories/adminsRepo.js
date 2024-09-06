@@ -7,10 +7,10 @@ async function getAdminIds() {
   try {
     const admins = await prisma.admin.findMany({
       select: {
-        userId: true
-      }
+        userId: true,
+      },
     });
-    return admins.map(admin => admin.userId);
+    return admins.map((admin) => admin.userId);
   } catch (error) {
     logger.error('Error fetching admin IDs:', error);
     throw error;
@@ -18,5 +18,5 @@ async function getAdminIds() {
 }
 
 module.exports = {
-  getAdminIds
+  getAdminIds,
 };

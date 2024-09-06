@@ -1,10 +1,13 @@
 // src/api/routes/webhooks.js
 
 const express = require('express');
+
 const logger = require('../../utils/logger');
 const { safeStringify } = require('../../utils/helpers');
 const { checkBitrixToken } = require('../middleware/checkApiTokens');
-const { processBitrixWebhook } = require('../services/webhook/bitrixWebhookService');
+const {
+  processBitrixWebhook,
+} = require('../services/webhook/bitrixWebhookService');
 
 const router = express.Router();
 
@@ -13,7 +16,10 @@ router.post('/bitrix', checkBitrixToken, async (req, res) => {
     await processBitrixWebhook(req.parsedBody, req.user);
     res.json({ success: true });
   } catch (error) {
-    logger.error('Error processing Bitrix webhook', { error: error.message, stack: error.stack });
+    logger.error('Error processing Bitrix webhook', {
+      error: error.message,
+      stack: error.stack,
+    });
     res.status(500).json({ error: 'Internal server error' });
   }
 });

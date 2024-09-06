@@ -9,10 +9,16 @@ module.exports = {
     const [, phoneNumber, businessProfileId] = match;
     try {
       await WABAAccountService.createAccount(phoneNumber, businessProfileId);
-      bot.sendMessage(msg.chat.id, `WABA аккаунт для номера ${phoneNumber} успешно добавлен.`);
+      bot.sendMessage(
+        msg.chat.id,
+        `WABA аккаунт для номера ${phoneNumber} успешно добавлен.`,
+      );
     } catch (error) {
       logger.error(`Error adding WABA account for ${phoneNumber}:`, error);
-      bot.sendMessage(msg.chat.id, `Ошибка при добавлении WABA аккаунта: ${error.message}`);
+      bot.sendMessage(
+        msg.chat.id,
+        `Ошибка при добавлении WABA аккаунта: ${error.message}`,
+      );
     }
   },
 
@@ -22,13 +28,25 @@ module.exports = {
       await WABAAccountService.setAuthenticated(phoneNumber, true);
       const session = await WABASessionService.createOrGetSession(phoneNumber);
       if (session) {
-        bot.sendMessage(msg.chat.id, `WABA аккаунт для номера ${phoneNumber} успешно аутентифицирован.`);
+        bot.sendMessage(
+          msg.chat.id,
+          `WABA аккаунт для номера ${phoneNumber} успешно аутентифицирован.`,
+        );
       } else {
-        bot.sendMessage(msg.chat.id, `Не удалось аутентифицировать WABA аккаунт для номера ${phoneNumber}.`);
+        bot.sendMessage(
+          msg.chat.id,
+          `Не удалось аутентифицировать WABA аккаунт для номера ${phoneNumber}.`,
+        );
       }
     } catch (error) {
-      logger.error(`Error authenticating WABA account for ${phoneNumber}:`, error);
-      bot.sendMessage(msg.chat.id, `Ошибка при аутентификации WABA аккаунта: ${error.message}`);
+      logger.error(
+        `Error authenticating WABA account for ${phoneNumber}:`,
+        error,
+      );
+      bot.sendMessage(
+        msg.chat.id,
+        `Ошибка при аутентификации WABA аккаунта: ${error.message}`,
+      );
     }
   },
 
@@ -49,11 +67,20 @@ Total Contacts Reached: ${account.contactsReachedTotal}
         `;
         bot.sendMessage(msg.chat.id, info);
       } else {
-        bot.sendMessage(msg.chat.id, `WABA аккаунт для номера ${phoneNumber} не найден.`);
+        bot.sendMessage(
+          msg.chat.id,
+          `WABA аккаунт для номера ${phoneNumber} не найден.`,
+        );
       }
     } catch (error) {
-      logger.error(`Error getting WABA account info for ${phoneNumber}:`, error);
-      bot.sendMessage(msg.chat.id, `Ошибка при получении информации о WABA аккаунте: ${error.message}`);
+      logger.error(
+        `Error getting WABA account info for ${phoneNumber}:`,
+        error,
+      );
+      bot.sendMessage(
+        msg.chat.id,
+        `Ошибка при получении информации о WABA аккаунте: ${error.message}`,
+      );
     }
   },
 
@@ -61,21 +88,44 @@ Total Contacts Reached: ${account.contactsReachedTotal}
     const [, phoneNumber] = match;
     try {
       await WABAAccountService.deleteAccount(phoneNumber);
-      bot.sendMessage(msg.chat.id, `WABA аккаунт для номера ${phoneNumber} успешно удален.`);
+      bot.sendMessage(
+        msg.chat.id,
+        `WABA аккаунт для номера ${phoneNumber} успешно удален.`,
+      );
     } catch (error) {
       logger.error(`Error deleting WABA account for ${phoneNumber}:`, error);
-      bot.sendMessage(msg.chat.id, `Ошибка при удалении WABA аккаунта: ${error.message}`);
+      bot.sendMessage(
+        msg.chat.id,
+        `Ошибка при удалении WABA аккаунта: ${error.message}`,
+      );
     }
   },
 
-  '/send_waba_message ([+]?[0-9]+) ([+]?[0-9]+) (.+)': async (bot, msg, match) => {
+  '/send_waba_message ([+]?[0-9]+) ([+]?[0-9]+) (.+)': async (
+    bot,
+    msg,
+    match,
+  ) => {
     const [, senderPhoneNumber, recipientPhoneNumber, message] = match;
     try {
-      await WABASessionService.sendMessage(senderPhoneNumber, recipientPhoneNumber, message);
-      bot.sendMessage(msg.chat.id, `Сообщение успешно отправлено с номера ${senderPhoneNumber} на номер ${recipientPhoneNumber}.`);
+      await WABASessionService.sendMessage(
+        senderPhoneNumber,
+        recipientPhoneNumber,
+        message,
+      );
+      bot.sendMessage(
+        msg.chat.id,
+        `Сообщение успешно отправлено с номера ${senderPhoneNumber} на номер ${recipientPhoneNumber}.`,
+      );
     } catch (error) {
-      logger.error(`Error sending WABA message from ${senderPhoneNumber} to ${recipientPhoneNumber}:`, error);
-      bot.sendMessage(msg.chat.id, `Ошибка при отправке WABA сообщения: ${error.message}`);
+      logger.error(
+        `Error sending WABA message from ${senderPhoneNumber} to ${recipientPhoneNumber}:`,
+        error,
+      );
+      bot.sendMessage(
+        msg.chat.id,
+        `Ошибка при отправке WABA сообщения: ${error.message}`,
+      );
     }
   },
 };

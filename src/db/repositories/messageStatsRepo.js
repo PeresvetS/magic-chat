@@ -9,8 +9,8 @@ async function saveMessageStats(userId, phoneNumber, tokenCount) {
       data: {
         userId,
         phoneNumber,
-        tokensUsed: tokenCount
-      }
+        tokensUsed: tokenCount,
+      },
     });
   } catch (error) {
     logger.error('Error saving message stats:', error);
@@ -19,5 +19,5 @@ async function saveMessageStats(userId, phoneNumber, tokenCount) {
 }
 
 module.exports = {
-  saveMessageStats
+  saveMessageStats,
 };

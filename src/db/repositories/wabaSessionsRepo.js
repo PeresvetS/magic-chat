@@ -7,7 +7,7 @@ const wabaSessionsRepo = {
   async getSession(phoneNumber) {
     try {
       const session = await prisma.wABASession.findUnique({
-        where: { phoneNumber }
+        where: { phoneNumber },
       });
       return session ? JSON.parse(session.session) : null;
     } catch (error) {
@@ -21,7 +21,7 @@ const wabaSessionsRepo = {
       const session = await prisma.wABASession.upsert({
         where: { phoneNumber },
         update: { session: sessionString },
-        create: { phoneNumber, session: sessionString }
+        create: { phoneNumber, session: sessionString },
       });
       logger.info(`WABA session saved/updated for: ${phoneNumber}`);
       return session;
@@ -34,7 +34,7 @@ const wabaSessionsRepo = {
   async deleteSession(phoneNumber) {
     try {
       await prisma.wABASession.delete({
-        where: { phoneNumber }
+        where: { phoneNumber },
       });
       logger.info(`WABA session deleted for: ${phoneNumber}`);
     } catch (error) {
@@ -50,7 +50,7 @@ const wabaSessionsRepo = {
       logger.error('Error getting all WABA sessions from database', error);
       throw error;
     }
-  }
+  },
 };
 
 module.exports = wabaSessionsRepo;

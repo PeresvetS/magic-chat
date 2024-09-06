@@ -6,7 +6,9 @@ const logger = require('../../../utils/logger');
 
 async function setInboundUrl(userId, inboundUrl) {
   try {
-    await crmRepo.upsertBitrixIntegration(userId, { bitrixInboundUrl: inboundUrl });
+    await crmRepo.upsertBitrixIntegration(userId, {
+      bitrixInboundUrl: inboundUrl,
+    });
     logger.info(`Updated Bitrix inboundUrl for user ${userId}`);
   } catch (error) {
     logger.error('Error updating Bitrix inboundUrl:', error);
@@ -16,7 +18,9 @@ async function setInboundUrl(userId, inboundUrl) {
 
 async function setOutboundToken(userId, outboundToken) {
   try {
-    await crmRepo.upsertBitrixIntegration(userId, { bitrixOutboundToken: outboundToken });
+    await crmRepo.upsertBitrixIntegration(userId, {
+      bitrixOutboundToken: outboundToken,
+    });
     logger.info(`Updated Bitrix outboundToken for user ${userId}`);
   } catch (error) {
     logger.error('Error updating Bitrix outboundToken:', error);
@@ -43,7 +47,10 @@ async function getIntegrationInfo(userId) {
 
     return user.bitrixIntegration;
   } catch (error) {
-    logger.error(`Error getting Bitrix integration info for userId ${userId}:`, error);
+    logger.error(
+      `Error getting Bitrix integration info for userId ${userId}:`,
+      error,
+    );
     throw error;
   }
 }
@@ -51,5 +58,5 @@ async function getIntegrationInfo(userId) {
 module.exports = {
   setInboundUrl,
   setOutboundToken,
-  getIntegrationInfo
+  getIntegrationInfo,
 };

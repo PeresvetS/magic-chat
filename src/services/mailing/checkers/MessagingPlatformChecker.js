@@ -49,36 +49,48 @@ class MessagingPlatformChecker {
     switch (platform) {
       case 'telegram': {
         telegramAvailable = await this.checkTelegram(phoneNumber);
-        if (telegramAvailable) return 'telegram';
+        if (telegramAvailable) {
+          return 'telegram';
+        }
 
-        if (mode === 'both') { 
+        if (mode === 'both') {
           whatsappAvailable = await this.checkWhatsApp(phoneNumber);
-          if (whatsappAvailable) return 'whatsapp';
-        } 
+          if (whatsappAvailable) {
+            return 'whatsapp';
+          }
+        }
         await LeadsService.setLeadUnavailable(phoneNumber);
         return 'none';
       }
 
       case 'whatsapp': {
         whatsappAvailable = await this.checkWhatsApp(phoneNumber);
-        if (whatsappAvailable) return 'whatsapp';
+        if (whatsappAvailable) {
+          return 'whatsapp';
+        }
 
-        if (mode === 'both') { 
+        if (mode === 'both') {
           telegramAvailable = await this.checkTelegram(phoneNumber);
-          if (telegramAvailable) return 'telegram';
-        } 
+          if (telegramAvailable) {
+            return 'telegram';
+          }
+        }
         await LeadsService.setLeadUnavailable(phoneNumber);
         return 'none';
       }
 
       case 'waba': {
         wabaAvailable = await this.checkWABA(phoneNumber);
-        if (wabaAvailable) return 'waba';
+        if (wabaAvailable) {
+          return 'waba';
+        }
 
-        if (mode === 'both') { 
+        if (mode === 'both') {
           telegramAvailable = await this.checkTelegram(phoneNumber);
-          if (telegramAvailable) return 'telegram';
-        } 
+          if (telegramAvailable) {
+            return 'telegram';
+          }
+        }
         await LeadsService.setLeadUnavailable(phoneNumber);
         return 'none';
       }
@@ -86,11 +98,17 @@ class MessagingPlatformChecker {
       case 'tgwa': {
         const [telegramAvailable, whatsappAvailable] = await Promise.all([
           this.checkTelegram(phoneNumber),
-          this.checkWhatsApp(phoneNumber)
+          this.checkWhatsApp(phoneNumber),
         ]);
-        if (telegramAvailable && whatsappAvailable) return 'tgwa';
-        if (telegramAvailable) return 'telegram';
-        if (whatsappAvailable) return 'whatsapp';
+        if (telegramAvailable && whatsappAvailable) {
+          return 'tgwa';
+        }
+        if (telegramAvailable) {
+          return 'telegram';
+        }
+        if (whatsappAvailable) {
+          return 'whatsapp';
+        }
         await LeadsService.setLeadUnavailable(phoneNumber);
         return 'none';
       }
@@ -98,28 +116,45 @@ class MessagingPlatformChecker {
       case 'tgwaba': {
         const [telegramAvailable, wabaAvailable] = await Promise.all([
           this.checkTelegram(phoneNumber),
-          this.checkWABA(phoneNumber)
+          this.checkWABA(phoneNumber),
         ]);
-        if (telegramAvailable && wabaAvailable) return 'tgwaba';
-        if (telegramAvailable) return 'telegram';
-        if (wabaAvailable) return 'waba';
+        if (telegramAvailable && wabaAvailable) {
+          return 'tgwaba';
+        }
+        if (telegramAvailable) {
+          return 'telegram';
+        }
+        if (wabaAvailable) {
+          return 'waba';
+        }
         await LeadsService.setLeadUnavailable(phoneNumber);
         return 'none';
       }
-      
+
       default:
         throw new Error('Invalid platform');
     }
   }
 
-  async choosePlatform(campaignId, phoneNumber, platformPriority = null, mode = 'one') {
-    logger.info(`Choosing messaging platform for ${phoneNumber} with priority ${platformPriority}`);
-    
+  async choosePlatform(
+    campaignId,
+    phoneNumber,
+    platformPriority = null,
+    mode = 'one',
+  ) {
+    logger.info(
+      `Choosing messaging platform for ${phoneNumber} with priority ${platformPriority}`,
+    );
+
     if (!phoneNumber || typeof phoneNumber !== 'string') {
       throw new Error('Invalid phone number');
     }
 
-    if (!['telegram', 'whatsapp', 'waba', 'tgwa', 'tgwaba'].includes(platformPriority)) {
+    if (
+      !['telegram', 'whatsapp', 'waba', 'tgwa', 'tgwaba'].includes(
+        platformPriority,
+      )
+    ) {
       logger.warn('Invalid priority platform, getting from DB');
       platformPriority = await getPlatformPriority(campaignId);
     }

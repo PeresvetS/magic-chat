@@ -19,11 +19,13 @@ function getUserState(userId) {
 function clearUserState(userId) {
   const state = userStates[userId];
   delete userStates[userId];
-  logger.info(`Cleared user state for ${userId}. Previous state: ${JSON.stringify(state)}`);
+  logger.info(
+    `Cleared user state for ${userId}. Previous state: ${JSON.stringify(state)}`,
+  );
 }
 
 module.exports = {
   setUserState,
   getUserState,
-  clearUserState
+  clearUserState,
 };

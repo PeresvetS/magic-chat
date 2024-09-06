@@ -26,7 +26,11 @@ async function reauthorizeSession(phoneNumber) {
     sessionCache.set(phoneNumber, session);
     return session;
   } catch (error) {
-    handleSessionError(error, phoneNumber, `Error reauthorizing session for ${phoneNumber}`);
+    handleSessionError(
+      error,
+      phoneNumber,
+      `Error reauthorizing session for ${phoneNumber}`,
+    );
   }
 }
 

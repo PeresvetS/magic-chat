@@ -3,7 +3,10 @@
 const logger = require('../../../utils/logger');
 const { phoneNumberService } = require('../../phone');
 const WABAAccountService = require('../../waba/services/WABAAccountService');
-const { campaignsMailingRepo, phoneNumberCampaignRepo } = require('../../../db');
+const {
+  campaignsMailingRepo,
+  phoneNumberCampaignRepo,
+} = require('../../../db');
 
 class CampaignMailingService {
   async createCampaign(telegramId, name) {
@@ -26,7 +29,8 @@ class CampaignMailingService {
 
   async setDefaultPhoneNumber(campaignId, phoneNumber) {
     try {
-      const phoneInfo = await phoneNumberService.getPhoneNumberInfo(phoneNumber);
+      const phoneInfo =
+        await phoneNumberService.getPhoneNumberInfo(phoneNumber);
       if (!phoneInfo) {
         throw new Error('Phone number does not exist');
       }
@@ -48,9 +52,11 @@ class CampaignMailingService {
 
   async getDefaultPhoneNumber(campaignId) {
     try {
-      let defaultPhoneNumber = await campaignsMailingRepo.getDefaultPhoneNumber(campaignId);
+      let defaultPhoneNumber =
+        await campaignsMailingRepo.getDefaultPhoneNumber(campaignId);
       if (!defaultPhoneNumber) {
-        defaultPhoneNumber = await campaignsMailingRepo.getFirstAvailablePhoneNumber(campaignId);
+        defaultPhoneNumber =
+          await campaignsMailingRepo.getFirstAvailablePhoneNumber(campaignId);
         if (defaultPhoneNumber) {
           await this.setDefaultPhoneNumber(campaignId, defaultPhoneNumber);
         }
@@ -64,23 +70,34 @@ class CampaignMailingService {
 
   async attachPhoneNumber(campaignId, phoneNumber, platform) {
     try {
-      const existingAttachment = await phoneNumberCampaignRepo.findExistingAttachment(phoneNumber, campaignId);
+      const existingAttachment =
+        await phoneNumberCampaignRepo.findExistingAttachment(
+          phoneNumber,
+          campaignId,
+        );
 
       if (existingAttachment) {
         throw new Error('Phone number is already attached to another campaign');
       }
 
-      const phoneNumberRecord = await phoneNumberCampaignRepo.getPhoneNumberRecord(phoneNumber);
+      const phoneNumberRecord =
+        await phoneNumberCampaignRepo.getPhoneNumberRecord(phoneNumber);
 
       if (!phoneNumberRecord) {
         throw new Error('Phone number does not exist');
       }
 
-      if (platform === 'telegram' && !phoneNumberRecord.telegramAccount?.isAuthenticated) {
+      if (
+        platform === 'telegram' &&
+        !phoneNumberRecord.telegramAccount?.isAuthenticated
+      ) {
         throw new Error('Phone number is not Telegram authenticated');
       }
 
-      if (platform === 'whatsapp' && !phoneNumberRecord.whatsappAccount?.isAuthenticated) {
+      if (
+        platform === 'whatsapp' &&
+        !phoneNumberRecord.whatsappAccount?.isAuthenticated
+      ) {
         throw new Error('Phone number is not WhatsApp authenticated');
       }
 
@@ -91,7 +108,11 @@ class CampaignMailingService {
         }
       }
 
-      return await phoneNumberCampaignRepo.createAttachment(campaignId, phoneNumber, platform);
+      return await phoneNumberCampaignRepo.createAttachment(
+        campaignId,
+        phoneNumber,
+        platform,
+      );
     } catch (error) {
       logger.error('Error attaching phone number to campaign:', error);
       throw error;
@@ -100,7 +121,10 @@ class CampaignMailingService {
 
   async detachPhoneNumber(campaignId, phoneNumber) {
     try {
-      return await phoneNumberCampaignRepo.deleteAttachment(campaignId, phoneNumber);
+      return await phoneNumberCampaignRepo.deleteAttachment(
+        campaignId,
+        phoneNumber,
+      );
     } catch (error) {
       logger.error('Error detaching phone number from campaign:', error);
       throw error;
@@ -136,7 +160,10 @@ class CampaignMailingService {
 
   async addNotificationTelegramId(id, telegramId) {
     try {
-      return await campaignsMailingRepo.addNotificationTelegramId(id, telegramId);
+      return await campaignsMailingRepo.addNotificationTelegramId(
+        id,
+        telegramId,
+      );
     } catch (error) {
       logger.error('Error in addNotificationTelegramId service:', error);
       throw error;
@@ -145,7 +172,10 @@ class CampaignMailingService {
 
   async removeNotificationTelegramId(id, telegramId) {
     try {
-      return await campaignsMailingRepo.removeNotificationTelegramId(id, telegramId);
+      return await campaignsMailingRepo.removeNotificationTelegramId(
+        id,
+        telegramId,
+      );
     } catch (error) {
       logger.error('Error in removeNotificationTelegramId service:', error);
       throw error;
@@ -172,7 +202,9 @@ class CampaignMailingService {
 
   async getActiveCampaignForPhoneNumber(phoneNumber) {
     try {
-      return await campaignsMailingRepo.getActiveCampaignForPhoneNumber(phoneNumber);
+      return await campaignsMailingRepo.getActiveCampaignForPhoneNumber(
+        phoneNumber,
+      );
     } catch (error) {
       logger.error('Error in getActiveCampaignForPhoneNumber service:', error);
       throw error;
@@ -200,11 +232,16 @@ class CampaignMailingService {
   async setPlatformPriority(campaignId, platformPriority) {
     try {
       const validPlatforms = ['telegram', 'whatsapp', 'waba'];
-      const isValidPriority = platformPriority.split(',').every(platform => validPlatforms.includes(platform.trim()));
+      const isValidPriority = platformPriority
+        .split(',')
+        .every((platform) => validPlatforms.includes(platform.trim()));
       if (!isValidPriority) {
         throw new Error('Invalid platform priority');
       }
-      return await campaignsMailingRepo.setPlatformPriority(campaignId, platformPriority);
+      return await campaignsMailingRepo.setPlatformPriority(
+        campaignId,
+        platformPriority,
+      );
     } catch (error) {
       logger.error('Error in setPlatformPriority service:', error);
       throw error;
@@ -223,18 +260,29 @@ class CampaignMailingService {
   async attachPhoneNumber(campaignId, phoneNumber, platform) {
     try {
       // Проверяем, существует ли и аутентифицирован ли номер
-      const phoneInfo = await phoneNumberService.getPhoneNumberInfo(phoneNumber);
+      const phoneInfo =
+        await phoneNumberService.getPhoneNumberInfo(phoneNumber);
       if (!phoneInfo) {
         throw new Error('Phone number does not exist');
       }
-      if (platform === 'telegram' && !phoneInfo.telegramAccount?.isAuthenticated) {
+      if (
+        platform === 'telegram' &&
+        !phoneInfo.telegramAccount?.isAuthenticated
+      ) {
         throw new Error('Phone number is not authenticated for Telegram');
       }
-      if (platform === 'whatsapp' && !phoneInfo.whatsappAccount?.isAuthenticated) {
+      if (
+        platform === 'whatsapp' &&
+        !phoneInfo.whatsappAccount?.isAuthenticated
+      ) {
         throw new Error('Phone number is not authenticated for WhatsApp');
       }
 
-      return await campaignsMailingRepo.attachPhoneNumber(campaignId, phoneNumber, platform);
+      return await campaignsMailingRepo.attachPhoneNumber(
+        campaignId,
+        phoneNumber,
+        platform,
+      );
     } catch (error) {
       logger.error('Error in attachPhoneNumber service:', error);
       throw error;
@@ -243,7 +291,10 @@ class CampaignMailingService {
 
   async detachPhoneNumber(campaignId, phoneNumber) {
     try {
-      return await campaignsMailingRepo.detachPhoneNumber(campaignId, phoneNumber);
+      return await campaignsMailingRepo.detachPhoneNumber(
+        campaignId,
+        phoneNumber,
+      );
     } catch (error) {
       logger.error('Error in detachPhoneNumber service:', error);
       throw error;
@@ -270,16 +321,24 @@ class CampaignMailingService {
 
   async setDefaultPhoneNumber(campaignId, phoneNumber, platform) {
     try {
-      const phoneInfo = await phoneNumberService.getPhoneNumberInfo(phoneNumber);
+      const phoneInfo =
+        await phoneNumberService.getPhoneNumberInfo(phoneNumber);
       if (!phoneInfo) {
         throw new Error('Phone number does not exist');
       }
       if (phoneInfo.isBanned) {
         throw new Error('Phone number is banned');
       }
-      await campaignsMailingRepo.setDefaultPhoneNumber(campaignId, phoneNumber, platform);
+      await campaignsMailingRepo.setDefaultPhoneNumber(
+        campaignId,
+        phoneNumber,
+        platform,
+      );
     } catch (error) {
-      logger.error(`Error in setDefaultPhoneNumber service for ${platform}:`, error);
+      logger.error(
+        `Error in setDefaultPhoneNumber service for ${platform}:`,
+        error,
+      );
       throw error;
     }
   }

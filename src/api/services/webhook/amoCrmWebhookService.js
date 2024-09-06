@@ -6,9 +6,9 @@ const LeadsService = require('../../../services/leads/src/LeadsService');
 
 async function processAmoCrmWebhook(data, user) {
   try {
-    logger.info('Received AmoCRM webhook data:', { 
-      userId: user.id, 
-      data: safeStringify(data) 
+    logger.info('Received AmoCRM webhook data:', {
+      userId: user.id,
+      data: safeStringify(data),
     });
 
     const leadData = {
@@ -16,18 +16,21 @@ async function processAmoCrmWebhook(data, user) {
       name: data.name || '',
       phone: data.phone || '',
       source: data.source || '',
-      status: data.status || 'NEW'
+      status: data.status || 'NEW',
     };
 
     const savedLead = await LeadsService.addLeadToCRM(user.id, leadData);
 
-    logger.info('Successfully processed AmoCRM webhook', { userId: user.id, leadId: savedLead.id });
+    logger.info('Successfully processed AmoCRM webhook', {
+      userId: user.id,
+      leadId: savedLead.id,
+    });
   } catch (error) {
-    logger.error('Error processing AmoCRM webhook', { 
-      error: error.message, 
+    logger.error('Error processing AmoCRM webhook', {
+      error: error.message,
       stack: error.stack,
       userId: user.id,
-      body: safeStringify(data)
+      body: safeStringify(data),
     });
     throw error;
   }

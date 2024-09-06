@@ -1,4 +1,4 @@
-// src/services/mailing/index.js   
+// src/services/mailing/index.js
 
 const platformChecker = require('./checkers/MessagingPlatformChecker');
 const senderService = require('./services/messageSenderService');

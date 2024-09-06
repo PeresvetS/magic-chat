@@ -11,9 +11,9 @@ async function createCampaign(userId, campaignName) {
           userШd: userId,
           name: campaignName,
           status: 'pending',
-          createdAt: new Date().toISOString()
-        }
-      }
+          createdAt: new Date().toISOString(),
+        },
+      },
     ]);
     logger.info(`Created campaign ${campaignName} for user ${userId}`);
     return record[0].id;
@@ -25,14 +25,16 @@ async function createCampaign(userId, campaignName) {
 
 async function listCampaigns(userId) {
   try {
-    const records = await parsingCampaignsTable.select({
-      filterByFormula: `{user_id} = '${userId}'`
-    }).firstPage();
+    const records = await parsingCampaignsTable
+      .select({
+        filterByFormula: `{user_id} = '${userId}'`,
+      })
+      .firstPage();
 
-    return records.map(record => ({
+    return records.map((record) => ({
       id: record.id,
       name: record.fields.name,
-      status: record.fields.status
+      status: record.fields.status,
     }));
   } catch (error) {
     logger.error('Error listing campaigns:', error);
@@ -50,7 +52,7 @@ async function getCampaignStats(userId, campaignId) {
       name: record.fields.name,
       status: record.fields.status,
       totalParsed: record.fields.totalParsed || 0,
-      processedCount: record.fields.processedCount || 0
+      processedCount: record.fields.processedCount || 0,
     };
   } catch (error) {
     logger.error('Error getting campaign stats:', error);
@@ -63,7 +65,10 @@ async function updateCampaignStatus(campaignId, status) {
     await parsingCampaignsTable.update(campaignId, { status });
     logger.info(`Updated status for campaign ${campaignId} to ${status}`);
   } catch (error) {
-    logger.error(`Error updating campaign status for campaign ${campaignId}:`, error);
+    logger.error(
+      `Error updating campaign status for campaign ${campaignId}:`,
+      error,
+    );
     throw error;
   }
 }
@@ -72,5 +77,5 @@ module.exports = {
   createCampaign,
   listCampaigns,
   getCampaignStats,
-  updateCampaignStatus
+  updateCampaignStatus,
 };

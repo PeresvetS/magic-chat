@@ -6,7 +6,9 @@ const logger = require('../../utils/logger');
 async function addSubscription(userId, durationDays, isRepeating) {
   try {
     const startDate = new Date();
-    const endDate = new Date(startDate.getTime() + durationDays * 24 * 60 * 60 * 1000);
+    const endDate = new Date(
+      startDate.getTime() + durationDays * 24 * 60 * 60 * 1000,
+    );
 
     const subscription = await prisma.subscription.create({
       data: {
@@ -14,8 +16,8 @@ async function addSubscription(userId, durationDays, isRepeating) {
         startDate,
         endDate,
         isRepeating,
-        durationDays
-      }
+        durationDays,
+      },
     });
 
     logger.info(`Subscription added for user ${userId}`);
@@ -32,9 +34,9 @@ async function getSubscriptionInfo(userId) {
     const subscription = await prisma.subscription.findFirst({
       where: {
         userId,
-        endDate: { gt: new Date() }
+        endDate: { gt: new Date() },
       },
-      orderBy: { endDate: 'desc' }
+      orderBy: { endDate: 'desc' },
     });
 
     if (!subscription) {
@@ -42,12 +44,15 @@ async function getSubscriptionInfo(userId) {
       return null;
     }
 
-    const daysLeft = Math.ceil((subscription.endDate.getTime() - new Date().getTime()) / (24 * 60 * 60 * 1000));
+    const daysLeft = Math.ceil(
+      (subscription.endDate.getTime() - new Date().getTime()) /
+        (24 * 60 * 60 * 1000),
+    );
 
     const subscriptionInfo = {
       endDate: subscription.endDate,
       isRepeating: subscription.isRepeating,
-      daysLeft: daysLeft > 0 ? daysLeft : 0
+      daysLeft: daysLeft > 0 ? daysLeft : 0,
     };
 
     logger.info(`Subscription info for user ${userId}:`, subscriptionInfo);
@@ -64,12 +69,14 @@ async function checkSubscription(userId) {
     const subscription = await prisma.subscription.findFirst({
       where: {
         userId,
-        endDate: { gt: new Date() }
-      }
+        endDate: { gt: new Date() },
+      },
     });
 
     const hasActiveSubscription = !!subscription;
-    logger.info(`User ${userId} has active subscription: ${hasActiveSubscription}`);
+    logger.info(
+      `User ${userId} has active subscription: ${hasActiveSubscription}`,
+    );
     return hasActiveSubscription;
   } catch (error) {
     logger.error(`Error checking subscription for user ${userId}:`, error);
@@ -80,5 +87,5 @@ async function checkSubscription(userId) {
 module.exports = {
   addSubscription,
   getSubscriptionInfo,
-  checkSubscription
+  checkSubscription,
 };

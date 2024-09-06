@@ -6,7 +6,7 @@ const logger = require('../../utils/logger');
 async function getUserByTgId(telegramId) {
   try {
     return await prisma.user.findUnique({
-      where: { telegramId: BigInt(telegramId) }
+      where: { telegramId: BigInt(telegramId) },
     });
   } catch (error) {
     logger.error('Error getting user by telegramId:', error);
@@ -17,18 +17,19 @@ async function getUserByTgId(telegramId) {
 async function getUserByUsername(username) {
   try {
     logger.info(`Getting user for username: ${username}`);
-    const cleanUsername = username.startsWith('@') ? username.slice(1) : username;
-  
+    const cleanUsername = username.startsWith('@')
+      ? username.slice(1)
+      : username;
+
     const user = await prisma.user.findUnique({
-      where: { username: cleanUsername }
+      where: { username: cleanUsername },
     });
-    
+
     if (user) {
       return user;
-    } else {
-      logger.info(`User with username ${cleanUsername} not found`);
-      return null;
     }
+    logger.info(`User with username ${cleanUsername} not found`);
+    return null;
   } catch (error) {
     logger.error('Error getting user by username:', error);
     throw error;
@@ -39,7 +40,7 @@ async function getUserIdByCampaignId(campaignId) {
   try {
     const campaign = await prisma.campaignMailing.findUnique({
       where: { id: campaignId },
-      select: { userId: true }
+      select: { userId: true },
     });
 
     if (!campaign) {
@@ -57,9 +58,9 @@ async function getUserIdByCampaignId(campaignId) {
 async function getUserById(id) {
   try {
     logger.info(`Getting user by ID: ${id}`);
-    
+
     const user = await prisma.user.findUnique({
-      where: { id: parseInt(id) }
+      where: { id: parseInt(id) },
     });
 
     if (!user) {
@@ -74,15 +75,20 @@ async function getUserById(id) {
   }
 }
 
-async function createUser(telegramId, username = null, firstName = null, lastName = null) {
+async function createUser(
+  telegramId,
+  username = null,
+  firstName = null,
+  lastName = null,
+) {
   try {
     return await prisma.user.create({
       data: {
         telegramId,
         username,
         firstName,
-        lastName
-      }
+        lastName,
+      },
     });
   } catch (error) {
     logger.error('Error creating user:', error);
@@ -93,7 +99,7 @@ async function createUser(telegramId, username = null, firstName = null, lastNam
 async function getAllUsers() {
   try {
     return await prisma.user.findMany({
-      orderBy: { id: 'asc' }
+      orderBy: { id: 'asc' },
     });
   } catch (error) {
     logger.error('Error getting all users:', error);
@@ -104,8 +110,8 @@ async function getAllUsers() {
 async function updateUserBanStatus(id, isBanned) {
   try {
     return await prisma.user.update({
-      where: { id: id },
-      data: { isBanned: isBanned }
+      where: { id },
+      data: { isBanned },
     });
   } catch (error) {
     logger.error(`Error ${isBanned ? 'banning' : 'unbanning'} user:`, error);
@@ -120,5 +126,5 @@ module.exports = {
   createUser,
   getAllUsers,
   updateUserBanStatus,
-  getUserIdByCampaignId
+  getUserIdByCampaignId,
 };

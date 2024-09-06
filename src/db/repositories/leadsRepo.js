@@ -4,12 +4,28 @@ const prisma = require('../utils/prisma');
 const logger = require('../../utils/logger');
 const { getUserIdByCampaignId } = require('./userRepo');
 
-async function saveLead({ bitrix_id, name, phone, source, status, userId, campaignId }) {
+async function saveLead({
+  bitrix_id,
+  name,
+  phone,
+  source,
+  status,
+  userId,
+  campaignId,
+}) {
   try {
     const lead = await prisma.lead.upsert({
       where: { bitrixId: bitrix_id },
       update: { name, phone, source, status, userId, campaignId },
-      create: { bitrixId: bitrix_id, name, phone, source, status, userId, campaignId }
+      create: {
+        bitrixId: bitrix_id,
+        name,
+        phone,
+        source,
+        status,
+        userId,
+        campaignId,
+      },
     });
     logger.info(`Lead saved/updated: ${bitrix_id}`);
     return lead;
@@ -22,7 +38,7 @@ async function saveLead({ bitrix_id, name, phone, source, status, userId, campai
 async function getLeadBitrix(bitrix_id) {
   try {
     return await prisma.lead.findUnique({
-      where: { bitrixId: bitrix_id }
+      where: { bitrixId: bitrix_id },
     });
   } catch (error) {
     logger.error('Error getting lead from database', error);
@@ -33,7 +49,7 @@ async function getLeadBitrix(bitrix_id) {
 async function getLead(id) {
   try {
     return await prisma.lead.findUnique({
-      where: { id }
+      where: { id },
     });
   } catch (error) {
     logger.error('Error getting lead from database', error);
@@ -44,7 +60,7 @@ async function getLead(id) {
 async function deleteLead(id) {
   try {
     return await prisma.lead.delete({
-      where: { id }
+      where: { id },
     });
   } catch (error) {
     logger.error('Error deleting lead from database', error);
@@ -55,7 +71,7 @@ async function deleteLead(id) {
 async function getUnsentLeads() {
   try {
     return await prisma.lead.findMany({
-      where: { status: 'NEW' }
+      where: { status: 'NEW' },
     });
   } catch (error) {
     logger.error('Error getting unsent leads from database', error);
@@ -67,7 +83,7 @@ async function markLeadAsSent(id) {
   try {
     await prisma.lead.update({
       where: { id },
-      data: { status: 'SENT' }
+      data: { status: 'SENT' },
     });
   } catch (error) {
     logger.error('Error marking lead as sent in database', error);
@@ -79,7 +95,7 @@ async function updateLead(id, data) {
   try {
     return await prisma.lead.update({
       where: { id },
-      data
+      data,
     });
   } catch (error) {
     logger.error('Error updating lead in database', error);
@@ -90,7 +106,7 @@ async function updateLead(id, data) {
 async function getLeadsDBs(userId) {
   try {
     return await prisma.leadsDB.findMany({
-      where: { userId }
+      where: { userId },
     });
   } catch (error) {
     logger.error('Error getting LeadsDBs:', error);
@@ -101,12 +117,12 @@ async function getLeadsDBs(userId) {
 async function addLeadsToLeadsDB(leadsDBId, leads) {
   try {
     const createdLeads = await prisma.lead.createMany({
-      data: leads.map(lead => ({
+      data: leads.map((lead) => ({
         leadsDBId,
         phone: lead.phone,
         name: lead.name,
         source: lead.source,
-        status: 'NEW'
+        status: 'NEW',
       })),
       skipDuplicates: true,
     });
@@ -121,7 +137,7 @@ async function addLeadsToLeadsDB(leadsDBId, leads) {
 async function deleteLeadsDB(leadsDBId) {
   try {
     await prisma.leadsDB.delete({
-      where: { id: leadsDBId }
+      where: { id: leadsDBId },
     });
     logger.info(`LeadsDB ${leadsDBId} удалена`);
   } catch (error) {
@@ -135,16 +151,19 @@ async function attachLeadsDBToCampaign(leadsDBId, campaignId) {
     await prisma.campaignLeadsDB.create({
       data: {
         leadsDB: {
-          connect: { id: leadsDBId }
+          connect: { id: leadsDBId },
         },
         campaign: {
-          connect: { id: campaignId }
-        }
-      }
+          connect: { id: campaignId },
+        },
+      },
     });
     logger.info(`LeadsDB ${leadsDBId} прикреплена к кампании ${campaignId}`);
   } catch (error) {
-    logger.error(`Ошибка при прикреплении LeadsDB ${leadsDBId} к кампании ${campaignId}:`, error);
+    logger.error(
+      `Ошибка при прикреплении LeadsDB ${leadsDBId} к кампании ${campaignId}:`,
+      error,
+    );
     throw error;
   }
 }
@@ -157,13 +176,17 @@ async function getOrCreatetLeadByPhone(phone, platform, chatId, campaignId) {
     }
     const userId = await getUserIdByCampaignId(campaignId);
     if (!userId) {
-      throw new Error(`Не удалось найти пользователя для кампании с ID ${campaignId}`);
+      throw new Error(
+        `Не удалось найти пользователя для кампании с ID ${campaignId}`,
+      );
     }
     const result = await createLead(platform, chatId, userId, phone);
     return result;
-
-} catch (error) {
-    logger.error(`Ошибка при получении или создании лида по номеру телефона ${phone}:`, error);
+  } catch (error) {
+    logger.error(
+      `Ошибка при получении или создании лида по номеру телефона ${phone}:`,
+      error,
+    );
     throw error;
   }
 }
@@ -173,11 +196,15 @@ async function getLeadByIdentifier(identifier, platform) {
     let lead;
     switch (platform) {
       case 'telegram':
-        lead = await prisma.lead.findFirst({ where: { telegramChatId: identifier } });
+        lead = await prisma.lead.findFirst({
+          where: { telegramChatId: identifier },
+        });
         break;
       case 'whatsapp':
       case 'waba':
-        lead = await prisma.lead.findFirst({ where: { whatsappChatId: identifier } });
+        lead = await prisma.lead.findFirst({
+          where: { whatsappChatId: identifier },
+        });
         break;
       default:
         throw new Error(`Unsupported platform: ${platform}`);
@@ -195,13 +222,16 @@ async function detachLeadsDBFromCampaign(leadsDBId, campaignId) {
       where: {
         leadsDBId_campaignId: {
           leadsDBId,
-          campaignId
-        }
-      }
+          campaignId,
+        },
+      },
     });
     logger.info(`LeadsDB ${leadsDBId} откреплена от кампании ${campaignId}`);
   } catch (error) {
-    logger.error(`Ошибка при откреплении LeadsDB ${leadsDBId} от кампании ${campaignId}:`, error);
+    logger.error(
+      `Ошибка при откреплении LeadsDB ${leadsDBId} от кампании ${campaignId}:`,
+      error,
+    );
     throw error;
   }
 }
@@ -211,9 +241,9 @@ async function getLeadsFromLeadsDB(leadsDBId, status) {
     return await prisma.lead.findMany({
       where: {
         leadsDBId,
-        status
+        status,
       },
-      orderBy: { createdAt: 'desc' }
+      orderBy: { createdAt: 'desc' },
     });
   } catch (error) {
     logger.error(`Ошибка при получении лидов из LeadsDB ${leadsDBId}:`, error);
@@ -225,7 +255,7 @@ async function updateLeadStatus(leadId, newStatus) {
   try {
     return await prisma.lead.update({
       where: { id: leadId },
-      data: { status: newStatus }
+      data: { status: newStatus },
     });
   } catch (error) {
     logger.error(`Ошибка при обновлении статуса лида ${leadId}:`, error);
@@ -237,11 +267,14 @@ async function getAttachedLeadsDBs(campaignId) {
   try {
     const attachments = await prisma.campaignLeadsDB.findMany({
       where: { campaignId },
-      include: { leadsDB: true }
+      include: { leadsDB: true },
     });
-    return attachments.map(attachment => attachment.leadsDB);
+    return attachments.map((attachment) => attachment.leadsDB);
   } catch (error) {
-    logger.error(`Ошибка при получении прикрепленных баз лидов для кампании ${campaignId}:`, error);
+    logger.error(
+      `Ошибка при получении прикрепленных баз лидов для кампании ${campaignId}:`,
+      error,
+    );
     throw error;
   }
 }
@@ -249,7 +282,7 @@ async function getAttachedLeadsDBs(campaignId) {
 async function getDefaultLeadsDB(userId) {
   try {
     return await prisma.leadsDB.findFirst({
-      where: { userId, isDefault: true }
+      where: { userId, isDefault: true },
     });
   } catch (error) {
     logger.error('Error getting default LeadsDB:', error);
@@ -260,7 +293,7 @@ async function getDefaultLeadsDB(userId) {
 async function createLeadsDB(name, userId, isDefault = false) {
   try {
     return await prisma.leadsDB.create({
-      data: { name, userId, isDefault }
+      data: { name, userId, isDefault },
     });
   } catch (error) {
     logger.error('Error creating LeadsDB:', error);
@@ -269,8 +302,10 @@ async function createLeadsDB(name, userId, isDefault = false) {
 }
 
 async function createLead(platform, chatId, userId, leadsDBId) {
-  logger.info(`Creating lead with platform ${platform}, chatId ${chatId}, userId ${userId}, leadsDBId ${leadsDBId}`);
-  
+  logger.info(
+    `Creating lead with platform ${platform}, chatId ${chatId}, userId ${userId}, leadsDBId ${leadsDBId}`,
+  );
+
   if (!leadsDBId) {
     logger.error('leadsDBId is undefined. Attempting to get default LeadsDB.');
     const defaultLeadsDB = await getDefaultLeadsDB(userId);
@@ -282,10 +317,10 @@ async function createLead(platform, chatId, userId, leadsDBId) {
   }
 
   try {
-    let leadData = {
+    const leadData = {
       userId,
       leadsDBId,
-      status: 'NEW'
+      status: 'NEW',
     };
 
     switch (platform) {
@@ -300,9 +335,9 @@ async function createLead(platform, chatId, userId, leadsDBId) {
         throw new Error('Неизвестная платформа');
     }
 
-    logger.info(`Attempting to create lead with data:`, leadData);
+    logger.info('Attempting to create lead with data:', leadData);
     const lead = await prisma.lead.create({ data: leadData });
-    logger.info(`Created lead:`, lead);
+    logger.info('Created lead:', lead);
     return lead;
   } catch (error) {
     logger.error('Error creating lead:', error);
@@ -315,13 +350,13 @@ async function setDefaultLeadsDB(userId, leadsDBId) {
     // Сначала сбрасываем isDefault для всех LeadsDB пользователя
     await prisma.leadsDB.updateMany({
       where: { userId },
-      data: { isDefault: false }
+      data: { isDefault: false },
     });
 
     // Затем устанавливаем isDefault для выбранной LeadsDB
     await prisma.leadsDB.update({
       where: { id: leadsDBId, userId },
-      data: { isDefault: true }
+      data: { isDefault: true },
     });
   } catch (error) {
     logger.error('Error setting default LeadsDB:', error);
@@ -331,13 +366,13 @@ async function setDefaultLeadsDB(userId, leadsDBId) {
 
 async function getLeadByTelegramChatId(telegramChatId) {
   return await prisma.lead.findFirst({
-    where: { telegramChatId }
+    where: { telegramChatId },
   });
 }
 
 async function getLeadByWhatsappChatId(whatsappChatId) {
   return await prisma.lead.findFirst({
-    where: { whatsappChatId }
+    where: { whatsappChatId },
   });
 }
 
@@ -345,7 +380,7 @@ async function getLeadByPhone(phone) {
   try {
     const phoneString = String(phone); // Преобразуем входное значение в строку
     return await prisma.lead.findFirst({
-      where: { phone: phoneString }
+      where: { phone: phoneString },
     });
   } catch (error) {
     logger.error('Error getting lead by phone number:', error);
@@ -359,8 +394,8 @@ async function updateLeadMessageInfo(leadId, data) {
     data: {
       campaignId: data.campaignId,
       lastMessageTime: data.lastMessageTime,
-      lastPlatform: data.lastPlatform
-    }
+      lastPlatform: data.lastPlatform,
+    },
   });
 }
 

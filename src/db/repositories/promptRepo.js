@@ -6,7 +6,7 @@ const logger = require('../../utils/logger');
 async function createPrompt(name, content) {
   try {
     return await prisma.prompt.create({
-      data: { name, content }
+      data: { name, content },
     });
   } catch (error) {
     logger.error('Error creating prompt:', error);
@@ -17,7 +17,7 @@ async function createPrompt(name, content) {
 async function getPromptById(id) {
   try {
     return await prisma.prompt.findUnique({
-      where: { id }
+      where: { id },
     });
   } catch (error) {
     logger.error('Error getting prompt by id:', error);
@@ -28,7 +28,7 @@ async function getPromptById(id) {
 async function getPromptByName(name) {
   try {
     return await prisma.prompt.findUnique({
-      where: { name }
+      where: { name },
     });
   } catch (error) {
     logger.error('Error getting prompt by name:', error);
@@ -40,7 +40,7 @@ async function updatePrompt(id, content) {
   try {
     return await prisma.prompt.update({
       where: { id },
-      data: { content, updatedAt: new Date() }
+      data: { content, updatedAt: new Date() },
     });
   } catch (error) {
     logger.error('Error updating prompt:', error);
@@ -51,7 +51,7 @@ async function updatePrompt(id, content) {
 async function deletePrompt(id) {
   try {
     return await prisma.prompt.delete({
-      where: { id }
+      where: { id },
     });
   } catch (error) {
     logger.error('Error deleting prompt:', error);
@@ -74,5 +74,5 @@ module.exports = {
   getPromptByName,
   updatePrompt,
   deletePrompt,
-  listPrompts
+  listPrompts,
 };

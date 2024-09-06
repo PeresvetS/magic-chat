@@ -2,35 +2,54 @@
 
 const logger = require('../../../utils/logger');
 const { promptService } = require('../../../services/prompt');
-const { setUserState, getUserState, clearUserState } = require('../utils/userState');
+const {
+  setUserState,
+  getUserState,
+  clearUserState,
+} = require('../utils/userState');
 
 module.exports = {
   '/create_prompt ([^\\s]+)': async (bot, msg, match) => {
     const [, promptName] = match;
     if (!promptName) {
-      bot.sendMessage(msg.chat.id, 'Пожалуйста, укажите название промпта. Например: /create_prompt МойПромпт');
+      bot.sendMessage(
+        msg.chat.id,
+        'Пожалуйста, укажите название промпта. Например: /create_prompt МойПромпт',
+      );
       return;
     }
 
     try {
       const prompt = await promptService.createPrompt(promptName, '');
-      bot.sendMessage(msg.chat.id, `Промпт "${promptName}" успешно создан. ID: ${prompt.id}`);
+      bot.sendMessage(
+        msg.chat.id,
+        `Промпт "${promptName}" успешно создан. ID: ${prompt.id}`,
+      );
       setUserState(msg.from.id, {
         action: 'set_prompt_content',
         promptId: prompt.id,
-        promptName: promptName
+        promptName,
       });
-      bot.sendMessage(msg.chat.id, `Пожалуйста, отправьте содержимое для промпта "${promptName}"`);
+      bot.sendMessage(
+        msg.chat.id,
+        `Пожалуйста, отправьте содержимое для промпта "${promptName}"`,
+      );
     } catch (error) {
       logger.error('Error creating prompt:', error);
-      bot.sendMessage(msg.chat.id, 'Произошла ошибка при создании промпта. Пожалуйста, попробуйте позже.');
+      bot.sendMessage(
+        msg.chat.id,
+        'Произошла ошибка при создании промпта. Пожалуйста, попробуйте позже.',
+      );
     }
   },
 
   '/set_prompt_content ([^\\s]+)': async (bot, msg, match) => {
     const [, promptName] = match;
     if (!promptName) {
-      bot.sendMessage(msg.chat.id, 'Пожалуйста, укажите название промпта. Например: /set_prompt_content МойПромпт');
+      bot.sendMessage(
+        msg.chat.id,
+        'Пожалуйста, укажите название промпта. Например: /set_prompt_content МойПромпт',
+      );
       return;
     }
 
@@ -44,12 +63,18 @@ module.exports = {
       setUserState(msg.from.id, {
         action: 'set_prompt_content',
         promptId: prompt.id,
-        promptName: promptName
+        promptName,
       });
-      bot.sendMessage(msg.chat.id, `Пожалуйста, отправьте новое содержимое для промпта "${promptName}"`);
+      bot.sendMessage(
+        msg.chat.id,
+        `Пожалуйста, отправьте новое содержимое для промпта "${promptName}"`,
+      );
     } catch (error) {
       logger.error('Error preparing to set prompt content:', error);
-      bot.sendMessage(msg.chat.id, 'Произошла ошибка при подготовке к установке содержимого промпта.');
+      bot.sendMessage(
+        msg.chat.id,
+        'Произошла ошибка при подготовке к установке содержимого промпта.',
+      );
     }
   },
 
@@ -67,10 +92,16 @@ module.exports = {
         return;
       }
 
-      bot.sendMessage(msg.chat.id, `Промпт: ${prompt.name}\n\nСодержимое:\n${prompt.content}`);
+      bot.sendMessage(
+        msg.chat.id,
+        `Промпт: ${prompt.name}\n\nСодержимое:\n${prompt.content}`,
+      );
     } catch (error) {
       logger.error('Error getting prompt:', error);
-      bot.sendMessage(msg.chat.id, 'Произошла ошибка при получении информации о промпте.');
+      bot.sendMessage(
+        msg.chat.id,
+        'Произошла ошибка при получении информации о промпте.',
+      );
     }
   },
 
@@ -82,11 +113,14 @@ module.exports = {
         return;
       }
 
-      const promptList = prompts.map(p => `- ${p.name}`).join('\n');
+      const promptList = prompts.map((p) => `- ${p.name}`).join('\n');
       bot.sendMessage(msg.chat.id, `Ваши промпты:\n${promptList}`);
     } catch (error) {
       logger.error('Error listing prompts:', error);
-      bot.sendMessage(msg.chat.id, 'Произошла ошибка при получении списка промптов.');
+      bot.sendMessage(
+        msg.chat.id,
+        'Произошла ошибка при получении списка промптов.',
+      );
     }
   },
 
@@ -98,11 +132,17 @@ module.exports = {
     if (userState && userState.action === 'set_prompt_content') {
       try {
         await promptService.updatePrompt(userState.promptId, msg.text);
-        bot.sendMessage(msg.chat.id, `Содержимое промпта "${userState.promptName}" успешно обновлено.`);
+        bot.sendMessage(
+          msg.chat.id,
+          `Содержимое промпта "${userState.promptName}" успешно обновлено.`,
+        );
         clearUserState(userId);
       } catch (error) {
         logger.error('Error setting prompt content:', error);
-        bot.sendMessage(msg.chat.id, 'Произошла ошибка при установке содержимого промпта.');
+        bot.sendMessage(
+          msg.chat.id,
+          'Произошла ошибка при установке содержимого промпта.',
+        );
       }
     }
   },

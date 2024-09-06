@@ -36,5 +36,5 @@ module.exports = {
 /help - Показать эту справку
     `;
     bot.sendMessage(msg.chat.id, helpText);
-  }
+  },
 };

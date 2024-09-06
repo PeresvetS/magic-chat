@@ -102,10 +102,12 @@ async function updateUserBanStatus(telegramId, isBanned) {
   try {
     const user = await this.getUserByTgId(telegramId);
     if (!user) {
-      throw new Error(`User with ID ${id} not found`);
+      throw new Error(`User with ID ${telegramId} not found`);
     }
-    await userRepo.updateUserBanStatus(id, isBanned);
-    logger.info(`User ${id} has been ${isBanned ? 'banned' : 'unbanned'}`);
+    await userRepo.updateUserBanStatus(telegramId, isBanned);
+    logger.info(
+      `User ${telegramId} has been ${isBanned ? 'banned' : 'unbanned'}`,
+    );
   } catch (error) {
     logger.error(`Error ${isBanned ? 'banning' : 'unbanning'} user:`, error);
     throw error;

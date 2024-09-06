@@ -14,7 +14,10 @@ module.exports = {
       bot.sendMessage(msg.chat.id, 'Bitrix интеграция успешно обновлена.');
     } catch (error) {
       logger.error('Error setting Bitrix integration:', error);
-      bot.sendMessage(msg.chat.id, `Ошибка при установке Bitrix интеграции: ${error.message}`);
+      bot.sendMessage(
+        msg.chat.id,
+        `Ошибка при установке Bitrix интеграции: ${error.message}`,
+      );
     }
   },
 
@@ -28,7 +31,10 @@ module.exports = {
       bot.sendMessage(msg.chat.id, 'AmoCRM интеграция успешно обновлена.');
     } catch (error) {
       logger.error('Error setting AmoCRM integration:', error);
-      bot.sendMessage(msg.chat.id, `Ошибка при установке AmoCRM интеграции: ${error.message}`);
+      bot.sendMessage(
+        msg.chat.id,
+        `Ошибка при установке AmoCRM интеграции: ${error.message}`,
+      );
     }
   },
 
@@ -42,7 +48,10 @@ module.exports = {
       bot.sendMessage(msg.chat.id, 'API ключ Bitrix успешно установлен.');
     } catch (error) {
       logger.error('Error setting Bitrix API key:', error);
-      bot.sendMessage(msg.chat.id, `Ошибка при установке API ключа Bitrix: ${error.message}`);
+      bot.sendMessage(
+        msg.chat.id,
+        `Ошибка при установке API ключа Bitrix: ${error.message}`,
+      );
     }
   },
 
@@ -56,7 +65,10 @@ module.exports = {
       bot.sendMessage(msg.chat.id, 'API ключ AmoCRM успешно установлен.');
     } catch (error) {
       logger.error('Error setting AmoCRM API key:', error);
-      bot.sendMessage(msg.chat.id, `Ошибка при установке API ключа AmoCRM: ${error.message}`);
+      bot.sendMessage(
+        msg.chat.id,
+        `Ошибка при установке API ключа AmoCRM: ${error.message}`,
+      );
     }
   },
 
@@ -74,7 +86,10 @@ ${JSON.stringify(amoCrmInfo, null, 2)}
       bot.sendMessage(msg.chat.id, message);
     } catch (error) {
       logger.error('Error getting CRM info:', error);
-      bot.sendMessage(msg.chat.id, `Ошибка при получении информации о CRM интеграциях: ${error.message}`);
+      bot.sendMessage(
+        msg.chat.id,
+        `Ошибка при получении информации о CRM интеграциях: ${error.message}`,
+      );
     }
-  }
+  },
 };

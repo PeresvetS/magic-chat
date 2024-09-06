@@ -1,6 +1,7 @@
 // src/services/mailing/checkers/telegramChecker.js
 
-const { Api } = require("telegram/tl");
+const { Api } = require('telegram/tl');
+
 const logger = require('../../../utils/logger');
 const { TelegramSessionService } = require('../../telegram');
 
@@ -25,8 +26,8 @@ class TelegramChecker {
 
       const result = await this.client.invoke(
         new Api.contacts.ResolvePhone({
-          phone: phoneNumber
-        })
+          phone: phoneNumber,
+        }),
       );
 
       return result.users && result.users.length > 0;

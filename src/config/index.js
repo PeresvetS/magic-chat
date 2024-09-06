@@ -20,19 +20,25 @@ const config = {
   MAIN_TG_PHONE_NUMBER: process.env.MAIN_TG_PHONE_NUMBER,
   MAIN_WA_PHONE_NUMBER: process.env.MAIN_WA_PHONE_NUMBER,
   NOTIFICATION_BOT_TOKEN: process.env.NOTIFICATION_BOT_TOKEN,
-  PUPPETEER_SKIP_CHROMIUM_DOWNLOAD: process.env.PUPPETEER_SKIP_CHROMIUM_DOWNLOAD,
-  ALLOWED_ADMINS: process.env.ALLOWED_ADMINS ? process.env.ALLOWED_ADMINS.split(',').map(id => parseInt(id.trim(), 10)) : [],
+  PUPPETEER_SKIP_CHROMIUM_DOWNLOAD:
+    process.env.PUPPETEER_SKIP_CHROMIUM_DOWNLOAD,
+  ALLOWED_ADMINS: process.env.ALLOWED_ADMINS
+    ? process.env.ALLOWED_ADMINS.split(',').map((id) => parseInt(id.trim(), 10))
+    : [],
   // PUPPETEER_EXECUTABLE_PATH: process.env.PUPPETEER_EXECUTABLE_PATH,
   // WABA_APP_ID: process.env.WABA_APP_ID,
   // WABA_APP_SECRET: process.env.WABA_APP_SECRET,
   // WABA_PHONE_NUMBER_ID: process.env.WABA_PHONE_NUMBER_ID,
-  
 };
 
 // Логирование конфигурации
 logger.info('Configuration loaded:');
 Object.entries(config).forEach(([key, value]) => {
-  if (key.includes('TOKEN') || key.includes('KEY') || key.includes('PASSWORD')) {
+  if (
+    key.includes('TOKEN') ||
+    key.includes('KEY') ||
+    key.includes('PASSWORD')
+  ) {
     logger.info(`${key}: ${value ? '[REDACTED]' : 'Not set'}`);
   } else if (key === 'ALLOWED_ADMINS') {
     logger.info(`${key}: ${JSON.stringify(value)}`);

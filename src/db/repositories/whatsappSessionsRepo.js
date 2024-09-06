@@ -9,12 +9,13 @@ async function saveSession(phoneNumber, session) {
       throw new Error('Session data is undefined or null');
     }
 
-    const sessionString = typeof session === 'string' ? session : JSON.stringify(session);
+    const sessionString =
+      typeof session === 'string' ? session : JSON.stringify(session);
 
     await prisma.whatsappSession.upsert({
       where: { phoneNumber },
       update: { session: sessionString },
-      create: { phoneNumber, session: sessionString }
+      create: { phoneNumber, session: sessionString },
     });
     logger.info(`WhatsApp session saved for ${phoneNumber}`);
   } catch (error) {
@@ -45,7 +46,7 @@ async function getAllSessions() {
 async function getSession(phoneNumber) {
   try {
     const session = await prisma.whatsappSession.findUnique({
-      where: { phoneNumber }
+      where: { phoneNumber },
     });
     return session ? JSON.parse(session.session) : null;
   } catch (error) {
@@ -54,11 +55,15 @@ async function getSession(phoneNumber) {
   }
 }
 
-async function updatePhoneNumberWhatsAppStatus(phoneNumber, isAuthenticated, accountType = 'regular') {
+async function updatePhoneNumberWhatsAppStatus(
+  phoneNumber,
+  isAuthenticated,
+  accountType = 'regular',
+) {
   try {
     const phoneNumberRecord = await prisma.phoneNumber.findUnique({
       where: { phoneNumber },
-      include: { whatsappAccount: true }
+      include: { whatsappAccount: true },
     });
 
     if (!phoneNumberRecord) {
@@ -68,22 +73,24 @@ async function updatePhoneNumberWhatsAppStatus(phoneNumber, isAuthenticated, acc
     if (phoneNumberRecord.whatsappAccount) {
       await prisma.whatsappAccount.update({
         where: { phoneNumberId: phoneNumberRecord.id },
-        data: { 
-          isAuthenticated: isAuthenticated,
-          accountType: accountType
-        }
+        data: {
+          isAuthenticated,
+          accountType,
+        },
       });
     } else {
       await prisma.whatsappAccount.create({
         data: {
           phoneNumber: { connect: { id: phoneNumberRecord.id } },
-          isAuthenticated: isAuthenticated,
-          accountType: accountType
-        }
+          isAuthenticated,
+          accountType,
+        },
       });
     }
 
-    logger.info(`WhatsApp status updated for ${phoneNumber}: ${isAuthenticated}, type: ${accountType}`);
+    logger.info(
+      `WhatsApp status updated for ${phoneNumber}: ${isAuthenticated}, type: ${accountType}`,
+    );
   } catch (error) {
     logger.error(`Error updating WhatsApp status for ${phoneNumber}:`, error);
     throw error;
@@ -95,5 +102,5 @@ module.exports = {
   deleteSession,
   getAllSessions,
   getSession,
-  updatePhoneNumberWhatsAppStatus
+  updatePhoneNumberWhatsAppStatus,
 };

@@ -2,6 +2,7 @@
 
 const fs = require('fs');
 const path = require('path');
+
 const { main } = require('./src/main');
 const logger = require('./src/utils/logger');
 const { safeStringify } = require('./src/utils/helpers');
@@ -51,7 +52,7 @@ function releaseLock() {
 logger.info('Starting application...');
 
 if (acquireLock()) {
-  main().catch(error => {
+  main().catch((error) => {
     logger.error('Unhandled error in main function:', safeStringify(error));
   });
 } else {
@@ -77,5 +78,5 @@ process.on('uncaughtException', (error) => {
 
 process.on('unhandledRejection', (reason, promise) => {
   logger.error('Unhandled Rejection at:', safeStringify(promise));
-  logger.error('Reason:', safeStringify(reason)); 
+  logger.error('Reason:', safeStringify(reason));
 });

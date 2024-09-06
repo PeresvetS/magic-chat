@@ -6,9 +6,9 @@ const logger = require('../../utils/logger');
 async function setLimit(userId, limitType, limitValue) {
   try {
     return await prisma.userLimits.upsert({
-      where: { userId: userId },
+      where: { userId },
       update: { [`${limitType}Limit`]: limitValue },
-      create: { userId: userId, [`${limitType}Limit`]: limitValue }
+      create: { userId, [`${limitType}Limit`]: limitValue },
     });
   } catch (error) {
     logger.error('Error setting limit:', error);
@@ -19,7 +19,7 @@ async function setLimit(userId, limitType, limitValue) {
 async function getLimits(userId) {
   try {
     return await prisma.userLimits.findUnique({
-      where: { userId: userId }
+      where: { userId },
     });
   } catch (error) {
     logger.error('Error getting limits:', error);
@@ -31,27 +31,32 @@ async function getCurrentUsage(userId, limitType) {
   try {
     switch (limitType) {
       case 'parsing':
-        return prisma.parsedUser.count({ where: { campaignParsing: { userId: userId } } });
+        return prisma.parsedUser.count({
+          where: { campaignParsing: { userId } },
+        });
       case 'phones':
-        return prisma.phoneNumber.count({ where: { userId: userId }, include: {
-          telegramAccount: true,
-          whatsappAccount: true
-        } });
+        return prisma.phoneNumber.count({
+          where: { userId },
+          include: {
+            telegramAccount: true,
+            whatsappAccount: true,
+          },
+        });
       case 'campaigns':
-        return prisma.campaignParsing.count({ where: { userId: userId } });
+        return prisma.campaignParsing.count({ where: { userId } });
       case 'contacts':
-        return prisma.parsedUser.count({ 
-          where: { 
-            campaignParsing: { userId: userId },
-            isProcessed: true 
-          } 
+        return prisma.parsedUser.count({
+          where: {
+            campaignParsing: { userId },
+            isProcessed: true,
+          },
         });
       case 'leads':
-        return prisma.parsedUser.count({ 
-          where: { 
-            campaignParsing: { userId: userId },
-            processingStatus: 'lead' 
-          } 
+        return prisma.parsedUser.count({
+          where: {
+            campaignParsing: { userId },
+            processingStatus: 'lead',
+          },
         });
       default:
         throw new Error(`Unknown limit type: ${limitType}`);
@@ -65,5 +70,5 @@ async function getCurrentUsage(userId, limitType) {
 module.exports = {
   setLimit,
   getLimits,
-  getCurrentUsage
+  getCurrentUsage,
 };

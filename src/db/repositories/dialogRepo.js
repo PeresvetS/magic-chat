@@ -10,9 +10,9 @@ async function getDialog(userId, contactId, platform) {
         userId_contactId_platform: {
           userId,
           contactId: contactId.toString(),
-          platform
-        }
-      }
+          platform,
+        },
+      },
     });
   } catch (error) {
     logger.error('Ошибка получения диалога:', error);
@@ -20,7 +20,14 @@ async function getDialog(userId, contactId, platform) {
   }
 }
 
-async function saveMessage(userId, contactId, platform, userRequest, assistantResponse, contactPhone) {
+async function saveMessage(
+  userId,
+  contactId,
+  platform,
+  userRequest,
+  assistantResponse,
+  contactPhone,
+) {
   try {
     let dialog = await getDialog(userId, contactId, platform);
 
@@ -30,8 +37,8 @@ async function saveMessage(userId, contactId, platform, userRequest, assistantRe
           userId,
           contactId: contactId.toString(),
           contactPhone,
-          platform
-        }
+          platform,
+        },
       });
     }
 
@@ -39,8 +46,8 @@ async function saveMessage(userId, contactId, platform, userRequest, assistantRe
       data: {
         dialogId: dialog.id,
         userRequest,
-        assistantResponse
-      }
+        assistantResponse,
+      },
     });
   } catch (error) {
     logger.error('Ошибка сохранения сообщения:', error);
@@ -50,5 +57,5 @@ async function saveMessage(userId, contactId, platform, userRequest, assistantRe
 
 module.exports = {
   getDialog,
-  saveMessage
+  saveMessage,
 };

@@ -2,11 +2,12 @@
 
 const cron = require('node-cron');
 const express = require('express');
+const bodyParser = require('body-parser');
+
 const config = require('./config');
 const userBot = require('./bot/user');
 const adminBot = require('./bot/admin');
 const logger = require('./utils/logger');
-const bodyParser = require('body-parser');
 const { retryOperation } = require('./utils/helpers');
 const webhookRouter = require('./api/routes/webhooks');
 const { phoneNumberService } = require('./services/phone');
@@ -27,10 +28,10 @@ app.use('/api', webhookRouter);
 async function checkApplicationState() {
   // // Проверка состояния Telegram сессий
   // await TelegramSessionService.checkAllSessions();
-  
+
   // // Проверка состояния WhatsApp сессий
   // await WhatsAppSessionService.checkAllSessions();
-  
+
   // Проверка состояния ботов
   if (!adminBot.isRunning()) {
     logger.warn('Admin bot is not running, attempting to restart...');
@@ -47,14 +48,22 @@ async function main() {
     logger.info('Main function started');
 
     // Инициализация сессий Telegram
-    await retryOperation(async () => {
-      await TelegramSessionService.initializeSessions();
-    }, 3, 5000);
+    await retryOperation(
+      async () => {
+        await TelegramSessionService.initializeSessions();
+      },
+      3,
+      5000,
+    );
 
     // Инициализация WhatsApp сессий
     WhatsAppSessionService.onMessage(async (message, phoneNumber) => {
       try {
-        await handleMessageService.processIncomingMessage(phoneNumber, message, 'whatsapp');
+        await handleMessageService.processIncomingMessage(
+          phoneNumber,
+          message,
+          'whatsapp',
+        );
       } catch (error) {
         logger.error(`Error processing WhatsApp message: ${error.message}`);
       }
@@ -64,9 +73,9 @@ async function main() {
     logger.info('Initializing bots...');
     await Promise.all([
       retryOperation(async () => adminBot.launch(), 3, 5000),
-      retryOperation(async () => userBot.launch(), 3, 5000)
+      retryOperation(async () => userBot.launch(), 3, 5000),
     ]);
-    logger.info('Bots initialized and polling started');;
+    logger.info('Bots initialized and polling started');
 
     // Настройка Express
     app.get('/', (req, res) => {
@@ -148,14 +157,16 @@ async function main() {
     });
     logger.info('Daily stats reset scheduled');
 
-    setInterval(async () => {
-      try {
-        await checkApplicationState();
-      } catch (error) {
-        logger.error('Error during application state check:', error);
-      }
-    }, 5 * 60 * 1000); // Проверка каждые 5 минут
-
+    setInterval(
+      async () => {
+        try {
+          await checkApplicationState();
+        } catch (error) {
+          logger.error('Error during application state check:', error);
+        }
+      },
+      5 * 60 * 1000,
+    ); // Проверка каждые 5 минут
   } catch (error) {
     logger.error('Error in main function:', error);
     throw error;

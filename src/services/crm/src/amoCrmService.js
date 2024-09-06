@@ -5,7 +5,9 @@ const logger = require('../../../utils/logger');
 
 async function setInboundUrl(userId, inboundUrl) {
   try {
-    await crmRepo.upsertAmoCrmIntegration(userId, { amoCrmInboundUrl: inboundUrl });
+    await crmRepo.upsertAmoCrmIntegration(userId, {
+      amoCrmInboundUrl: inboundUrl,
+    });
     logger.info(`Updated AmoCRM inboundUrl for user ${userId}`);
   } catch (error) {
     logger.error('Error updating AmoCRM inboundUrl:', error);
@@ -15,7 +17,9 @@ async function setInboundUrl(userId, inboundUrl) {
 
 async function setOutboundToken(userId, outboundToken) {
   try {
-    await crmRepo.upsertAmoCrmIntegration(userId, { amoCrmOutboundToken: outboundToken });
+    await crmRepo.upsertAmoCrmIntegration(userId, {
+      amoCrmOutboundToken: outboundToken,
+    });
     logger.info(`Updated AmoCRM outboundToken for user ${userId}`);
   } catch (error) {
     logger.error('Error updating AmoCRM outboundToken:', error);
@@ -39,5 +43,5 @@ async function getIntegrationInfo(userId) {
 module.exports = {
   setInboundUrl,
   setOutboundToken,
-  getIntegrationInfo
+  getIntegrationInfo,
 };

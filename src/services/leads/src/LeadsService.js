@@ -1,30 +1,32 @@
 // src/services/leads/src/LeadsService.js
 
+const { log } = require('winston');
+
 const { leadsRepo } = require('../../../db');
 const { userRepo } = require('../../../db');
 const logger = require('../../../utils/logger');
-const CampaignMailingService = require('../../../services/campaign/src/campaignsMailingService');
-const { log } = require('winston');
+const CampaignMailingService = require('../../campaign/src/campaignsMailingService');
 
 class LeadsService {
-
   formatPhoneNumber(phone) {
-    if (!phone) return null;
+    if (!phone) {
+      return null;
+    }
 
     // Преобразуем входное значение в строку
-    let phoneString = String(phone);
+    const phoneString = String(phone);
 
     // Удаляем все нецифровые символы
     let cleaned = phoneString.replace(/\D/g, '');
 
     // Если номер начинается с '8' и длина 11 цифр (российский номер), заменяем '8' на '7'
     if (cleaned.length === 11 && cleaned.startsWith('8')) {
-      cleaned = '7' + cleaned.slice(1);
+      cleaned = `7${cleaned.slice(1)}`;
     }
 
     // Если номер не начинается с '+', добавляем его
     if (!cleaned.startsWith('+')) {
-      cleaned = '+' + cleaned;
+      cleaned = `+${cleaned}`;
     }
 
     return cleaned;
@@ -43,7 +45,9 @@ class LeadsService {
     try {
       const userId = await this.getUserIdByTelegramId(telegramId);
       const leadsDBs = await leadsRepo.getLeadsDBs(userId);
-      const leadsDB = leadsDBs.find(db => db.name.toLowerCase() === name.toLowerCase());
+      const leadsDB = leadsDBs.find(
+        (db) => db.name.toLowerCase() === name.toLowerCase(),
+      );
       if (!leadsDB) {
         throw new Error(`LeadsDB с названием "${name}" не найдена.`);
       }
@@ -57,12 +61,17 @@ class LeadsService {
   async createLead(platform, chatId, userId) {
     try {
       const defaultLeadsDB = await this.getOrCreateDefaultLeadsDB(userId);
-      
+
       if (!defaultLeadsDB) {
         throw new Error(`No default LeadsDB found for user ${userId}`);
       }
-      
-      const lead = await leadsRepo.createLead(platform, chatId, userId, defaultLeadsDB.id);
+
+      const lead = await leadsRepo.createLead(
+        platform,
+        chatId,
+        userId,
+        defaultLeadsDB.id,
+      );
       return lead;
     } catch (error) {
       logger.error('Error creating lead:', error);
@@ -72,9 +81,12 @@ class LeadsService {
 
   async attachLeadsDBToCampaignByName(leadsDBName, campaignName, telegramId) {
     try {
-      logger.info(`attachLeadsDBToCampaignByName: ${leadsDBName}, ${campaignName}, ${telegramId}`);
+      logger.info(
+        `attachLeadsDBToCampaignByName: ${leadsDBName}, ${campaignName}, ${telegramId}`,
+      );
       const leadsDB = await this.getLeadsDBByName(telegramId, leadsDBName);
-      const campaign = await CampaignMailingService.getCampaignByName(campaignName);
+      const campaign =
+        await CampaignMailingService.getCampaignByName(campaignName);
       if (!campaign) {
         throw new Error(`Кампания "${campaignName}" не найдена.`);
       }
@@ -87,9 +99,12 @@ class LeadsService {
 
   async detachLeadsDBFromCampaignByName(leadsDBName, campaignName, telegramId) {
     try {
-      logger.info(`detachLeadsDBFromCampaignByName: ${leadsDBName}, ${campaignName}, ${telegramId}`);
+      logger.info(
+        `detachLeadsDBFromCampaignByName: ${leadsDBName}, ${campaignName}, ${telegramId}`,
+      );
       const leadsDB = await this.getLeadsDBByName(telegramId, leadsDBName);
-      const campaign = await CampaignMailingService.getCampaignByName(campaignName);
+      const campaign =
+        await CampaignMailingService.getCampaignByName(campaignName);
       if (!campaign) {
         throw new Error(`Кампания "${campaignName}" не найдена.`);
       }
@@ -114,7 +129,9 @@ class LeadsService {
     try {
       const leadsDB = await this.getLeadsDBByName(telegramId, leadsDBName);
       await leadsRepo.setDefaultLeadsDB(leadsDB.userId, leadsDB.id);
-      logger.info(`Default LeadsDB set to "${leadsDBName}" for user ${leadsDB.userId}`);
+      logger.info(
+        `Default LeadsDB set to "${leadsDBName}" for user ${leadsDB.userId}`,
+      );
     } catch (error) {
       logger.error('Error setting default LeadsDB by name:', error);
       throw error;
@@ -168,7 +185,7 @@ class LeadsService {
         default:
           throw new Error(`Unsupported platform: ${platform}`);
       }
-      
+
       if (!lead) {
         // Если лид не найден по идентификатору чата, попробуем найти по номеру телефона
         const phoneNumber = this.formatPhoneNumber(identifier.split('@')[0]);
@@ -197,9 +214,11 @@ class LeadsService {
       const updatedLead = await leadsRepo.updateLeadMessageInfo(leadId, {
         campaignId,
         lastMessageTime: new Date(),
-        lastPlatform: platform
+        lastPlatform: platform,
       });
-      logger.info(`Message info updated for lead ${leadId} in campaign ${campaignId} on ${platform}`);
+      logger.info(
+        `Message info updated for lead ${leadId} in campaign ${campaignId} on ${platform}`,
+      );
       return updatedLead;
     } catch (error) {
       logger.error('Error updating lead message info:', error);
@@ -209,7 +228,9 @@ class LeadsService {
 
   async getOrCreatetLeadByPhone(phone, platform, chatId, campaignId) {
     try {
-      logger.info(`Getting or creating lead for phone: ${phone}, platform: ${platform}, chatId: ${chatId}, campaignId: ${campaignId}`);
+      logger.info(
+        `Getting or creating lead for phone: ${phone}, platform: ${platform}, chatId: ${chatId}, campaignId: ${campaignId}`,
+      );
 
       // Получаем кампанию
       const campaign = await CampaignMailingService.getCampaignById(campaignId);
@@ -218,7 +239,9 @@ class LeadsService {
       }
 
       // Получаем или создаем LeadsDB для пользователя
-      const defaultLeadsDB = await this.getOrCreateDefaultLeadsDB(campaign.userId);
+      const defaultLeadsDB = await this.getOrCreateDefaultLeadsDB(
+        campaign.userId,
+      );
 
       // Форматируем номер телефона
       const formattedPhone = this.formatPhoneNumber(phone);
@@ -233,7 +256,7 @@ class LeadsService {
           leadsDBId: defaultLeadsDB.id, // Используем ID LeadsDB вместо номера телефона
           phone: formattedPhone,
           status: 'NEW',
-          campaignId: campaignId
+          campaignId,
         };
 
         // Добавляем chatId в зависимости от платформы
@@ -248,8 +271,8 @@ class LeadsService {
       } else {
         // Если лид найден, обновляем его данные
         const updateData = {
-          campaignId: campaignId,
-          status: 'NEW'
+          campaignId,
+          status: 'NEW',
         };
 
         if (platform === 'telegram') {
@@ -271,9 +294,9 @@ class LeadsService {
 
   async addLeadsToLeadsDB(leadsDBId, leads) {
     try {
-      const processedLeads = leads.map(lead => ({
+      const processedLeads = leads.map((lead) => ({
         ...lead,
-        phone: this.formatPhoneNumber(lead.phone)
+        phone: this.formatPhoneNumber(lead.phone),
       }));
 
       return await leadsRepo.addLeadsToLeadsDB(leadsDBId, processedLeads);
@@ -292,17 +315,19 @@ class LeadsService {
     }
   }
 
- 
   async attachLeadsDBToCampaign(leadsDBId, campaignId) {
     try {
       const numLeadsDBId = Number(leadsDBId);
       const numCampaignId = Number(campaignId);
-      
-      if (isNaN(numLeadsDBId) || isNaN(numCampaignId)) {
+
+      if (Number.isNaN(numLeadsDBId) || Number.isNaN(numCampaignId)) {
         throw new Error('Invalid LeadsDB ID or Campaign ID');
       }
-      
-      return await leadsRepo.attachLeadsDBToCampaign(numLeadsDBId, numCampaignId);
+
+      return await leadsRepo.attachLeadsDBToCampaign(
+        numLeadsDBId,
+        numCampaignId,
+      );
     } catch (error) {
       logger.error('Error attaching LeadsDB to campaign:', error);
       throw error;
@@ -350,7 +375,9 @@ class LeadsService {
       const leadsDB = await this.getLeadsDBByName(telegramId, leadsDBName);
       const lead = await leadsRepo.getLead(leadId);
       if (!lead || lead.leadsDBId !== leadsDB.id) {
-        throw new Error(`Лид с ID ${leadId} не найден в базе "${leadsDBName}".`);
+        throw new Error(
+          `Лид с ID ${leadId} не найден в базе "${leadsDBName}".`,
+        );
       }
       return await leadsRepo.updateLeadStatus(leadId, newStatus);
     } catch (error) {
@@ -411,7 +438,9 @@ class LeadsService {
       const leadsDB = await this.getLeadsDBByName(telegramId, leadsDBName);
       const lead = await leadsRepo.getLead(leadId);
       if (!lead || lead.leadsDBId !== leadsDB.id) {
-        throw new Error(`Лид с ID ${leadId} не найден в базе "${leadsDBName}".`);
+        throw new Error(
+          `Лид с ID ${leadId} не найден в базе "${leadsDBName}".`,
+        );
       }
       return await leadsRepo.deleteLead(leadId);
     } catch (error) {
@@ -437,7 +466,6 @@ class LeadsService {
     }
   }
 
-
   async createLeadsDB(name, telegramId) {
     try {
       const userId = await this.getUserIdByTelegramId(telegramId);
@@ -453,8 +481,14 @@ class LeadsService {
       logger.info(`Getting or creating default LeadsDB for user ${userId}`);
       let defaultLeadsDB = await leadsRepo.getDefaultLeadsDB(userId);
       if (!defaultLeadsDB) {
-        logger.info(`No default LeadsDB found for user ${userId}. Creating new one.`);
-        defaultLeadsDB = await leadsRepo.createLeadsDB('Default LeadsDB', userId, true);
+        logger.info(
+          `No default LeadsDB found for user ${userId}. Creating new one.`,
+        );
+        defaultLeadsDB = await leadsRepo.createLeadsDB(
+          'Default LeadsDB',
+          userId,
+          true,
+        );
       }
       return defaultLeadsDB;
     } catch (error) {
@@ -462,7 +496,6 @@ class LeadsService {
       throw error;
     }
   }
-
 
   async setDefaultLeadsDB(telegramId, leadsDBId) {
     try {
@@ -474,6 +507,7 @@ class LeadsService {
       throw error;
     }
   }
+
   async setDefaultLeadsDB(telegramId, leadsDBId) {
     try {
       const userId = await this.getUserIdByTelegramId(telegramId);
@@ -492,7 +526,7 @@ class LeadsService {
       const lead = await leadsRepo.saveLead({
         ...leadData,
         leadsDBId: defaultLeadsDB.id,
-        userId
+        userId,
       });
       logger.info(`Lead added to default LeadsDB for user ${userId}`);
       return lead;
@@ -546,10 +580,9 @@ class LeadsService {
         logger.info(`Lead with phone ${phoneNumber} set to UNAVAILABLE`);
       }
     } catch (error) {
-      logger.error(`Error setting lead to UNAVAILABLE:`, error);
+      logger.error('Error setting lead to UNAVAILABLE:', error);
     }
   }
 }
 
 module.exports = new LeadsService();
-

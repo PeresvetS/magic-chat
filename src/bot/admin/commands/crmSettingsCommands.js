@@ -18,7 +18,10 @@ ${JSON.stringify(amoCrmInfo, null, 2)}
       bot.sendMessage(msg.chat.id, message);
     } catch (error) {
       logger.error('Error getting CRM info:', error);
-      bot.sendMessage(msg.chat.id, `Ошибка при получении информации о CRM интеграциях: ${error.message}`);
+      bot.sendMessage(
+        msg.chat.id,
+        `Ошибка при получении информации о CRM интеграциях: ${error.message}`,
+      );
     }
-  }
+  },
 };
