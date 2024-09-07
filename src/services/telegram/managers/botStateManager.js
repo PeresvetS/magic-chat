@@ -14,7 +14,7 @@ class BotStateManager {
     this.typingTimer = null;
     this.offlineTimer = null;
     this.messageBuffer = [];
-    this.peer = null;
+    this.peerCache = new Map();
     this.processingMessage = false;
     this.preOnlineComplete = new Map();
     this.lastMessageTimestamp = new Map();
@@ -139,21 +139,28 @@ class BotStateManager {
 
   async getCorrectPeer(phoneNumber, userId) {
     try {
-      if (this.peer !== null) {
-        logger.info('peer is reused');
-        return this.peer;
+      const cacheKey = `${phoneNumber}_${userId}`;
+      
+      if (this.peerCache.has(cacheKey)) {
+        logger.info('Peer is reused from cache');
+        return this.peerCache.get(cacheKey);
       }
+
+      logger.info(`Creating new peer for ${phoneNumber} and user ${userId}`);
+      
       const session = await this.getSession(phoneNumber);
       logger.info(`Session checked for ${phoneNumber}`);
 
       const dialogs = await session.getDialogs();
       const dialog = dialogs.find(
-        (d) => d.entity && d.entity.id.toString() === userId.toString(),
+        (d) => d.entity && d.entity.id.toString() === userId.toString()
       );
+
       if (dialog) {
         logger.info(`Dialog found: ${safeStringify(dialog.inputEntity)}`);
-        this.peer = { peer: dialog.inputEntity, session };
-        return this.peer;
+        const newPeer = { peer: dialog.inputEntity, session };
+        this.peerCache.set(cacheKey, newPeer);
+        return newPeer;
       }
 
       throw new Error('User or dialog not found');

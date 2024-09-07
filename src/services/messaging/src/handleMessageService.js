@@ -1,7 +1,5 @@
 // src/services/messaging/src/handleMessageService.js
 
-// src/services/messaging/src/handleMessageService.js
-
 const logger = require('../../../utils/logger');
 const { sendResponse } = require('./messageSender');
 const { processMessage } = require('./messageProcessor');

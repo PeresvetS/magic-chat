@@ -41,7 +41,6 @@ async function sendMessage(
     logger.info(
       `Starting sendMessage for ${platform} user ${userId} from ${phoneNumber}`,
     );
-    await validatePhoneNumber(phoneNumber);
 
     let result;
     switch (platform) {
@@ -108,6 +107,8 @@ async function sendResponse(
       logger.warn(`Attempted to send empty ${platform} response to ${userId}`);
       return;
     }
+
+    await validatePhoneNumber(phoneNumber);
     const sentences = response.split(/(?<=[.!?])\s+/);
 
     const BotStateManager = getBotStateManager(platform);
@@ -131,7 +132,7 @@ async function sendResponse(
           platform,
         );
         logger.info(
-          `Message sent to ${userId}, result: ${JSON.stringify(result)}`,
+          `Message sent to ${userId},   : ${JSON.stringify(result)}`,
         );
         BotStateManager.resetOfflineTimer(phoneNumber, userId);
 
