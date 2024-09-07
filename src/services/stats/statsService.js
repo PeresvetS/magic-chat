@@ -2,7 +2,7 @@
 
 const logger = require('../../utils/logger');
 const prisma = require('../../db/utils/prisma');
-const messageStatsRepo = require('../../db');
+const { messageStatsRepo } = require('../../db');
 
 async function getGlobalStats() {
   try {

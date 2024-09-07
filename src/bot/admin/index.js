@@ -42,7 +42,7 @@ function createAdminBot() {
       }, 5000); // Подождем 5 секунд перед перезапуском
     }
   }
-  
+
 
   commandModules.forEach((module) => {
     Object.entries(module).forEach(([command, handler]) => {
