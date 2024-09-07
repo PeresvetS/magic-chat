@@ -4,6 +4,8 @@ const logger = require('../../../utils/logger');
 const { delay, safeStringify } = require('../../../utils/helpers');
 const OnlineStatusManager = require('./onlineStatusManager');
 const WABASessionService = require('../services/WABASessionService');
+const { RETRY_OPTIONS } = require('../../../config/constants');
+const { retryOperation } = require('../../../utils/messageUtils');
 
 class WABABotStateManager {
   constructor() {
@@ -118,7 +120,7 @@ class WABABotStateManager {
       logger.info(
         `WABA сообщение добавлено в буфер для пользователя ${userId}`,
       );
-      return null;
+      return '';
     }
 
     this.processingMessage = true;
@@ -136,16 +138,22 @@ class WABABotStateManager {
       switch (status) {
         case 'offline':
         case 'pre-online':
-          await this.setPreOnline(phoneNumber, userId);
+          await retryOperation(() => this.setPreOnline(phoneNumber, userId));
           break;
         case 'online':
         case 'typing':
-          await this.markMessagesAsRead(phoneNumber, userId);
+          await retryOperation(() => this.markMessagesAsRead(phoneNumber, userId));
           break;
       }
 
+      // Ждем завершения setPreOnline с таймаутом
+      const startTime = Date.now();
       while (!this.preOnlineComplete.get(userId)) {
-        await new Promise((resolve) => setTimeout(resolve, 100));
+        if (Date.now() - startTime > RETRY_OPTIONS.TIMEOUT) {
+          logger.warn(`Timeout waiting for preOnline to complete for WABA user ${userId}`);
+          break;
+        }
+        await new Promise(resolve => setTimeout(resolve, 100));
       }
 
       await this.handleTypingState(phoneNumber, userId);
@@ -157,19 +165,21 @@ class WABABotStateManager {
       logger.info(
         `Завершена обработка WABA сообщения для пользователя ${userId}`,
       );
-      return combinedMessage;
+      return combinedMessage || '';
     } catch (error) {
       logger.error(
         `Ошибка при обработке WABA сообщения для пользователя ${userId}: ${error.message}`,
       );
       this.processingMessage = false;
-      throw error;
+      return '';
+    } finally {
+      this.processingMessage = false;
     }
   }
 
   async handleTypingState(phoneNumber, userId) {
-    const maxWaitTime = 100000; // максимальное время ожидания в миллисекундах
-    const checkInterval = 1000; // интервал проверки в миллисекундах
+    const maxWaitTime = RETRY_OPTIONS.MAX_WAITING_TIME;
+    const checkInterval = RETRY_OPTIONS.DELAY;
     let totalWaitTime = 0;
 
     while (totalWaitTime < maxWaitTime) {
@@ -189,7 +199,7 @@ class WABABotStateManager {
       totalWaitTime += checkInterval;
     }
 
-    await delay(1000);
+    await delay(RETRY_OPTIONS.DELAY);
   }
 
   async checkUserTyping(phoneNumber, userId) {
