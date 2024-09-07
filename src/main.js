@@ -75,6 +75,7 @@ async function main() {
     await Promise.all([
       retryOperation(async () => adminBot.launch(), 3, 5000),
       retryOperation(async () => userBot.launch(), 3, 5000),
+      retryOperation(async () => notificationBot.launch(), 3, 5000),
     ]);
     logger.info('Bots initialized and polling started');
 
@@ -90,6 +91,25 @@ async function main() {
     });
 
     // app.all('/waba-webhook', WABASessionService.getWebhookHandler());
+
+    // Функция проверки состояния ботов
+    async function checkBotsState() {
+      if (!userBot.isRunning() || userBot.getPollingError()) {
+        logger.warn('User bot is not running or has polling error. Attempting to restart...');
+        await userBot.restart();
+      }
+      if (!adminBot.isRunning() || adminBot.getPollingError()) {
+        logger.warn('Admin bot is not running or has polling error. Attempting to restart...');
+        await adminBot.restart();
+      }
+      if (!notificationBot.isRunning() || notificationBot.getPollingError()) {
+        logger.warn('Notification bot is not running or has polling error. Attempting to restart...');
+        await notificationBot.restart();
+      }
+    }
+
+    // Запуск периодической проверки состояния ботов
+    setInterval(checkBotsState, 5 * 60 * 1000); // Проверка каждые 5 минут
 
     // Функция корректного завершения работы
     async function gracefulShutdown() {
@@ -114,7 +134,7 @@ async function main() {
       }
 
       try {
-        notificationBot.stopBot();
+        notificationBot.stop();
       } catch (error) {
         logger.error('Error stopping notification bot:', error);
       }

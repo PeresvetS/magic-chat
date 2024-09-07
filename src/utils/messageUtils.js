@@ -4,6 +4,7 @@ const path = require('path');
 const fs = require('fs').promises;
 
 const logger = require('./logger');
+const { GLOBAL_RETRY_OPTIONS } = require('../config/constants');
 
 async function saveDialogToFile(userId, userMessage, botResponse) {
   try {
@@ -18,6 +19,31 @@ async function saveDialogToFile(userId, userMessage, botResponse) {
   }
 }
 
+async function retryOperation(operation, options = {}) {
+  const {
+    maxRetries = GLOBAL_RETRY_OPTIONS.MAX_RETRIES,
+    retryDelay = GLOBAL_RETRY_OPTIONS.RETRY_DELAY,
+    shouldRetry = GLOBAL_RETRY_OPTIONS.SHOULD_RETRY,
+    onRetry = (error, attemptNumber) => {
+      logger.warn(`Retry attempt ${attemptNumber} due to error: ${error.message}`);
+    }
+  } = options;
+
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      return await operation();
+    } catch (error) {
+      if (attempt === maxRetries || !shouldRetry(error)) {
+        throw error;
+      }
+      
+      onRetry(error, attempt);
+      await new Promise(resolve => setTimeout(resolve, retryDelay));
+    }
+  }
+}
+
 module.exports = {
+  retryOperation,
   saveDialogToFile,
 };

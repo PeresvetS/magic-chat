@@ -228,17 +228,31 @@ function createUserBot() {
     }
   });
 
+  // Добавим глобальный обработчик необработанных отклонений промисов
+  process.on('unhandledRejection', (reason, promise) => {
+    logger.error('Unhandled Rejection at:', promise);
+    logger.error('Reason:', JSON.stringify(reason, null, 2));
+  });
+
   bot.on('polling_error', (error) => handlePollingError(error, bot, 'User'));
 
   return {
     bot,
     launch: () => {
+      if (isRunning) {
+        logger.warn(`${botType} bot is already running`);
+        return;
+      }
       logger.info('Starting bot polling');
       bot.startPolling({ restart: true, polling: true }); 
       isRunning = true;
       logger.info('Bot polling started successfully');
     },
     stop: () => {
+      if (!isRunning) {
+        logger.warn(`${botType} bot is not running`);
+        return;
+      }
       logger.info('Stopping bot polling');
       bot.stopPolling();
       isRunning = false;

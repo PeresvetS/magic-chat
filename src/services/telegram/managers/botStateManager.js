@@ -3,9 +3,11 @@
 const { Api } = require('telegram/tl');
 
 const logger = require('../../../utils/logger');
-const { delay, safeStringify } = require('../../../utils/helpers');
-const OnlineStatusManager = require('./onlineStatusManager');
 const sessionManager = require('./sessionManager');
+const OnlineStatusManager = require('./onlineStatusManager');
+const { delay, safeStringify } = require('../../../utils/helpers');
+const { RETRY_OPTIONS } = require('../../../config/constants');
+const { retryOperation } = require('../../../utils/messageUtils');
 
 class BotStateManager {
   constructor() {
@@ -187,63 +189,70 @@ class BotStateManager {
     logger.info(
       `Начало обработки сообщения для пользователя ${userId}: ${message}`,
     );
-
+  
     this.messageBuffer.push(message);
     this.lastMessageTimestamp.set(userId, Date.now());
-
+  
     if (this.processingMessage) {
       logger.info(`Сообщение добавлено в буфер для пользователя ${userId}`);
-      return null;
+      return '';
     }
-
+  
     this.processingMessage = true;
     let status = this.state;
-
+  
     logger.info(`Состояние бота: ${status}`);
-
+  
     if (this.state === 'offline' && OnlineStatusManager.isOnline(userId)) {
       status = 'pre-online';
     }
-
+  
     this.resetOfflineTimer(phoneNumber, userId);
-
+  
     try {
       switch (status) {
         case 'offline':
         case 'pre-online':
-          await this.setPreOnline(phoneNumber, userId);
+          await retryOperation(() => this.setPreOnline(phoneNumber, userId));
           break;
         case 'online':
         case 'typing':
-          await this.markMessagesAsRead(phoneNumber, userId);
+          await retryOperation(() => this.markMessagesAsRead(phoneNumber, userId));
           break;
       }
-
-      // Ждем завершения setPreOnline
+  
+      // Ждем завершения setPreOnline с таймаутом
+      const startTime = Date.now();
       while (!this.preOnlineComplete.get(userId)) {
-        await new Promise((resolve) => setTimeout(resolve, 100));
+        if (Date.now() - startTime > RETRY_OPTIONS.TIMEOUT) {
+          logger.warn(`Timeout waiting for preOnline to complete for user ${userId}`);
+          break;
+        }
+        await new Promise(resolve => setTimeout(resolve, 100));
       }
-
+  
       await this.handleTypingState(phoneNumber, userId);
-
+  
       const combinedMessage = this.messageBuffer.join('\n');
       this.messageBuffer = [];
       this.processingMessage = false;
-
+  
       logger.info(`Завершена обработка сообщения для пользователя ${userId}`);
-      return combinedMessage;
+      return combinedMessage || '';
     } catch (error) {
       logger.error(
         `Ошибка при обработке сообщения для пользователя ${userId}: ${error.message}`,
       );
       this.processingMessage = false;
-      throw error;
+      return '';
+    } finally {
+      this.processingMessage = false;
     }
   }
 
   async handleTypingState(phoneNumber, userId) {
-    const maxWaitTime = 100000; // максимальное время ожидания в миллисекундах
-    const checkInterval = 1000; // интервал проверки в миллисекундах
+    const maxWaitTime = RETRY_OPTIONS.MAX_WAITING_TIME; // максимальное время ожидания в миллисекундах
+    const checkInterval = RETRY_OPTIONS.DELAY; // интервал проверки в миллисекундах
     let totalWaitTime = 0;
 
     while (totalWaitTime < maxWaitTime) {
@@ -267,7 +276,7 @@ class BotStateManager {
     }
 
     // Добавим небольшую задержку после того, как пользователь закончил печатать
-    await delay(1000);
+    await delay(RETRY_OPTIONS.DELAY);
   }
 
   async checkUserTyping(phoneNumber, userId) {

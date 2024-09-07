@@ -12,24 +12,7 @@ const WhatsAppBotStateManager = require('../../whatsapp/managers/botStateManager
 const TelegramBotStateManager = require('../../telegram/managers/botStateManager');
 const { getPhoneNumberInfo, updatePhoneNumberStats } =
   require('../../phone').phoneNumberService;
-
-const RETRY_ATTEMPTS = 3;
-const RETRY_DELAY = 5000;
-
-async function retryOperation(operation, attempts = RETRY_ATTEMPTS) {
-  for (let i = 0; i < attempts; i++) {
-    try {
-      return await operation();
-    } catch (error) {
-      if (error.message === 'TIMEOUT' && i < attempts - 1) {
-        logger.warn(`Operation timed out. Retrying in ${RETRY_DELAY}ms...`);
-        await new Promise((resolve) => setTimeout(resolve, RETRY_DELAY));
-      } else {
-        throw error;
-      }
-    }
-  }
-}
+const { retryOperation } = require('../../../utils/messageUtils');
 
 async function sendMessage(
   userId,

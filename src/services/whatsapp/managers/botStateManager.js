@@ -1,9 +1,11 @@
 // src/services/whatsapp/managers/botStateManager.js
 
 const logger = require('../../../utils/logger');
-const { delay } = require('../../../utils/helpers');
+const { delay, safeStringify } = require('../../../utils/helpers');
 const OnlineStatusManager = require('./onlineStatusManager');
 const WhatsAppSessionService = require('../services/WhatsAppSessionService');
+const { RETRY_OPTIONS } = require('../../../config/constants');
+const { retryOperation } = require('../../../utils/messageUtils');
 
 class BotStateManager {
   constructor() {
@@ -23,6 +25,7 @@ class BotStateManager {
 
   async setOffline(phoneNumber, userId) {
     this.state = 'offline';
+    this.newMessage = true;
     clearTimeout(this.typingTimer);
     clearTimeout(this.offlineTimer);
     const client = await this.getClient(phoneNumber);
@@ -85,6 +88,7 @@ class BotStateManager {
 
   async simulateTyping(phoneNumber, userId) {
     const typingDuration = Math.random() * 6000 + 2000; // 2-8 seconds
+    logger.info(`Simulating typing for ${typingDuration}ms`);
     let elapsedTime = 0;
     const typingInterval = 2000;
 
@@ -102,6 +106,11 @@ class BotStateManager {
     }
   }
 
+  hasNewMessageSince(userId, timestamp) {
+    const lastMessageTime = this.lastMessageTimestamp.get(userId) || 0;
+    return lastMessageTime > timestamp;
+  }
+
   async handleIncomingMessage(phoneNumber, userId, message) {
     logger.info(
       `Начало обработки сообщения для пользователя WhatsApp ${userId}: ${message}`,
@@ -111,14 +120,14 @@ class BotStateManager {
     this.lastMessageTimestamp.set(userId, Date.now());
 
     if (this.processingMessage) {
-      logger.info(
-        `Сообщение добавлено в буфер для пользователя WhatsApp ${userId}`,
-      );
-      return null;
+      logger.info(`Сообщение добавлено в буфер для пользователя WhatsApp ${userId}`);
+      return '';
     }
 
     this.processingMessage = true;
     let status = this.state;
+
+    logger.info(`Состояние бота WhatsApp: ${status}`);
 
     if (this.state === 'offline' && OnlineStatusManager.isOnline(userId)) {
       status = 'pre-online';
@@ -130,16 +139,22 @@ class BotStateManager {
       switch (status) {
         case 'offline':
         case 'pre-online':
-          await this.setPreOnline(phoneNumber, userId);
+          await retryOperation(() => this.setPreOnline(phoneNumber, userId));
           break;
         case 'online':
         case 'typing':
-          await this.markMessagesAsRead(phoneNumber, userId);
+          await retryOperation(() => this.markMessagesAsRead(phoneNumber, userId));
           break;
       }
 
+      // Ждем завершения setPreOnline с таймаутом
+      const startTime = Date.now();
       while (!this.preOnlineComplete.get(userId)) {
-        await new Promise((resolve) => setTimeout(resolve, 100));
+        if (Date.now() - startTime > RETRY_OPTIONS.TIMEOUT) {
+          logger.warn(`Timeout waiting for preOnline to complete for WhatsApp user ${userId}`);
+          break;
+        }
+        await new Promise(resolve => setTimeout(resolve, 100));
       }
 
       await this.handleTypingState(phoneNumber, userId);
@@ -148,27 +163,22 @@ class BotStateManager {
       this.messageBuffer = [];
       this.processingMessage = false;
 
-      logger.info(
-        `Завершена обработка сообщения для пользователя WhatsApp ${userId}`,
-      );
-      return combinedMessage;
+      logger.info(`Завершена обработка сообщения для пользователя WhatsApp ${userId}`);
+      return combinedMessage || '';
     } catch (error) {
       logger.error(
         `Ошибка при обработке сообщения для пользователя WhatsApp ${userId}: ${error.message}`,
       );
       this.processingMessage = false;
-      throw error;
+      return '';
+    } finally {
+      this.processingMessage = false;
     }
   }
 
-  hasNewMessageSince(userId, timestamp) {
-    const lastMessageTime = this.lastMessageTimestamp.get(userId) || 0;
-    return lastMessageTime > timestamp;
-  }
-
   async handleTypingState(phoneNumber, userId) {
-    const maxWaitTime = 100000; // максимальное время ожидания в миллисекундах
-    const checkInterval = 1000; // интервал проверки в миллисекундах
+    const maxWaitTime = RETRY_OPTIONS.MAX_WAITING_TIME;
+    const checkInterval = RETRY_OPTIONS.DELAY;
     let totalWaitTime = 0;
 
     while (totalWaitTime < maxWaitTime) {
@@ -188,16 +198,15 @@ class BotStateManager {
       totalWaitTime += checkInterval;
     }
 
-    await delay(1000);
+    await delay(RETRY_OPTIONS.DELAY);
   }
 
   async checkUserTyping(phoneNumber, userId) {
     try {
       const client = await this.getClient(phoneNumber);
 
-      // Создаем промис, который разрешится, когда придет событие о наборе текста
       const typingPromise = new Promise((resolve) => {
-        const timeout = setTimeout(() => resolve(false), 5000); // Таймаут 5 секунд
+        const timeout = setTimeout(() => resolve(false), 5000);
 
         const onTyping = (participant) => {
           if (participant === userId) {
@@ -210,10 +219,9 @@ class BotStateManager {
         client.on('typing', onTyping);
       });
 
-      // Ожидаем результат
       const isTyping = await typingPromise;
 
-      logger.info(`User ${userId} typing status: ${isTyping}`);
+      logger.info(`WhatsApp user ${userId} typing status: ${isTyping}`);
       return isTyping;
     } catch (error) {
       logger.error(`Error checking user typing status in WhatsApp: ${error}`);

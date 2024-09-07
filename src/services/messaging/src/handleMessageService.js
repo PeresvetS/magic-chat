@@ -1,178 +1,174 @@
-// src/services/messaging/src/handleMessageService.js
+  // src/services/messaging/src/handleMessageService.js
 
-const logger = require('../../../utils/logger');
-const { sendResponse } = require('./messageSender');
-const { processMessage } = require('./messageProcessor');
-const { safeStringify } = require('../../../utils/helpers');
-const LeadsService = require('../../leads/src/LeadsService');
-const TelegramBotStateManager = require('../../telegram/managers/botStateManager');
-const WhatsAppBotStateManager = require('../../whatsapp/managers/botStateManager');
-const WABABotStateManager = require('../../waba/managers/botStateManager');
-const { getActiveCampaignForPhoneNumber } =
-  require('../../campaign').campaignsMailingService;
+  const logger = require('../../../utils/logger');
+  const { sendResponse } = require('./messageSender');
+  const { processMessage } = require('./messageProcessor');
+  const { safeStringify } = require('../../../utils/helpers');
+  const LeadsService = require('../../leads/src/LeadsService');
+  const TelegramBotStateManager = require('../../telegram/managers/botStateManager');
+  const WhatsAppBotStateManager = require('../../whatsapp/managers/botStateManager');
+  const WABABotStateManager = require('../../waba/managers/botStateManager');
+  const { getActiveCampaignForPhoneNumber } =
+    require('../../campaign').campaignsMailingService;
 
-logger.info('HandleMessageService loaded');
-logger.info(
-  'TelegramBotStateManager:',
-  TelegramBotStateManager ? 'Loaded' : 'Not loaded',
-);
-logger.info(
-  'WhatsAppBotStateManager:',
-  WhatsAppBotStateManager ? 'Loaded' : 'Not loaded',
-);
-logger.info(
-  'WABABotStateManager:',
-  WABABotStateManager ? 'Loaded' : 'Not loaded',
-);
+  logger.info('HandleMessageService loaded');
+  logger.info(
+    'TelegramBotStateManager:',
+    TelegramBotStateManager ? 'Loaded' : 'Not loaded',
+  );
+  logger.info(
+    'WhatsAppBotStateManager:',
+    WhatsAppBotStateManager ? 'Loaded' : 'Not loaded',
+  );
+  logger.info(
+    'WABABotStateManager:',
+    WABABotStateManager ? 'Loaded' : 'Not loaded',
+  );
 
-async function processIncomingMessage(
-  phoneNumber,
-  event,
-  platform = 'telegram',
-) {
-  try {
-    const { senderId, messageText } = await extractMessageInfo(event, platform);
-    if (!senderId || !messageText) {
-      return;
-    }
-
-    logger.info(
-      `Обработка ${platform} сообщения для ${phoneNumber}: senderId=${senderId}, text=${messageText}`,
-    );
-
-    const activeCampaign = await getActiveCampaignForPhoneNumber(phoneNumber);
-    if (!activeCampaign) {
+  async function processIncomingMessage(
+    phoneNumber,
+    event,
+    platform = 'telegram',
+  ) {
+    try {
+      const { senderId, messageText } = await extractMessageInfo(event, platform);
+      if (!senderId || !messageText) {
+        logger.warn('Invalid message info extracted');
+        return;
+      }
+  
       logger.info(
-        `Нет активной кампании для номера ${phoneNumber}. Сообщение игнорируется.`,
+        `Processing ${platform} message for ${phoneNumber}: senderId=${senderId}, text=${messageText}`,
       );
-      return;
-    }
-
-    if (!activeCampaign.prompt) {
-      logger.warn(
-        `Активная кампания для номера ${phoneNumber} не имеет привязанного промпта. Сообщение игнорируется.`,
+  
+      const activeCampaign = await getActiveCampaignForPhoneNumber(phoneNumber);
+      if (!activeCampaign || !activeCampaign.prompt) {
+        logger.warn(
+          `No active campaign or prompt for ${phoneNumber}. Message ignored.`,
+        );
+        return;
+      }
+  
+      const BotStateManager = getBotStateManager(platform);
+  
+      // Handle incoming message and get the combined message
+      const combinedMessage = await BotStateManager.handleIncomingMessage(
+        phoneNumber,
+        senderId,
+        messageText,
       );
-      return;
-    }
-
-    const BotStateManager = getBotStateManager(platform);
-
-    const combinedMessage = await BotStateManager.handleIncomingMessage(
-      phoneNumber,
-      senderId,
-      messageText,
-    );
-    if (!combinedMessage) {
-      logger.info(`Сообщение добавлено в буфер для пользователя ${senderId}`);
-      return;
-    }
-
-    const lead = await getOrCreateLeadIdByChatId(
-      senderId,
-      platform,
-      activeCampaign.userId,
-    );
-
-    logger.info(`Обработка ${platform} с lead=${safeStringify(lead)} `);
-
-    const response = await processMessage(
-      lead,
-      senderId,
-      combinedMessage,
-      phoneNumber,
-      activeCampaign,
-    );
-    if (response) {
-      logger.info(`Отправка ответа пользователю ${senderId}: ${response}`);
-      await sendResponse(senderId, response, phoneNumber, platform);
-    } else {
-      logger.warn(
-        `Не сгенерирован ответ для ${platform} сообщения от ${senderId}`,
+  
+      // Process the message even if combinedMessage is empty
+      const lead = await getOrCreateLeadIdByChatId(
+        senderId,
+        platform,
+        activeCampaign.userId,
+      );
+  
+      logger.info(`Processing ${platform} with lead=${safeStringify(lead)}`);
+  
+      // Use combinedMessage if available, otherwise use the original messageText
+      const messageToProcess = combinedMessage || messageText;
+  
+      const response = await processMessage(
+        lead,
+        senderId,
+        messageToProcess,
+        phoneNumber,
+        activeCampaign,
+      );
+  
+      if (response) {
+        logger.info(`Sending response to user ${senderId}: ${response}`);
+        await sendResponse(senderId, response, phoneNumber, platform);
+      } else {
+        logger.warn(
+          `No response generated for ${platform} message from ${senderId}`,
+        );
+      }
+  
+      logger.info(
+        `Processed ${platform} message for ${phoneNumber} from ${senderId}: ${safeStringify(messageText)}`,
+      );
+    } catch (error) {
+      logger.error(
+        `Error processing incoming ${platform} message for ${phoneNumber}:`,
+        error,
       );
     }
-
-    logger.info(
-      `Обработано ${platform} сообщение для ${phoneNumber} от ${senderId}: ${safeStringify(messageText)}`,
-    );
-  } catch (error) {
-    logger.error(
-      `Ошибка при обработке входящего ${platform} сообщения для ${phoneNumber}:`,
-      error,
-    );
-  }
-}
-
-function getBotStateManager(platform) {
-  switch (platform) {
-    case 'telegram':
-      return TelegramBotStateManager;
-    case 'whatsapp':
-      return WhatsAppBotStateManager;
-    case 'waba':
-      return WABABotStateManager;
-    default:
-      throw new Error(`Unsupported platform: ${platform}`);
-  }
-}
-
-async function extractMessageInfo(event, platform) {
-  if (platform === 'whatsapp' || platform === 'waba') {
-    if (!event.body) {
-      logger.warn(`${platform} event does not contain a message body`);
-      return {};
-    }
-    logger.info(
-      `Extracted ${platform} message: ${event.body}, from ${event.from} and chatId ${event.chatId}`,
-    );
-    return {
-      senderId: event.from,
-      messageText: event.body,
-      chatId: event.chatId,
-    };
-  }
-  const { message } = event;
-  if (!message) {
-    logger.warn('Telegram event does not contain a message');
-    return {};
   }
 
-  let chatId = message.chatId ? message.chatId.toString() : null;
-  if (!chatId && message.chat && message.chat.id) {
-    chatId = message.chat.id.toString();
-  }
-
-  return { senderId: chatId, messageText: message.text };
-}
-
-async function getLeadIdByChatId(chatId, platform) {
-  try {
-    let lead;
+  function getBotStateManager(platform) {
     switch (platform) {
-      case 'whatsapp':
-      case 'waba':
-        lead = await LeadsService.getLeadByWhatsappChatId(chatId);
-        break;
       case 'telegram':
-        lead = await LeadsService.getLeadByTelegramChatId(chatId);
-        break;
+        return TelegramBotStateManager;
+      case 'whatsapp':
+        return WhatsAppBotStateManager;
+      case 'waba':
+        return WABABotStateManager;
       default:
         throw new Error(`Unsupported platform: ${platform}`);
     }
-    return lead || null;
-  } catch (error) {
-    logger.error('Error getting lead ID by chat ID:', error);
-    return null;
   }
-}
 
-async function getOrCreateLeadIdByChatId(chatId, platform, userId) {
-  const lead = await getLeadIdByChatId(chatId, platform);
-  if (!lead) {
-    logger.info(`Lead not found for ${platform} chat ID ${chatId}`);
-    const newLead = await LeadsService.createLead(platform, chatId, userId);
-    return newLead;
+  async function extractMessageInfo(event, platform) {
+    if (platform === 'whatsapp' || platform === 'waba') {
+      if (!event.body) {
+        logger.warn(`${platform} event does not contain a message body`);
+        return {};
+      }
+      logger.info(
+        `Extracted ${platform} message: ${event.body}, from ${event.from} and chatId ${event.chatId}`,
+      );
+      return {
+        senderId: event.from,
+        messageText: event.body,
+        chatId: event.chatId,
+      };
+    }
+    const { message } = event;
+    if (!message) {
+      logger.warn('Telegram event does not contain a message');
+      return {};
+    }
+
+    let chatId = message.chatId ? message.chatId.toString() : null;
+    if (!chatId && message.chat && message.chat.id) {
+      chatId = message.chat.id.toString();
+    }
+
+    return { senderId: chatId, messageText: message.text };
   }
-  return lead;
-}
 
-module.exports = { processIncomingMessage };
+  async function getLeadIdByChatId(chatId, platform) {
+    try {
+      let lead;
+      switch (platform) {
+        case 'whatsapp':
+        case 'waba':
+          lead = await LeadsService.getLeadByWhatsappChatId(chatId);
+          break;
+        case 'telegram':
+          lead = await LeadsService.getLeadByTelegramChatId(chatId);
+          break;
+        default:
+          throw new Error(`Unsupported platform: ${platform}`);
+      }
+      return lead || null;
+    } catch (error) {
+      logger.error('Error getting lead ID by chat ID:', error);
+      return null;
+    }
+  }
+
+  async function getOrCreateLeadIdByChatId(chatId, platform, userId) {
+    const lead = await getLeadIdByChatId(chatId, platform);
+    if (!lead) {
+      logger.info(`Lead not found for ${platform} chat ID ${chatId}`);
+      const newLead = await LeadsService.createLead(platform, chatId, userId);
+      return newLead;
+    }
+    return lead;
+  }
+
+  module.exports = { processIncomingMessage };

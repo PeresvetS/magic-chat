@@ -1,10 +1,12 @@
 // src/bot/admin/index.js
 
 const TelegramBot = require('node-telegram-bot-api');
-
 const config = require('../../config');
 const logger = require('../../utils/logger');
 const { isAdmin } = require('../../middleware/adminCheck');
+const { TelegramSessionService } = require('../../services/telegram');
+
+// Импорт командных модулей
 const helpCommands = require('./commands/helpCommands');
 const limitCommands = require('./commands/limitCommands');
 const statsCommands = require('./commands/statsCommands');
@@ -27,22 +29,21 @@ function createAdminBot() {
     phoneManagementCommands,
   ];
 
-  function handlePollingError(error, bot, botType) {
-    logger.error(`${botType} bot polling error:`, error);
+  function handlePollingError(error) {
+    logger.error(`Admin bot polling error:`, error);
     if (error.code === 'ETELEGRAM' && error.message.includes('terminated by other getUpdates request')) {
-      logger.warn(`${botType} bot: Another instance is running. Attempting to restart...`);
+      logger.warn(`Admin bot: Another instance is running. Attempting to restart...`);
       setTimeout(async () => {
         try {
-          await bot.stopPolling();  // Убедитесь, что polling остановлен
-          await bot.startPolling(); // Перезапуск polling
-          logger.info(`${botType} bot restarted successfully`);
+          await bot.stopPolling();
+          await bot.startPolling({ restart: true, polling: true });
+          logger.info(`Admin bot restarted successfully`);
         } catch (e) {
-          logger.error(`Error restarting ${botType} bot:`, e);
+          logger.error(`Error restarting Admin bot:`, e);
         }
-      }, 5000); // Подождем 5 секунд перед перезапуском
+      }, 5000);
     }
   }
-
 
   commandModules.forEach((module) => {
     Object.entries(module).forEach(([command, handler]) => {
@@ -73,31 +74,104 @@ function createAdminBot() {
     });
   });
 
-  bot.on('polling_error', (error) => handlePollingError(error, bot, 'Admin'));
+  // Обработчик callback_query для кнопок авторизации
+  bot.on('callback_query', async (query) => {
+    try {
+      logger.info(`Received callback query: ${query.data}`);
+      
+      const chatId = query.message.chat.id;
+      const userId = query.from.id;
+      
+      if (!(await isAdmin(userId))) {
+        logger.warn(`Unauthorized callback_query attempt by user ${userId}`);
+        return;
+      }
+
+      const messageId = query.message.message_id;
+      const mainPhoneNumber = config.MAIN_TG_PHONE_NUMBER;
+
+      if (query.data === 'auth_qr') {
+        logger.info('QR auth selected');
+        await bot.answerCallbackQuery(query.id);
+        await bot.editMessageText('Выбрана авторизация через QR-код', {
+          chat_id: chatId,
+          message_id: messageId
+        });
+        await startQRAuth(bot, chatId, mainPhoneNumber);
+      } else if (query.data === 'auth_sms') {
+        logger.info('SMS auth selected');
+        await bot.answerCallbackQuery(query.id);
+        await bot.editMessageText('Выбрана авторизация через SMS', {
+          chat_id: chatId,
+          message_id: messageId
+        });
+        await startSMSAuth(bot, chatId, mainPhoneNumber);
+      }
+    } catch (error) {
+      logger.error('Error in callback_query handler:', JSON.stringify(error, null, 2));
+    }
+  });
+
+  // Добавим глобальный обработчик необработанных отклонений промисов
+  process.on('unhandledRejection', (reason, promise) => {
+    logger.error('Unhandled Rejection at:', promise);
+    logger.error('Reason:', JSON.stringify(reason, null, 2));
+  });
+
+  bot.on('polling_error', handlePollingError);
+  
+
+  async function startQRAuth(bot, chatId, phoneNumber) {
+    try {
+      await bot.sendMessage(chatId, 'Генерация QR-кода для авторизации...');
+      await TelegramSessionService.generateQRCode(phoneNumber, bot, chatId);
+    } catch (error) {
+      logger.error('Error in QR authentication:', error);
+      bot.sendMessage(chatId, `Ошибка при генерации QR-кода: ${error.message}`);
+    }
+  }
+
+  async function startSMSAuth(bot, chatId, phoneNumber) {
+    try {
+      await bot.sendMessage(chatId, 'Начинаем процесс авторизации через SMS...');
+      await TelegramSessionService.authorizeMainClient(bot, chatId);
+    } catch (error) {
+      logger.error('Error in SMS authentication:', error);
+      bot.sendMessage(chatId, `Ошибка при авторизации через SMS: ${error.message}`);
+    }
+  }
 
   return {
     bot,
     launch: () => {
-      logger.info('Starting bot polling');
+      if (isRunning) {
+        logger.warn(`Admin bot is already running`);
+        return;
+      }
+      logger.info('Starting Admin bot polling');
       bot.startPolling({ restart: true, polling: true });
       isRunning = true;
-      logger.info('Bot polling started successfully');
+      logger.info('Admin bot polling started successfully');
     },
     stop: () => {
-      logger.info('Stopping bot polling');
+      if (!isRunning) {
+        logger.warn(`Admin bot is not running`);
+        return;
+      }
+      logger.info('Stopping Admin bot polling');
       bot.stopPolling();
       isRunning = false;
-      logger.info('Bot polling stopped successfully');
+      logger.info('Admin bot polling stopped successfully');
     },
     isRunning: () => isRunning,
     restart: async () => {
-      logger.info('Restarting bot');
+      logger.info('Restarting Admin bot');
       await bot.stopPolling();
       isRunning = false;
       await new Promise(resolve => setTimeout(resolve, 1000));
       await bot.startPolling({ restart: true, polling: true });
       isRunning = true;
-      logger.info('Bot restarted successfully');
+      logger.info('Admin bot restarted successfully');
     }
   };
 }
