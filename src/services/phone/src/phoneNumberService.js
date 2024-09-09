@@ -26,9 +26,11 @@ async function addPhoneNumber(
       `Attempting to add ${platform} number ${phoneNumber} for user ${userId}`,
     );
 
-    const user = await userRepo.getUserById(userId);
-    if (!user) {
-      throw new Error(`User with ID ${userId} not found`);
+    if (userId) {
+      const user = await userRepo.getUserById(userId);
+      if (!user) {
+        logger.warn(`User with ID ${userId} not found. Proceeding without user association.`);
+      }
     }
 
     const result = await phoneNumberRepo.addPhoneNumber(
@@ -185,12 +187,14 @@ async function setPhoneAuthenticated(phoneNumber, platform, isAuthenticated) {
     `Setting ${platform} authentication status for phone number ${phoneNumber} to ${isAuthenticated}`,
   );
   try {
-    await phoneNumberRepo.setPhoneAuthenticated(
+    validatePhoneNumber(phoneNumber);
+    const result = await phoneNumberRepo.setPhoneAuthenticated(
       phoneNumber,
       platform,
       isAuthenticated,
     );
     logger.info(`${platform} authentication status updated for ${phoneNumber}`);
+    return result;
   } catch (error) {
     if (error.code === 406 && error.errorMessage === 'AUTH_KEY_DUPLICATED') {
       logger.warn(

@@ -97,7 +97,7 @@ function createAdminBot() {
           chat_id: chatId,
           message_id: messageId
         });
-        await startQRAuth(bot, chatId, mainPhoneNumber);
+        await startQRAuth(bot, chatId, mainPhoneNumber, userId);
       } else if (query.data === 'auth_sms') {
         logger.info('SMS auth selected');
         await bot.answerCallbackQuery(query.id);
@@ -105,7 +105,7 @@ function createAdminBot() {
           chat_id: chatId,
           message_id: messageId
         });
-        await startSMSAuth(bot, chatId, mainPhoneNumber);
+        await startSMSAuth(bot, chatId, mainPhoneNumber, userId);
       }
     } catch (error) {
       logger.error('Error in callback_query handler:', JSON.stringify(error, null, 2));
@@ -121,20 +121,20 @@ function createAdminBot() {
   bot.on('polling_error', handlePollingError);
   
 
-  async function startQRAuth(bot, chatId, phoneNumber) {
+  async function startQRAuth(bot, chatId, phoneNumber, userId) {
     try {
       await bot.sendMessage(chatId, 'Генерация QR-кода для авторизации...');
-      await TelegramSessionService.generateQRCode(phoneNumber, bot, chatId);
+      await TelegramSessionService.generateQRCode(phoneNumber, bot, chatId, userId);
     } catch (error) {
       logger.error('Error in QR authentication:', error);
       bot.sendMessage(chatId, `Ошибка при генерации QR-кода: ${error.message}`);
     }
   }
 
-  async function startSMSAuth(bot, chatId, phoneNumber) {
+  async function startSMSAuth(bot, chatId, phoneNumber, userId) {
     try {
       await bot.sendMessage(chatId, 'Начинаем процесс авторизации через SMS...');
-      await TelegramSessionService.authorizeMainClient(bot, chatId);
+      await TelegramSessionService.authorizeMainClient(bot, chatId, phoneNumber, userId);
     } catch (error) {
       logger.error('Error in SMS authentication:', error);
       bot.sendMessage(chatId, `Ошибка при авторизации через SMS: ${error.message}`);

@@ -8,7 +8,8 @@ const qrcode = require('qrcode');
 
 const config = require('../../../config');
 const logger = require('../../../utils/logger');
-const { setPhoneAuthenticated } = require('../../phone').phoneNumberService;
+const { getUserByTgId } = require('../../user').userService;
+const { setPhoneAuthenticated, addPhoneNumber, getPhoneNumberInfo } = require('../../phone').phoneNumberService;
 const { processIncomingMessage } =
   require('../../messaging').handleMessageService;
 const sessionManager = require('../managers/sessionManager');
@@ -258,7 +259,7 @@ class TelegramSessionService {
       logger.info(`Connected client for ${phoneNumber}`);
 
       const sessionString = client.session.save();
-      await telegramSessionsRepo.saveSession(phoneNumber, sessionString);
+      await this.saveSession(phoneNumber, sessionString);
       logger.info(`Saved session for ${phoneNumber}`);
 
       // Добавляем обработчик входящих сообщений
@@ -324,56 +325,68 @@ class TelegramSessionService {
     }
   }
 
-  async generateQRCode(phoneNumber, bot, chatId) {
+  async saveSession(phoneNumber, sessionString) {
+    try {
+      await telegramSessionsRepo.saveSession(phoneNumber, sessionString);
+      logger.info(`Session saved for ${phoneNumber}`);
+    } catch (error) {
+      logger.error(`Error saving session for ${phoneNumber}:`, error);
+      throw error;
+    }
+  }
+
+  async generateQRCode(phoneNumber, bot, chatId, userId) {
     let client;
     try {
       client = await this.createOrGetSession(phoneNumber);
-    } catch (error) {
-      logger.error(`Error getting session for ${phoneNumber}:`, error);
-      throw new Error(`Не удалось получить сессию для номера ${phoneNumber}`);
-    }
+      
+      if (!client) {
+        logger.warn(`Client for ${phoneNumber} is null, attempting to create a new session`);
+        const stringSession = new StringSession(''); // Start with empty session
+        client = new TelegramClient(
+          stringSession,
+          parseInt(config.API_ID),
+          config.API_HASH,
+          { connectionRetries: 5 }
+        );
+        await client.connect();
+      }
 
-    try {
+      if (!client.connected) {
+        logger.info(`Connecting client for ${phoneNumber}`);
+        await client.connect();
+      }
+
       const result = await client.invoke(
         new Api.auth.ExportLoginToken({
           apiId: parseInt(config.API_ID),
           apiHash: config.API_HASH,
           exceptIds: [],
-        }),
+        })
       );
 
       if (result instanceof Api.auth.LoginToken) {
-        // Правильное форматирование данных для QR-кода
         const token = Buffer.from(result.token).toString('base64url');
         const qrCodeData = `tg://login?token=${token}`;
-
         logger.info(`Generated QR code data: ${qrCodeData}`);
 
         const qrCodeImage = await qrcode.toBuffer(qrCodeData);
 
         await bot.sendPhoto(chatId, qrCodeImage, {
-          caption:
-            'Отсканируйте этот QR-код в официальном приложении Telegram для входа',
+          caption: 'Отсканируйте этот QR-код в официальном приложении Telegram для входа',
         });
 
         return new Promise((resolve, reject) => {
-          const timeoutId = setTimeout(
-            () => {
-              client.removeEventHandler(updateHandler);
-              reject(new Error('Timeout: QR-код не был отсканирован'));
-            },
-            5 * 60 * 1000,
-          );
+          const timeoutId = setTimeout(() => {
+            client.removeEventHandler(updateHandler);
+            reject(new Error('Timeout: QR-код не был отсканирован'));
+          }, 5 * 60 * 1000);
 
           const updateHandler = async (update) => {
             if (update instanceof Api.UpdateLoginToken) {
               clearTimeout(timeoutId);
               client.removeEventHandler(updateHandler);
-              await this.handleSuccessfulAuthentication(
-                phoneNumber,
-                bot,
-                chatId,
-              );
+              await this.handleSuccessfulAuthentication(phoneNumber, bot, chatId, userId);
               resolve(update);
             }
           };
@@ -383,33 +396,41 @@ class TelegramSessionService {
       }
       throw new Error('Failed to generate login token');
     } catch (error) {
-      logger.error(
-        `Error in QR code authentication for ${phoneNumber}:`,
-        error,
-      );
+      logger.error(`Error in QR code authentication for ${phoneNumber}:`, error);
       throw error;
     }
   }
 
-  async handleSuccessfulAuthentication(phoneNumber, bot, chatId) {
+  async handleSuccessfulAuthentication(phoneNumber, bot, chatId, telegramId) {
     try {
+      // Проверяем, существует ли номер телефона в базе данных
+      let phoneNumberRecord = await getPhoneNumberInfo(phoneNumber);
+      
+      // Если номер не существует, создаем его
+      if (!phoneNumberRecord) {
+        const user = await getUserByTgId(telegramId);
+        logger.info(`Phone number ${phoneNumber} not found. Creating new record.`);
+        await addPhoneNumber(user.id, phoneNumber, 'telegram');
+      }
+
+      // Устанавливаем статус аутентификации
       await setPhoneAuthenticated(phoneNumber, 'telegram', true);
-      logger.info(
-        `Authentication successful for ${phoneNumber}. Updated database.`,
-      );
-      await bot.sendMessage(
-        chatId,
-        `Номер телефона ${phoneNumber} успешно аутентифицирован.`,
-      );
+      logger.info(`Authentication successful for ${phoneNumber}. Updated database.`);
+      
+      // Получаем клиент и сохраняем сессию
+      const client = await this.createOrGetSession(phoneNumber);
+      if (client) {
+        const sessionString = client.session.save();
+        await this.saveSession(phoneNumber, sessionString);
+        logger.info(`Session saved for ${phoneNumber}`);
+      } else {
+        logger.warn(`No client found for ${phoneNumber}. Unable to save session.`);
+      }
+
+      await bot.sendMessage(chatId, `Номер телефона ${phoneNumber} успешно аутентифицирован.`);
     } catch (error) {
-      logger.error(
-        `Error updating authentication status for ${phoneNumber}:`,
-        error,
-      );
-      await bot.sendMessage(
-        chatId,
-        `Аутентификация успешна, но возникла ошибка при обновлении статуса: ${error.message}`,
-      );
+      logger.error(`Error updating authentication status for ${phoneNumber}:`, error);
+      await bot.sendMessage(chatId, `Произошла ошибка при обновлении статуса аутентификации: ${error.message}`);
     }
   }
 
@@ -578,7 +599,7 @@ class TelegramSessionService {
     await client.connect();
 
     const sessionString = client.session.save();
-    await telegramSessionsRepo.saveSession(phoneNumber, sessionString);
+    await this.saveSession(phoneNumber, sessionString);
 
     this.sessions.set(phoneNumber, client);
     return client;

@@ -17,9 +17,10 @@ async function addUserSubscription(userIdentifier, durationDays, isRepeating) {
     }
 
     if (!user) {
+      logger.info(`User ${userIdentifier} not found. Creating new user...`);
       // Если пользователь не найден, создаем нового
       user = await userRepo.createUser(userIdentifier, null, null, null);
-      logger.info(`New user created with ID: ${userId}`);
+      logger.info(`New user created with ID: ${user.id}`);
     }
     userId = user.id;
 

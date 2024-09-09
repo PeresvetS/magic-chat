@@ -374,28 +374,31 @@ async function resetDailyStats() {
 
 async function setPhoneAuthenticated(phoneNumber, platform, isAuthenticated) {
   try {
-    const phoneNumberRecord = await prisma.phoneNumber.findUnique({
+    let phoneNumberRecord = await prisma.phoneNumber.findUnique({
       where: { phoneNumber },
       include: { telegramAccount: true, whatsappAccount: true },
     });
 
     if (!phoneNumberRecord) {
-      throw new Error(`Phone number ${phoneNumber} not found`);
+      logger.info(`Phone number ${phoneNumber} not found. Creating new record.`);
+      phoneNumberRecord = await prisma.phoneNumber.create({
+        data: { phoneNumber },
+      });
     }
 
-    if (platform === 'telegram' && phoneNumberRecord.telegramAccount) {
+    if (platform === 'telegram') {
       await updateTelegramAccountStatus(phoneNumberRecord, isAuthenticated);
       logger.info(
         `Updated Telegram account status for ${phoneNumber}: isAuthenticated=${isAuthenticated}`,
       );
-    } else if (platform === 'whatsapp' && phoneNumberRecord.whatsappAccount) {
+    } else if (platform === 'whatsapp') {
       await updateWhatsAppAccountStatus(phoneNumberRecord, isAuthenticated);
       logger.info(
         `Updated WhatsApp account status for ${phoneNumber}: isAuthenticated=${isAuthenticated}`,
       );
     } else {
       throw new Error(
-        `Platform ${platform} account not found for phone number ${phoneNumber}`,
+        `Unsupported platform ${platform} for phone number ${phoneNumber}`,
       );
     }
 

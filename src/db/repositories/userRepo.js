@@ -2,6 +2,7 @@
 
 const prisma = require('../utils/prisma');
 const logger = require('../../utils/logger');
+const { safeStringify } = require('../../utils/helpers');
 
 async function getUserByTgId(telegramId) {
   try {
@@ -58,19 +59,26 @@ async function getUserIdByCampaignId(campaignId) {
 async function getUserById(id) {
   try {
     logger.info(`Getting user by ID: ${id}`);
+    
+    if (!id) {
+      throw new Error('User ID is required');
+    }
 
     const user = await prisma.user.findUnique({
-      where: { id: parseInt(id) },
+      where: {
+        id: parseInt(id, 10)
+      }
     });
 
     if (!user) {
-      logger.info(`User with ID ${id} not found`);
+      logger.warn(`User with ID ${id} not found`);
       return null;
     }
 
+    logger.info(`User found: ${safeStringify(user)}`);
     return user;
   } catch (error) {
-    logger.error('Error getting user by ID:', error);
+    logger.error(`Error getting user by ID ${id}:`, error);
     throw error;
   }
 }
