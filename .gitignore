@@ -1,6 +1,8 @@
 temp
 *.log
-node_modules
+logs/*
 .env
 .wwebjs_auth
 .wwebjs_cache
+node_modules
+**/.DS_Store
