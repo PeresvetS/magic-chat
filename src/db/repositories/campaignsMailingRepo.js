@@ -6,16 +6,18 @@
 
   async function createCampaignMailing(telegramId, name) {
     try {
-      // Ищем пользователя по telegram_id
       const user = await getUserByTgId(telegramId);
       if (!user) {
         throw new Error(`User with Telegram ID ${telegramId} not found`);
       }
-
+  
       return await prisma.campaignMailing.create({
         data: { userId: user.id, name }
       });
     } catch (error) {
+      if (error.code === 'P2002' && error.meta?.target?.includes('name')) {
+        throw new Error(`Кампания с именем "${name}" уже существует. Пожалуйста, выберите другое имя.`);
+      }
       logger.error('Error creating campaign mailing:', error);
       throw error;
     }

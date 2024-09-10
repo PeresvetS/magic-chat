@@ -135,19 +135,23 @@ class MessageSenderService {
         return { success: false, error: 'DAILY_LIMIT_REACHED' };
       }
 
-      const client =
-        await TelegramSessionService.createOrGetSession(senderPhoneNumber);
+      const client = await TelegramSessionService.createOrGetSession(senderPhoneNumber);
+
+      if (!await client.isUserAuthorized()) {
+        logger.error(`Клиент Telegram для ${senderPhoneNumber} не авторизован`);
+        return { success: false, error: 'CLIENT_NOT_AUTHORIZED' };
+      }
 
       await this.applyDelay('telegram');
 
-      const recipient = await client.getEntity(recipientPhoneNumber);
-      if (!recipient) {
-        await LeadsService.setLeadUnavailable(recipientPhoneNumber);
-        throw new Error(
-          `Не удалось найти пользователя ${recipientPhoneNumber} в Telegram`,
-        );
-      }
-      const result = await client.sendMessage(recipient, { message });
+      // const recipient = await client.getEntity(recipientPhoneNumber);
+      // if (!recipient) {
+      //   await LeadsService.setLeadUnavailable(recipientPhoneNumber);
+      //   throw new Error(
+      //     `Не удалось найти пользователя ${recipientPhoneNumber} в Telegram`,
+      //   );
+      // }
+      const result = await client.sendMessage(recipientPhoneNumber, { message });
 
       const peer_id = recipient.id.toString();
       await this.updateOrCreateLeadChatId(

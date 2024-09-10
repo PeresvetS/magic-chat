@@ -121,25 +121,25 @@ function createAdminBot() {
   bot.on('polling_error', handlePollingError);
   
 
-  async function startQRAuth(bot, chatId, phoneNumber) {
-    try {
-      await bot.sendMessage(chatId, 'Генерация QR-кода для авторизации...');
-      await TelegramSessionService.generateQRCode(phoneNumber, bot, chatId);
-    } catch (error) {
-      logger.error('Error in QR authentication:', error);
-      bot.sendMessage(chatId, `Ошибка при генерации QR-кода: ${error.message}`);
-    }
-  }
+  // async function startQRAuth(bot, chatId, phoneNumber) {
+  //   try {
+  //     await bot.sendMessage(chatId, 'Генерация QR-кода для авторизации...');
+  //     await TelegramSessionService.generateQRCode(phoneNumber, bot, chatId);
+  //   } catch (error) {
+  //     logger.error('Error in QR authentication:', error);
+  //     bot.sendMessage(chatId, `Ошибка при генерации QR-кода: ${error.message}`);
+  //   }
+  // }
 
-  async function startSMSAuth(bot, chatId, phoneNumber) {
-    try {
-      await bot.sendMessage(chatId, 'Начинаем процесс авторизации через SMS...');
-      await TelegramSessionService.authorizeMainClient(bot, chatId);
-    } catch (error) {
-      logger.error('Error in SMS authentication:', error);
-      bot.sendMessage(chatId, `Ошибка при авторизации через SMS: ${error.message}`);
-    }
-  }
+  // async function startSMSAuth(bot, chatId, phoneNumber) {
+  //   try {
+  //     await bot.sendMessage(chatId, 'Начинаем процесс авторизации через SMS...');
+  //     await TelegramSessionService.authorizeMainClient(bot, chatId);
+  //   } catch (error) {
+  //     logger.error('Error in SMS authentication:', error);
+  //     bot.sendMessage(chatId, `Ошибка при авторизации через SMS: ${error.message}`);
+  //   }
+  // }
 
   return {
     bot,
