@@ -44,6 +44,48 @@ class TelegramSessionService {
     }
   }
 
+  async maintainConnection(client) {
+    let reconnectAttempts = 0;
+    
+    const reconnect = async () => {
+      try {
+        if (!client.connected) {
+          logger.info('Attempting to reconnect to Telegram...');
+          await client.connect();
+          logger.info('Successfully reconnected to Telegram');
+          reconnectAttempts = 0; // Сбрасываем счетчик после успешного подключения
+        }
+      } catch (error) {
+        reconnectAttempts++;
+        logger.error(`Failed to reconnect (attempt ${reconnectAttempts}):`, error);
+        
+        if (reconnectAttempts >= this.MAX_RETRIES) {
+          logger.error('Max reconnect attempts reached. Manual intervention required.');
+          // Здесь можно добавить код для уведомления администратора
+          return;
+        }
+        
+        setTimeout(reconnect, this.RETRY_DELAY);
+      }
+    };
+
+    client.on('disconnect', reconnect);
+    
+    // Периодическая проверка соединения
+    setInterval(async () => {
+      try {
+        if (client.connected) {
+          await client.invoke(new Api.Ping({ ping_id: BigInt(1) }));
+        } else {
+          reconnect();
+        }
+      } catch (error) {
+        logger.warn('Error during periodic connection check:', error);
+        reconnect();
+      }
+    }, 30000); // Проверка каждые 30 секунд
+  }
+
   async initializeSessions() {
     try {
       await this.initializeMainClient();
@@ -197,14 +239,21 @@ class TelegramSessionService {
   async reauthorizeSession(phoneNumber) {
     logger.info(`Attempting to reauthorize session for ${phoneNumber}`);
     try {
-      // Вместо автоматического запроса кода, выбросьте специальное исключение
-      throw new Error('MANUAL_REAUTH_REQUIRED');
-    } catch (error) {
-      if (error.message === 'MANUAL_REAUTH_REQUIRED') {
+      const session = await this.createOrGetSession(phoneNumber);
+      await this.connectWithRetry(session);
+      
+      // Проверка авторизации после переподключения
+      if (!(await this.checkAuthorization(session))) {
         logger.warn(`Manual reauthorization required for ${phoneNumber}`);
         // Здесь можно добавить логику для уведомления администратора
-        // или сохранения информации о необходимости ручной переавторизации
+        // о необходимости ручной переавторизации
+        throw new Error('MANUAL_REAUTH_REQUIRED');
       }
+      
+      logger.info(`Successfully reauthorized session for ${phoneNumber}`);
+      return session;
+    } catch (error) {
+      logger.error(`Error reauthorizing session for ${phoneNumber}:`, error);
       throw error;
     }
   }
@@ -214,7 +263,11 @@ class TelegramSessionService {
       await client.invoke(new Api.users.GetFullUser({ id: 'me' }));
       return true;
     } catch (error) {
-      return false;
+      if (error.errorMessage === 'AUTH_KEY_UNREGISTERED') {
+        logger.warn('AUTH_KEY_UNREGISTERED error detected. Session needs reauthorization.');
+        return false;
+      }
+      throw error;
     }
   }
 
@@ -279,6 +332,7 @@ class TelegramSessionService {
     try {
       await client.connect();
       logger.info(`Connected client for ${phoneNumber}`);
+      this.maintainConnection(client);
 
       const sessionString = client.session.save();
       await telegramSessionsRepo.saveSession(phoneNumber, sessionString);
@@ -337,6 +391,16 @@ class TelegramSessionService {
       });
 
       logger.info(`Session authenticated for ${phoneNumber}`);
+
+      const sessionString = client.session.save();
+      await telegramSessionsRepo.saveSession(phoneNumber, sessionString);
+      
+      // Добавляем обработчик входящих сообщений после аутентификации
+      client.addEventHandler(async (event) => {
+        await processIncomingMessage(phoneNumber, event, 'telegram');
+      }, new NewMessage({}));
+
+
       return client;
     } catch (error) {
       logger.error(`Error authenticating session for ${phoneNumber}:`, error);
@@ -542,6 +606,7 @@ class TelegramSessionService {
       try {
         await client.disconnect();
         this.sessions.delete(phoneNumber);
+        await telegramSessionsRepo.deleteSession(phoneNumber);
         logger.info(`Session for ${phoneNumber} has been disconnected.`);
       } catch (error) {
         logger.error(`Error disconnecting session for ${phoneNumber}:`, error);

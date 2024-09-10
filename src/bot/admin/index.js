@@ -15,31 +15,34 @@ const subscriptionCommands = require('./commands/subscriptionCommands');
 const userManagementCommands = require('./commands/userManagementCommands');
 const phoneManagementCommands = require('./commands/phoneManagementCommands');
 
+const commandModules = [
+  helpCommands,
+  limitCommands,
+  statsCommands,
+  crmSettingsCommands,
+  subscriptionCommands,
+  userManagementCommands,
+  phoneManagementCommands,
+];
+
 function createAdminBot() {
   const bot = new TelegramBot(config.ADMIN_BOT_TOKEN, { polling: false });
   let isRunning = false;
+  let pollingError = null;
 
-  const commandModules = [
-    helpCommands,
-    limitCommands,
-    statsCommands,
-    crmSettingsCommands,
-    subscriptionCommands,
-    userManagementCommands,
-    phoneManagementCommands,
-  ];
 
   function handlePollingError(error) {
-    logger.error(`Admin bot polling error:`, error);
+    logger.error('Admin bot polling error:', error);
+    pollingError = error;
     if (error.code === 'ETELEGRAM' && error.message.includes('terminated by other getUpdates request')) {
-      logger.warn(`Admin bot: Another instance is running. Attempting to restart...`);
+      logger.warn('Admin bot: Another instance is running. Attempting to restart...');
       setTimeout(async () => {
         try {
-          await bot.stopPolling();
-          await bot.startPolling({ restart: true, polling: true });
-          logger.info(`Admin bot restarted successfully`);
+          await stop();
+          await launch();
+          logger.info('Admin bot restarted successfully');
         } catch (e) {
-          logger.error(`Error restarting Admin bot:`, e);
+          logger.error('Error restarting Admin bot:', e);
         }
       }, 5000);
     }
@@ -141,39 +144,60 @@ function createAdminBot() {
   //   }
   // }
 
-  return {
-    bot,
-    launch: () => {
-      if (isRunning) {
-        logger.warn(`Admin bot is already running`);
-        return;
-      }
-      logger.info('Starting Admin bot polling');
-      bot.startPolling({ restart: true, polling: true });
-      isRunning = true;
-      logger.info('Admin bot polling started successfully');
-    },
-    stop: () => {
-      if (!isRunning) {
-        logger.warn(`Admin bot is not running`);
-        return;
-      }
-      logger.info('Stopping Admin bot polling');
-      bot.stopPolling();
-      isRunning = false;
-      logger.info('Admin bot polling stopped successfully');
-    },
-    isRunning: () => isRunning,
-    restart: async () => {
-      logger.info('Restarting Admin bot');
-      await bot.stopPolling();
-      isRunning = false;
-      await new Promise(resolve => setTimeout(resolve, 1000));
+  async function launch() {
+    if (isRunning) {
+      logger.warn('Admin bot is already running');
+      return;
+    }
+    logger.info('Starting Admin bot polling');
+    try {
       await bot.startPolling({ restart: true, polling: true });
       isRunning = true;
-      logger.info('Admin bot restarted successfully');
+      pollingError = null;
+      logger.info('Admin bot polling started successfully');
+    } catch (error) {
+      logger.error('Error starting Admin bot polling:', error);
+      throw error;
     }
+  }
+
+  async function stop() {
+    if (!isRunning) {
+      logger.warn('Admin bot is not running');
+      return;
+    }
+    logger.info('Stopping Admin bot polling');
+    try {
+      await bot.stopPolling();
+      isRunning = false;
+      logger.info('Admin bot polling stopped successfully');
+    } catch (error) {
+      logger.error('Error stopping Admin bot polling:', error);
+      throw error;
+    }
+  }
+
+  async function restart() {
+    logger.info('Restarting Admin bot');
+    await stop();
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    await launch();
+    logger.info('Admin bot restarted successfully');
+  }
+
+
+  return {
+    bot,
+    launch,
+    stop,
+    restart,
+    isRunning: () => isRunning,
+    getPollingError: () => pollingError,
+    // startQRAuth,
+    // startSMSAuth
   };
+
+  
 }
 
 module.exports = createAdminBot();

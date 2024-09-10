@@ -4,33 +4,32 @@ const TelegramBot = require('node-telegram-bot-api');
 const config = require('../../config');
 const logger = require('../../utils/logger');
 
-class NotificationBot {
-  constructor() {
-    logger.info('Notification bot initialized');
-    this.bot = new TelegramBot(config.NOTIFICATION_BOT_TOKEN, { polling: false });
-    this.isRunning = false;
-    this.pollingError = null;
+function createNotificationBot() {
+  const bot = new TelegramBot(config.NOTIFICATION_BOT_TOKEN, { polling: false });
+  let isRunning = false;
+  let pollingError = null;
 
-    this.bot.on('polling_error', (error) => {
-      logger.error('Notification bot polling error:', error);
-      this.pollingError = error;
-      if (error.code === 'ETELEGRAM' && error.message.includes('terminated by other getUpdates request')) {
-        logger.warn('Notification bot: Conflict detected. Stopping polling...');
-        this.stop();
-      }
-    });
+  function handlePollingError(error) {
+    logger.error('Notification bot polling error:', error);
+    pollingError = error;
+    if (error.code === 'ETELEGRAM' && error.message.includes('terminated by other getUpdates request')) {
+      logger.warn('Notification bot: Conflict detected. Stopping polling...');
+      stop();
+    }
   }
 
-  async launch() {
-    if (this.isRunning) {
+  bot.on('polling_error', handlePollingError);
+
+  async function launch() {
+    if (isRunning) {
       logger.warn('Notification bot is already running');
       return;
     }
     logger.info('Starting Notification bot polling');
     try {
-      await this.bot.startPolling({ restart: false, polling: true });
-      this.isRunning = true;
-      this.pollingError = null;
+      await bot.startPolling({ restart: false, polling: true });
+      isRunning = true;
+      pollingError = null;
       logger.info('Notification bot polling started successfully');
     } catch (error) {
       logger.error('Error starting Notification bot polling:', error);
@@ -38,15 +37,15 @@ class NotificationBot {
     }
   }
 
-  async stop() {
-    if (!this.isRunning) {
+  async function stop() {
+    if (!isRunning) {
       logger.warn('Notification bot is not running');
       return;
     }
     logger.info('Stopping Notification bot polling');
     try {
-      await this.bot.stopPolling();
-      this.isRunning = false;
+      await bot.stopPolling();
+      isRunning = false;
       logger.info('Notification bot polling stopped successfully');
     } catch (error) {
       logger.error('Error stopping Notification bot polling:', error);
@@ -54,36 +53,38 @@ class NotificationBot {
     }
   }
 
-  async sendNotification(telegramId, message) {
+  async function restart() {
+    logger.info('Restarting Notification bot');
+    await stop();
+    await new Promise(resolve => setTimeout(resolve, 5000)); // Ждем 5 секунд перед перезапуском
+    await launch();
+    logger.info('Notification bot restarted successfully');
+  }
+
+  async function sendNotification(telegramId, message) {
     try {
-      await this.bot.sendMessage(telegramId, message);
+      await bot.sendMessage(telegramId, message);
       logger.info(`Notification sent to ${telegramId}`);
     } catch (error) {
       logger.error(`Error sending notification to ${telegramId}:`, error);
     }
   }
 
-  async sendNotificationToMultipleUsers(telegramIds, message) {
+  async function sendNotificationToMultipleUsers(telegramIds, message) {
     for (const telegramId of telegramIds) {
-      await this.sendNotification(telegramId, message);
+      await sendNotification(telegramId, message);
     }
   }
 
-  isRunning() {
-    return this.isRunning;
-  }
-
-  getPollingError() {
-    return this.pollingError;
-  }
-
-  async restart() {
-    logger.info('Restarting Notification bot');
-    await this.stop();
-    await new Promise(resolve => setTimeout(resolve, 5000)); // Ждем 5 секунд перед перезапуском
-    await this.launch();
-    logger.info('Notification bot restarted successfully');
-  }
+  return {
+    launch,
+    stop,
+    restart,
+    isRunning: () => isRunning,
+    getPollingError: () => pollingError,
+    sendNotification,
+    sendNotificationToMultipleUsers
+  };
 }
 
-module.exports = new NotificationBot();
+module.exports = createNotificationBot();

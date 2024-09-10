@@ -29,6 +29,16 @@
     }
   }
 
+  async function deleteSession(phoneNumber) {
+    try {
+      await prisma.telegramSession.delete({ where: { phoneNumber } });
+      logger.info(`Telegram session deleted for: ${phoneNumber}`);
+    } catch (error) {
+      logger.error('Error deleting Telegram session from database', error);
+      throw error;
+    }
+  }
+
   async function getAllSessions() {
     try {
       return await prisma.telegramSession.findMany();
@@ -41,5 +51,6 @@
   module.exports = {
     getSession,
     saveSession,
+    deleteSession,
     getAllSessions,
   };
