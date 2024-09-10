@@ -25,76 +25,50 @@
     WABABotStateManager ? 'Loaded' : 'Not loaded',
   );
 
-  async function processIncomingMessage(
-    phoneNumber,
-    event,
-    platform = 'telegram',
-  ) {
+  async function processIncomingMessage(phoneNumber, event, platform = 'telegram') {
     try {
+      logger.info(`Starting processIncomingMessage for ${platform}, phone: ${phoneNumber}`);
+      
       const { senderId, messageText } = await extractMessageInfo(event, platform);
       if (!senderId || !messageText) {
-        logger.warn('Invalid message info extracted');
+        logger.warn(`Invalid message info extracted for ${platform}, phone: ${phoneNumber}`);
         return;
       }
   
-      logger.info(
-        `Processing ${platform} message for ${phoneNumber}: senderId=${senderId}, text=${messageText}`,
-      );
+      logger.info(`Processing ${platform} message for ${phoneNumber}: senderId=${senderId}, text=${messageText}`);
   
       const activeCampaign = await getActiveCampaignForPhoneNumber(phoneNumber);
+      logger.info(`Active campaign for ${phoneNumber}: ${JSON.stringify(activeCampaign)}`);
+      
       if (!activeCampaign || !activeCampaign.prompt) {
-        logger.warn(
-          `No active campaign or prompt for ${phoneNumber}. Message ignored.`,
-        );
+        logger.warn(`No active campaign or prompt for ${phoneNumber}. Message ignored.`);
         return;
       }
   
       const BotStateManager = getBotStateManager(platform);
+      logger.info(`BotStateManager for ${platform}: ${BotStateManager ? 'Loaded' : 'Not loaded'}`);
   
-      // Handle incoming message and get the combined message
-      const combinedMessage = await BotStateManager.handleIncomingMessage(
-        phoneNumber,
-        senderId,
-        messageText,
-      );
+      const combinedMessage = await BotStateManager.handleIncomingMessage(phoneNumber, senderId, messageText);
+      logger.info(`Combined message: ${combinedMessage}`);
   
-      // Process the message even if combinedMessage is empty
-      const lead = await getOrCreateLeadIdByChatId(
-        senderId,
-        platform,
-        activeCampaign.userId,
-      );
+      const lead = await getOrCreateLeadIdByChatId(senderId, platform, activeCampaign.userId);
+      logger.info(`Lead: ${JSON.stringify(lead)}`);
   
-      logger.info(`Processing ${platform} with lead=${safeStringify(lead)}`);
-  
-      // Use combinedMessage if available, otherwise use the original messageText
       const messageToProcess = combinedMessage || messageText;
   
-      const response = await processMessage(
-        lead,
-        senderId,
-        messageToProcess,
-        phoneNumber,
-        activeCampaign,
-      );
+      const response = await processMessage(lead, senderId, messageToProcess, phoneNumber, activeCampaign);
+      logger.info(`Generated response: ${response}`);
   
       if (response) {
         logger.info(`Sending response to user ${senderId}: ${response}`);
         await sendResponse(senderId, response, phoneNumber, platform);
       } else {
-        logger.warn(
-          `No response generated for ${platform} message from ${senderId}`,
-        );
+        logger.warn(`No response generated for ${platform} message from ${senderId}`);
       }
   
-      logger.info(
-        `Processed ${platform} message for ${phoneNumber} from ${senderId}: ${safeStringify(messageText)}`,
-      );
+      logger.info(`Processed ${platform} message for ${phoneNumber} from ${senderId}: ${JSON.stringify(messageText)}`);
     } catch (error) {
-      logger.error(
-        `Error processing incoming ${platform} message for ${phoneNumber}:`,
-        error,
-      );
+      logger.error(`Error processing incoming ${platform} message for ${phoneNumber}:`, error);
     }
   }
 

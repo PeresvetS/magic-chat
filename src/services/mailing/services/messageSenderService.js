@@ -144,13 +144,13 @@ class MessageSenderService {
 
       await this.applyDelay('telegram');
 
-      // const recipient = await client.getEntity(recipientPhoneNumber);
-      // if (!recipient) {
-      //   await LeadsService.setLeadUnavailable(recipientPhoneNumber);
-      //   throw new Error(
-      //     `Не удалось найти пользователя ${recipientPhoneNumber} в Telegram`,
-      //   );
-      // }
+      const recipient = await client.getEntity(recipientPhoneNumber);
+      if (!recipient) {
+        await LeadsService.setLeadUnavailable(recipientPhoneNumber);
+        throw new Error(
+          `Не удалось найти пользователя ${recipientPhoneNumber} в Telegram`,
+        );
+      }
       const result = await client.sendMessage(recipientPhoneNumber, { message });
 
       const peer_id = recipient.id.toString();
