@@ -455,7 +455,33 @@
   }
   
 
+  async function setSecondaryPrompt(id, promptId) {
+    try {
+      const updatedCampaign = await prisma.campaignMailing.update({
+        where: { id },
+        data: { secondaryPromptId: promptId, updatedAt: new Date() }
+      });
+      logger.info(`Secondary prompt set for campaign: ${id}`);
+      return updatedCampaign;
+    } catch (error) {
+      logger.error(`Error setting secondary prompt for campaign ${id}:`, error);
+      throw error;
+    }
+  }
 
+  async function toggleSecondaryAgent(id, isActive) {
+    try {
+      const updatedCampaign = await prisma.campaignMailing.update({
+        where: { id },
+        data: { isSecondaryAgentActive: isActive, updatedAt: new Date() }
+      });
+      logger.info(`Secondary agent toggled ${isActive ? 'on' : 'off'} for campaign: ${id}`);
+      return updatedCampaign;
+    } catch (error) {
+      logger.error(`Error toggling secondary agent for campaign ${id}:`, error);
+      throw error;
+    }
+  }
 
   module.exports = {
     getCampaignById,
@@ -483,5 +509,7 @@
     getFirstAvailablePhoneNumber,
     removeNotificationTelegramId,
     getActiveCampaignForPhoneNumber,
-    checkPhoneNumbersAuthentication
+    checkPhoneNumbersAuthentication,
+    setSecondaryPrompt,
+    toggleSecondaryAgent
   };

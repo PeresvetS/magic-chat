@@ -342,6 +342,24 @@ class CampaignMailingService {
       throw error;
     }
   }
+
+  async setSecondaryPrompt(id, promptId) {
+    try {
+      return await campaignsMailingRepo.setSecondaryPrompt(id, promptId);
+    } catch (error) {
+      logger.error('Error in setSecondaryPrompt service:', error);
+      throw error;
+    }
+  }
+
+  async toggleSecondaryAgent(id, isActive) {
+    try {
+      return await campaignsMailingRepo.toggleSecondaryAgent(id, isActive);
+    } catch (error) {
+      logger.error('Error in toggleSecondaryAgent service:', error);
+      throw error;
+    }
+  }
 }
 
 module.exports = new CampaignMailingService();

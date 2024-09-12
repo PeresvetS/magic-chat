@@ -126,6 +126,36 @@ const availableFunctions = {
   },
 };
 
+async function generateSecondaryResponse(campaign, primaryResponse, messages) {
+  if (!campaign.isSecondaryAgentActive || !campaign.secondaryPrompt) {
+    return primaryResponse;
+  }
+
+  try {
+    const secondaryPrompt = campaign.secondaryPrompt.content;
+
+    const formattedMessages = [
+      { role: 'system', content: secondaryPrompt },
+      { role: 'user', content: `Primary model response: ${primaryResponse}` },
+      { role: 'user', content: 'Original conversation:' },
+      ...messages.map((msg) => ({
+        role: msg.role === 'human' ? 'user' : 'assistant',
+        content: msg.content,
+      })),
+    ];
+
+    const response = await openai.chat.completions.create({
+      model: 'gpt-4o-mini',
+      messages: formattedMessages,
+    });
+
+    return response.choices[0].message.content;
+  } catch (error) {
+    logger.error('Error generating secondary GPT response:', error);
+    return primaryResponse; // Return primary response if secondary fails
+  }
+}
+
 async function generateResponse(lead, messages, campaign) {
   try {
     let googleSheetData = null;
@@ -207,7 +237,12 @@ async function generateResponse(lead, messages, campaign) {
       return `Function ${functionName} not found.`;
     }
 
-    return responseMessage.content;
+    const primaryResponse = responseMessage.content;
+    
+    // Generate secondary response if enabled
+    const finalResponse = await generateSecondaryResponse(campaign, primaryResponse, messages);
+
+    return finalResponse;
   } catch (error) {
     logger.error('Error generating GPT response:', error);
     throw error;

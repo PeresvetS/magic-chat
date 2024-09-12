@@ -40,28 +40,60 @@ async function processMessage(lead, senderId, message, phoneNumber, campaign) {
     const messages = await contextManager.getMessages();
     logger.debug(`Current message context for ${senderId}: ${JSON.stringify(messages)}`);
 
-    const response = await generateResponse(lead, messages, campaign);
-    logger.info(`Response generated for ${senderId}: ${response}`);
+    const primaryResponse = await generateResponse(lead, messages, campaign);
+    logger.info(`Primary response generated for ${senderId}: ${primaryResponse}`);
 
-    await contextManager.addMessage({ role: 'assistant', content: response });
+    let finalResponse = primaryResponse;
+
+    // Check if secondary agent is active and process the response
+    if (campaign.isSecondaryAgentActive && campaign.secondaryPrompt) {
+      logger.info(`Secondary agent is active for campaign ${campaign.id}`);
+      const secondaryResponse = await generateSecondaryResponse(campaign, primaryResponse, messages);
+      logger.info(`Secondary response generated for ${senderId}: ${secondaryResponse}`);
+      finalResponse = secondaryResponse;
+    }
+
+    await contextManager.addMessage({ role: 'assistant', content: finalResponse });
     logger.info(`Added assistant response to context for ${senderId}`);
 
     const tokenCount = countTokensForMessages([
       ...messages,
-      { role: 'assistant', content: response },
+      { role: 'assistant', content: finalResponse },
     ]);
     logger.debug(`Token count for ${senderId}: ${tokenCount}`);
 
     await saveMessageStats(senderId, phoneNumber, tokenCount);
     logger.info(`Saved message stats for ${senderId}`);
 
-    await saveDialogToFile(senderId, message, response);
+    await saveDialogToFile(senderId, message, finalResponse);
     logger.info(`Saved dialog to file for ${senderId}`);
 
-    return response;
+    return finalResponse;
   } catch (error) {
     logger.error(`Error in processMessage for ${senderId}:`, error);
     throw error;
+  }
+}
+
+async function generateSecondaryResponse(campaign, primaryResponse, messages) {
+  try {
+    const secondaryPrompt = campaign.secondaryPrompt.content;
+
+    const formattedMessages = [
+      { role: 'system', content: secondaryPrompt },
+      { role: 'user', content: `Primary model response: ${primaryResponse}` },
+      { role: 'user', content: 'Original conversation:' },
+      ...messages.map((msg) => ({
+        role: msg.role === 'human' ? 'user' : 'assistant',
+        content: msg.content,
+      })),
+    ];
+
+    const response = await generateResponse(null, formattedMessages, campaign);
+    return response;
+  } catch (error) {
+    logger.error('Error generating secondary GPT response:', error);
+    return primaryResponse; // Return primary response if secondary fails
   }
 }
 
