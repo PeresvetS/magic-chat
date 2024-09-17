@@ -1,10 +1,10 @@
 // src/services/mailing/services/messageDistributionService.js
 
-const messageSenderService = require('./messageSenderService');
 const MessagingPlatformChecker = require('../checkers/MessagingPlatformChecker');
 const logger = require('../../../utils/logger');
 const { campaignsMailingService } = require('../../campaign');
 const PhoneNumberManagerService = require('../../phone/src/PhoneNumberManagerService');
+const SupabaseQueueService = require('../../queue/supabaseQueueService');
 
 class MessageDistributionService {
   constructor() {
@@ -19,6 +19,11 @@ class MessageDistributionService {
     platformPriority = 'telegram',
     mode = 'one',
   ) {
+    if (!campaignId) {
+      logger.error('Campaign ID is undefined');
+      throw new Error('Campaign ID is required for message distribution');
+    }
+
     logger.info(
       `Distributing message to ${phoneNumber} with priority ${platformPriority} and mode ${mode}`,
     );
@@ -67,68 +72,14 @@ class MessageDistributionService {
           continue;
         }
 
-        let sendResult;
-        do {
-          switch (platform) {
-            case 'telegram':
-              sendResult = await messageSenderService.sendTelegramMessage(
-                campaignId,
-                senderPhoneNumber,
-                strPhoneNumber,
-                message,
-              );
-              break;
-            case 'whatsapp':
-              sendResult = await messageSenderService.sendWhatsAppMessage(
-                campaignId,
-                senderPhoneNumber,
-                strPhoneNumber,
-                message,
-              );
-              break;
-            case 'waba':
-              sendResult = await messageSenderService.sendWABAMessage(
-                campaignId,
-                senderPhoneNumber,
-                strPhoneNumber,
-                message,
-              );
-              break;
-            case 'tgwa':
-              sendResult = await messageSenderService.sendTgAndWa(
-                campaignId,
-                strPhoneNumber,
-                message,
-              );
-              break;
-            case 'tgwaba':
-              sendResult = await messageSenderService.sendTgAndWABA(
-                campaignId,
-                strPhoneNumber,
-                message,
-              );
-              break;
-          }
-
-          if (
-            !sendResult.success &&
-            sendResult.error === 'DAILY_LIMIT_REACHED'
-          ) {
-            senderPhoneNumber =
-              await PhoneNumberManagerService.switchToNextPhoneNumber(
-                campaignId,
-                senderPhoneNumber,
-                platform,
-              );
-            if (!senderPhoneNumber) {
-              break;
-            }
-          } else {
-            break;
-          }
-        } while (true);
-
-        results[platform] = sendResult;
+        const queueItem = await SupabaseQueueService.enqueue(
+          campaignId,
+          message,
+          strPhoneNumber,
+          platform,
+          senderPhoneNumber
+        );
+        results[platform] = { queueItemId: queueItem.id, status: 'queued' };
       }
 
       return results;
@@ -148,8 +99,8 @@ class MessageDistributionService {
     logger.info(`Starting bulk distribution for campaign ${campaignId}`);
     const results = {
       totalContacts: contacts.length,
-      successfulSends: 0,
-      failedSends: 0,
+      queuedSends: 0,
+      failedEnqueues: 0,
       details: [],
     };
 
@@ -174,34 +125,21 @@ class MessageDistributionService {
           mode,
         );
 
-        if (
-          (result.telegram && result.telegram.success) ||
-          (result.whatsapp && result.whatsapp.success) ||
-          (result.tgwa && result.tgwa.success)
-        ) {
-          results.successfulSends++;
-          results.details.push({
-            phoneNumber: contact.phoneNumber,
-            status: 'success',
-            platform: this.getSuccessfulPlatform(result),
-          });
-        } else {
-          results.failedSends++;
-          results.details.push({
-            phoneNumber: contact.phoneNumber,
-            status: 'failed',
-            error: this.getErrorMessage(result),
-          });
-        }
+        results.queuedSends++;
+        results.details.push({
+          phoneNumber: contact.phoneNumber,
+          status: 'queued',
+          queueItems: result,
+        });
 
-        // Добавляем небольшую задержку между отправками
-        await new Promise((resolve) => setTimeout(resolve, 1000));
+        // Добавляем небольшую задержку между постановками в очередь
+        await new Promise((resolve) => setTimeout(resolve, 100));
       } catch (error) {
         logger.error(
-          `Error in bulk distribution for ${contact.phoneNumber}:`,
+          `Error enqueueing message for ${contact.phoneNumber}:`,
           error,
         );
-        results.failedSends++;
+        results.failedEnqueues++;
         results.details.push({
           phoneNumber: contact.phoneNumber,
           status: 'failed',
@@ -211,40 +149,29 @@ class MessageDistributionService {
     }
 
     logger.info(
-      `Bulk distribution completed for campaign ${campaignId}. Results:`,
+      `Bulk distribution queuing completed for campaign ${campaignId}. Results:`,
       results,
     );
     return results;
   }
 
+
   getSuccessfulPlatform(result) {
-    if (result.telegram && result.telegram.success) {
-      return 'telegram';
-    }
-    if (result.whatsapp && result.whatsapp.success) {
-      return 'whatsapp';
-    }
-    if (result.waba && result.waba.success) {
-      return 'waba';
-    }
-    if (result.tgwa && result.tgwa.success) {
-      return 'telegram and whatsapp';
-    }
-    if (result.tgwaba && result.tgwaba.success) {
-      return 'telegram and waba';
+    for (const platform of ['telegram', 'whatsapp', 'waba', 'tgwa', 'tgwaba']) {
+      if (result[platform] && result[platform].success) {
+        return platform;
+      }
     }
     return 'unknown';
   }
 
   getErrorMessage(result) {
-    return (
-      result.telegram?.error ||
-      result.whatsapp?.error ||
-      result.waba?.error ||
-      result.tgwa?.error ||
-      result.tgwaba?.error ||
-      'Unknown error'
-    );
+    for (const platform of ['telegram', 'whatsapp', 'waba', 'tgwa', 'tgwaba']) {
+      if (result[platform] && result[platform].error) {
+        return result[platform].error;
+      }
+    }
+    return 'Unknown error';
   }
 
   async sendMessageToLead(lead, user) {
@@ -312,6 +239,21 @@ class MessageDistributionService {
         this.lastMessageTimes.delete(key);
       }
     }
+  }
+
+  async getDistributionResults(results) {
+    const updatedResults = { ...results };
+    for (const platform of Object.keys(updatedResults)) {
+      if (updatedResults[platform] && updatedResults[platform].queueItemId) {
+        const queueItem = await SupabaseQueueService.getQueueItem(updatedResults[platform].queueItemId);
+        if (queueItem.status === 'completed') {
+          updatedResults[platform] = JSON.parse(queueItem.result);
+        } else if (queueItem.status === 'failed') {
+          updatedResults[platform] = { success: false, error: queueItem.errorMessage };
+        }
+      }
+    }
+    return updatedResults;
   }
 }
 

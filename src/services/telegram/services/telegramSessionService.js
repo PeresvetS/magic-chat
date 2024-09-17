@@ -45,6 +45,48 @@ class TelegramSessionService {
     }
   }
 
+  async maintainConnection(client) {
+    let reconnectAttempts = 0;
+    
+    const reconnect = async () => {
+      try {
+        if (!client.connected) {
+          logger.info('Attempting to reconnect to Telegram...');
+          await client.connect();
+          logger.info('Successfully reconnected to Telegram');
+          reconnectAttempts = 0; // Сбрасываем счетчик после успешного подключения
+        }
+      } catch (error) {
+        reconnectAttempts++;
+        logger.error(`Failed to reconnect (attempt ${reconnectAttempts}):`, error);
+        
+        if (reconnectAttempts >= this.MAX_RETRIES) {
+          logger.error('Max reconnect attempts reached. Manual intervention required.');
+          // Здесь можно добавить код для уведомления администратора
+          return;
+        }
+        
+        setTimeout(reconnect, this.RETRY_DELAY);
+      }
+    };
+
+    client.on('disconnect', reconnect);
+    
+    // Периодическая проверка соединения
+    setInterval(async () => {
+      try {
+        if (client.connected) {
+          await client.invoke(new Api.Ping({ ping_id: BigInt(1) }));
+        } else {
+          reconnect();
+        }
+      } catch (error) {
+        logger.warn('Error during periodic connection check:', error);
+        reconnect();
+      }
+    }, 30000); // Проверка каждые 30 секунд
+  }
+
   async initializeSessions() {
     try {
       await this.initializeMainClient();
@@ -99,90 +141,120 @@ class TelegramSessionService {
     return this.mainClient;
   }
 
-  async authorizeMainClient(bot, chatId) {
+  // async authorizeMainClient(bot, chatId) {
+  //   if (!this.mainClient) {
+  //     this.mainClient = new TelegramClient(
+  //       new StringSession(''),
+  //       config.API_ID,
+  //       config.API_HASH,
+  //       {
+  //         connectionRetries: 5,
+  //       },
+  //     );
+  //   }
+
+  //   let isAuthorized = false;
+  //   let attempts = 0;
+  //   const maxAttempts = 3;
+
+  //   while (!isAuthorized && attempts < maxAttempts) {
+  //     attempts++;
+  //     try {
+  //       await this.mainClient.start({
+  //         phoneNumber: async () => config.MAIN_TG_PHONE_NUMBER,
+  //         password: async () => {
+  //           // Запрос 2FA пароля
+  //           await bot.sendMessage(chatId, 'Пожалуйста, введите ваш 2FA пароль:');
+  //           return new Promise((resolve) => {
+  //             bot.once('message', (msg) => {
+  //               if (msg.chat.id === chatId) {
+  //                 resolve(msg.text.trim());
+  //               }
+  //             });
+  //           });
+  //         },
+  //         phoneCode: async () => {
+  //           await bot.sendMessage(chatId, 'Пожалуйста, введите код, полученный в SMS:');
+  //           return new Promise((resolve) => {
+  //             bot.once('message', (msg) => {
+  //               if (msg.chat.id === chatId) {
+  //                 resolve(msg.text.trim());
+  //               }
+  //             });
+  //           });
+  //         },
+  //         onError: (err) => {
+  //           logger.error(`Ошибка во время авторизации клиента, попытка ${attempts}:`, err);
+  //           throw err;
+  //         },
+  //       });
+  //       isAuthorized = true;
+  //     } catch (error) {
+  //       if (error.message.includes('SESSION_PASSWORD_NEEDED')) {
+  //         // Если требуется 2FA, мы уже запросили пароль в методе password выше
+  //         continue;
+  //       } else if (error.message.includes('PHONE_CODE_INVALID') && attempts < maxAttempts) {
+  //         await bot.sendMessage(chatId, 'Неверный код. Пожалуйста, попробуйте еще раз.');
+  //       } else if (error.message.includes('PHONE_CODE_EXPIRED') && attempts < maxAttempts) {
+  //         await bot.sendMessage(chatId, 'Код истек. Запрашиваем новый код...');
+  //         await new Promise(resolve => setTimeout(resolve, 5000)); // Пауза перед следующей попыткой
+  //       } else {
+  //         throw error;
+  //       }
+  //     }
+  //   }
+
+  //   if (isAuthorized) {
+  //     logger.info('Основной клиент Telegram успешно авторизован');
+  //     const sessionString = this.mainClient.session.save();
+  //     await this.saveSession(config.MAIN_TG_PHONE_NUMBER, sessionString);
+  //     await bot.sendMessage(chatId, 'Авторизация успешно завершена!');
+  //   } else {
+  //     throw new Error(`Не удалось авторизоваться после ${maxAttempts} попыток`);
+  //   }
+  // }
+
+  async authorizeMainClient(getAuthCode, get2FAPassword) {
     if (!this.mainClient) {
-      this.mainClient = new TelegramClient(
-        new StringSession(''),
-        config.API_ID,
-        config.API_HASH,
-        {
-          connectionRetries: 5,
-        },
-      );
+      this.mainClient = new TelegramClient(new StringSession(""), config.API_ID, config.API_HASH, {
+        connectionRetries: 5,
+      });
     }
 
-    let isAuthorized = false;
-    let attempts = 0;
-    const maxAttempts = 3;
+    await this.mainClient.start({
+      phoneNumber: async () => config.MAIN_TG_PHONE_NUMBER,
+      password: get2FAPassword,
+      phoneCode: getAuthCode,
+      onError: (err) => {
+        logger.error('Error during main client authorization:', err);
+        throw err;
+      },
+    });
 
-    while (!isAuthorized && attempts < maxAttempts) {
-      attempts++;
-      try {
-        await this.mainClient.start({
-          phoneNumber: async () => config.MAIN_TG_PHONE_NUMBER,
-          password: async () => {
-            // Запрос 2FA пароля
-            await bot.sendMessage(chatId, 'Пожалуйста, введите ваш 2FA пароль:');
-            return new Promise((resolve) => {
-              bot.once('message', (msg) => {
-                if (msg.chat.id === chatId) {
-                  resolve(msg.text.trim());
-                }
-              });
-            });
-          },
-          phoneCode: async () => {
-            await bot.sendMessage(chatId, 'Пожалуйста, введите код, полученный в SMS:');
-            return new Promise((resolve) => {
-              bot.once('message', (msg) => {
-                if (msg.chat.id === chatId) {
-                  resolve(msg.text.trim());
-                }
-              });
-            });
-          },
-          onError: (err) => {
-            logger.error(`Ошибка во время авторизации клиента, попытка ${attempts}:`, err);
-            throw err;
-          },
-        });
-        isAuthorized = true;
-      } catch (error) {
-        if (error.message.includes('SESSION_PASSWORD_NEEDED')) {
-          // Если требуется 2FA, мы уже запросили пароль в методе password выше
-          continue;
-        } else if (error.message.includes('PHONE_CODE_INVALID') && attempts < maxAttempts) {
-          await bot.sendMessage(chatId, 'Неверный код. Пожалуйста, попробуйте еще раз.');
-        } else if (error.message.includes('PHONE_CODE_EXPIRED') && attempts < maxAttempts) {
-          await bot.sendMessage(chatId, 'Код истек. Запрашиваем новый код...');
-          await new Promise(resolve => setTimeout(resolve, 5000)); // Пауза перед следующей попыткой
-        } else {
-          throw error;
-        }
-      }
-    }
-
-    if (isAuthorized) {
-      logger.info('Основной клиент Telegram успешно авторизован');
-      const sessionString = this.mainClient.session.save();
-      await this.saveSession(config.MAIN_TG_PHONE_NUMBER, sessionString);
-      await bot.sendMessage(chatId, 'Авторизация успешно завершена!');
-    } else {
-      throw new Error(`Не удалось авторизоваться после ${maxAttempts} попыток`);
-    }
+    logger.info('Main Telegram client successfully authorized');
+    const sessionString = this.mainClient.session.save();
+    await telegramSessionsRepo.saveSession(config.MAIN_TG_PHONE_NUMBER, sessionString);
   }
+
 
   async reauthorizeSession(phoneNumber) {
     logger.info(`Attempting to reauthorize session for ${phoneNumber}`);
     try {
-      // Вместо автоматического запроса кода, выбросьте специальное исключение
-      throw new Error('MANUAL_REAUTH_REQUIRED');
-    } catch (error) {
-      if (error.message === 'MANUAL_REAUTH_REQUIRED') {
+      const session = await this.createOrGetSession(phoneNumber);
+      await this.connectWithRetry(session);
+      
+      // Проверка авторизации после переподключения
+      if (!(await this.checkAuthorization(session))) {
         logger.warn(`Manual reauthorization required for ${phoneNumber}`);
         // Здесь можно добавить логику для уведомления администратора
-        // или сохранения информации о необходимости ручной переавторизации
+        // о необходимости ручной переавторизации
+        throw new Error('MANUAL_REAUTH_REQUIRED');
       }
+      
+      logger.info(`Successfully reauthorized session for ${phoneNumber}`);
+      return session;
+    } catch (error) {
+      logger.error(`Error reauthorizing session for ${phoneNumber}:`, error);
       throw error;
     }
   }
@@ -192,7 +264,11 @@ class TelegramSessionService {
       await client.invoke(new Api.users.GetFullUser({ id: 'me' }));
       return true;
     } catch (error) {
-      return false;
+      if (error.errorMessage === 'AUTH_KEY_UNREGISTERED') {
+        logger.warn('AUTH_KEY_UNREGISTERED error detected. Session needs reauthorization.');
+        return false;
+      }
+      throw error;
     }
   }
 
@@ -257,6 +333,7 @@ class TelegramSessionService {
     try {
       await client.connect();
       logger.info(`Connected client for ${phoneNumber}`);
+      this.maintainConnection(client);
 
       const sessionString = client.session.save();
       await this.saveSession(phoneNumber, sessionString);
@@ -315,6 +392,16 @@ class TelegramSessionService {
       });
 
       logger.info(`Session authenticated for ${phoneNumber}`);
+
+      const sessionString = client.session.save();
+      await telegramSessionsRepo.saveSession(phoneNumber, sessionString);
+      
+      // Добавляем обработчик входящих сообщений после аутентификации
+      client.addEventHandler(async (event) => {
+        await processIncomingMessage(phoneNumber, event, 'telegram');
+      }, new NewMessage({}));
+
+
       return client;
     } catch (error) {
       logger.error(`Error authenticating session for ${phoneNumber}:`, error);
@@ -540,6 +627,7 @@ class TelegramSessionService {
       try {
         await client.disconnect();
         this.sessions.delete(phoneNumber);
+        await telegramSessionsRepo.deleteSession(phoneNumber);
         logger.info(`Session for ${phoneNumber} has been disconnected.`);
       } catch (error) {
         logger.error(`Error disconnecting session for ${phoneNumber}:`, error);
@@ -572,13 +660,16 @@ class TelegramSessionService {
   }
 
   async createOrGetSession(phoneNumber) {
-    if (phoneNumber === config.MAIN_TG_PHONE_NUMBER) {
-      return this.getMainClient();
-    }
+    logger.info(`Creating or getting session for ${phoneNumber}`);
+    // if (phoneNumber === config.MAIN_TG_PHONE_NUMBER) {
+    //   return this.getMainClient();
+    // }
 
     if (this.sessions.has(phoneNumber)) {
+      logger.info(`Existing session found for ${phoneNumber}`);
       const session = this.sessions.get(phoneNumber);
       if (!session.connected) {
+        logger.info(`Reconnecting session for ${phoneNumber}`);
         await session.connect();
       }
       return session;
@@ -592,11 +683,17 @@ class TelegramSessionService {
       config.API_ID,
       config.API_HASH,
       {
-        connectionRetries: 5,
+        connectionRetries: 3,
+        deviceModel: 'MacBookPro16,1',
+        systemVersion: 'macOS 11.2.3',
+        appVersion: '5.3.1',
+        langCode: 'ru',
       },
+      
     );
 
     await client.connect();
+    logger.info(`Connected client for ${phoneNumber}`);
 
     const sessionString = client.session.save();
     await this.saveSession(phoneNumber, sessionString);

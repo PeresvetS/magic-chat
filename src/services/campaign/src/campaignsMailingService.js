@@ -342,6 +342,42 @@ class CampaignMailingService {
       throw error;
     }
   }
+
+  async setSecondaryPrompt(id, promptId) {
+    try {
+      return await campaignsMailingRepo.setSecondaryPrompt(id, promptId);
+    } catch (error) {
+      logger.error('Error in setSecondaryPrompt service:', error);
+      throw error;
+    }
+  }
+
+  async toggleSecondaryAgent(id, isActive) {
+    try {
+      return await campaignsMailingRepo.toggleSecondaryAgent(id, isActive);
+    } catch (error) {
+      logger.error('Error in toggleSecondaryAgent service:', error);
+      throw error;
+    }
+  }
+
+  async setCampaignModel(id, modelName) {
+    try {
+      return await campaignsMailingRepo.setCampaignModel(id, modelName);
+    } catch (error) {
+      logger.error('Error in setCampaignModel service:', error);
+      throw error;
+    }
+  }
+
+  async setCampaignOpenAIKey(id, openaiApiKey) {
+    try {
+      return await campaignsMailingRepo.setCampaignOpenAIKey(id, openaiApiKey);
+    } catch (error) {
+      logger.error('Error in setCampaignOpenAIKey service:', error);
+      throw error;
+    }
+  }
 }
 
 module.exports = new CampaignMailingService();

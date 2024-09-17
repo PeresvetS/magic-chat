@@ -5,6 +5,7 @@ const {
   getUserState,
   clearUserState,
 } = require('../utils/userState');
+const { checkMailingStatus, checkBulkDistributionStatus } = require('../utils/mailingStatusChecker');
 const LeadsService = require('../../../services/leads/src/LeadsService');
 const { campaignsMailingService } = require('../../../services/campaign');
 const { distributionService } = require('../../../services/mailing');
@@ -244,48 +245,25 @@ module.exports = {
           return;
         }
 
-        const result = await distributionService.distributeMessage(
+        const initialResult = await distributionService.distributeMessage(
           activeCampaign.id,
           activeCampaign.message,
           phoneNumber,
           priorityPlatform || activeCampaign.platformPriority,
         );
-        if (result.telegram && result.telegram.success) {
-          bot.sendMessage(
-            msg.chat.id,
-            `Тестовое сообщение успешно отправлено в Telegram на номер ${phoneNumber}`,
-          );
-        } else if (result.whatsapp && result.whatsapp.success) {
-          bot.sendMessage(
-            msg.chat.id,
-            `Тестовое сообщение успешно отправлено в WhatsApp на номер ${phoneNumber}`,
-          );
-        } else if (result.waba && result.waba.success) {
-          bot.sendMessage(
-            msg.chat.id,
-            `Тестовое сообщение успешно отправлено в WABA на номер ${phoneNumber}`,
-          );
-        } else if (result.tgwa && result.tgwa.success) {
-          bot.sendMessage(
-            msg.chat.id,
-            `Тестовое сообщение успешно отправлено в Telegram и/или WhatsApp на номер ${phoneNumber}`,
-          );
-        } else if (result.tgwaba && result.tgwaba.success) {
-          bot.sendMessage(
-            msg.chat.id,
-            `Тестовое сообщение успешно отправлено в Telegram и/или WABA на номер ${phoneNumber}`,
-          );
-        } else {
-          bot.sendMessage(
-            msg.chat.id,
-            `Не удалось отправить тестовое сообщение на номер ${phoneNumber}. Проверьте, доступен ли этот номер в мессенджерах.`,
-          );
-        }
+
+        bot.sendMessage(
+          msg.chat.id,
+          'Сообщение поставлено в очередь на отправку. Ожидайте результатов...',
+        );
+
+        await checkMailingStatus(bot, msg, initialResult, phoneNumber);
+
       } catch (error) {
         logger.error('Error in mailing test:', error);
         bot.sendMessage(
           msg.chat.id,
-          'Произошла ошибка при отправке тестового сообщения.',
+          'Произошла ошибка при отправке сообщения.',
         );
       }
     },
@@ -321,33 +299,19 @@ module.exports = {
           return;
         }
 
-        const result = await distributionService.distributeMessage(
+        const initialResult = await distributionService.distributeMessage(
           campaign.id,
           campaign.message,
           phoneNumber,
-          priorityPlatform || campaign.priorityPlatform,
+          priorityPlatform || campaign.platformPriority,
         );
-        if (result.telegram && result.telegram.success) {
-          bot.sendMessage(
-            msg.chat.id,
-            `Сообщение успешно отправлено в Telegram на номер ${phoneNumber}`,
-          );
-        } else if (result.whatsapp && result.whatsapp.success) {
-          bot.sendMessage(
-            msg.chat.id,
-            `Сообщение успешно отправлено в WhatsApp на номер ${phoneNumber}`,
-          );
-        } else if (result.tgwa && result.tgwa.success) {
-          bot.sendMessage(
-            msg.chat.id,
-            `Сообщение успешно отправлено в Telegram и/или WhatsApp на номер ${phoneNumber}`,
-          );
-        } else {
-          bot.sendMessage(
-            msg.chat.id,
-            `Не удалось отправить сообщение на номер ${phoneNumber}. Проверьте, доступен ли этот номер в мессенджерах.`,
-          );
-        }
+
+        bot.sendMessage(
+          msg.chat.id,
+          'Сообщение поставлено в очередь на отправку. Ожидайте результатов...',
+        );
+
+        await checkMailingStatus(bot, msg, initialResult, phoneNumber);
       } catch (error) {
         logger.error('Error in manual send:', error);
         bot.sendMessage(
@@ -714,7 +678,67 @@ module.exports = {
     }
   },
 
-  '/send_mc_to_leads ([^\\s]+) (NEW|UNAVAILABLE|PROCESSED_NEGATIVE|PROCESSED_POSITIVE)':
+  '/set_campaign_openai_key ([^\\s]+) (.+)': async (bot, msg, match) => {
+    const [, campaignName, openaiApiKey] = match;
+    if (!campaignName || !openaiApiKey) {
+      bot.sendMessage(
+        msg.chat.id,
+        'Пожалуйста, укажите название кампании и ключ API OpenAI. Например: /set_campaign_openai_key МояКампания sk-...',
+      );
+      return;
+    }
+
+    try {
+      const campaign = await getCampaignByName(campaignName, bot, msg.chat.id);
+      if (!campaign) {
+        return;
+      }
+
+      await campaignsMailingService.setCampaignOpenAIKey(campaign.id, openaiApiKey);
+      bot.sendMessage(
+        msg.chat.id,
+        `Ключ API OpenAI успешно установлен для кампании "${campaignName}".`,
+      );
+    } catch (error) {
+      logger.error('Error setting campaign OpenAI API key:', error);
+      bot.sendMessage(
+        msg.chat.id,
+        'Произошла ошибка при установке ключа API OpenAI для кампании.',
+      );
+    }
+  },
+
+  '/set_campaign_model ([^\\s]+) (.+)': async (bot, msg, match) => {
+    const [, campaignName, modelName] = match;
+    if (!campaignName || !modelName) {
+      bot.sendMessage(
+        msg.chat.id,
+        'Пожалуйста, укажите название кампании и название модели. Например: /set_campaign_model МояКампания gpt-3.5-turbo',
+      );
+      return;
+    }
+
+    try {
+      const campaign = await getCampaignByName(campaignName, bot, msg.chat.id);
+      if (!campaign) {
+        return;
+      }
+
+      await campaignsMailingService.setCampaignModel(campaign.id, modelName);
+      bot.sendMessage(
+        msg.chat.id,
+        `Модель "${modelName}" успешно установлена для кампании "${campaignName}".`,
+      );
+    } catch (error) {
+      logger.error('Error setting campaign model:', error);
+      bot.sendMessage(
+        msg.chat.id,
+        'Произошла ошибка при установке модели для кампании.',
+      );
+    }
+  },
+
+ '/send_mc_to_leads ([^\\s]+) (NEW|UNAVAILABLE|PROCESSED_NEGATIVE|PROCESSED_POSITIVE)':
     async (bot, msg, match) => {
       const [, campaignName, status] = match;
 
@@ -774,7 +798,7 @@ module.exports = {
 
         bot.sendMessage(
           msg.chat.id,
-          `Начинаем рассылку для ${allLeads.length} лидов со статусом ${getStatusName(status)}...`,
+          `Начинаем постановку в очередь рассылки для ${allLeads.length} лидов со статусом ${getStatusName(status)}...`,
         );
 
         const contacts = allLeads.map((lead) => ({ phoneNumber: lead.phone }));
@@ -786,15 +810,15 @@ module.exports = {
         );
 
         const summaryMessage =
-          `Рассылка для кампании "${campaignName}" завершена.\n` +
+          `Постановка в очередь для кампании "${campaignName}" завершена.\n` +
           `Всего лидов со статусом ${getStatusName(status)}: ${results.totalContacts}\n` +
-          `Успешно отправлено: ${results.successfulSends}\n` +
-          `Не удалось отправить: ${results.failedSends}`;
+          `Успешно поставлено в очередь: ${results.queuedSends}\n` +
+          `Не удалось поставить в очередь: ${results.failedEnqueues}`;
 
         bot.sendMessage(msg.chat.id, summaryMessage);
 
         // Отправка детальной информации, если есть ошибки
-        if (results.failedSends > 0) {
+        if (results.failedEnqueues > 0) {
           const failedDetails = results.details
             .filter((detail) => detail.status === 'failed')
             .map((detail) => `${detail.phoneNumber}: ${detail.error}`)
@@ -802,9 +826,19 @@ module.exports = {
 
           bot.sendMessage(
             msg.chat.id,
-            `Детали неудачных отправок:\n${failedDetails}`,
+            `Детали неудачных постановок в очередь:\n${failedDetails}`,
           );
         }
+
+        // Запуск процесса проверки статуса отправки
+        bot.sendMessage(
+          msg.chat.id,
+          'Начинаем процесс отправки сообщений. Вы будете получать обновления о ходе отправки.',
+        );
+
+        // Запускаем асинхронный процесс проверки статуса отправки
+        checkBulkDistributionStatus(bot, msg.chat.id, results.details, campaign.id);
+
       } catch (error) {
         logger.error('Error in send_mc_to_leads:', error);
         bot.sendMessage(

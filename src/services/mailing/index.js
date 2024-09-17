@@ -1,11 +1,11 @@
 // src/services/mailing/index.js
 
 const platformChecker = require('./checkers/MessagingPlatformChecker');
-const senderService = require('./services/messageSenderService');
-const distributionService = require('./services/messageDistributionService');
+const MessageMailingService = require('./services/messageMailingService');
+const MessageDistributionService = require('./services/messageDistributionService');
 
 module.exports = {
   platformChecker,
-  senderService,
-  distributionService,
+  messageMailingService: MessageMailingService,
+  distributionService: MessageDistributionService,
 };
