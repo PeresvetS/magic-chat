@@ -28,6 +28,7 @@ model User {
   amoCrmIntegration AmoCrmIntegration?
   leads             Lead[]
   leadsDBs          LeadsDB[] // Добавьте эту строку
+  openaiApiKey      String?
 }
 
 model Admin {
@@ -182,24 +183,25 @@ model MessageStat {
 }
 
 model Lead {
-  id              Int              @id @default(autoincrement())
-  bitrixId        String?          @unique
-  leadsDBId       Int
-  leadsDB         LeadsDB          @relation(fields: [leadsDBId], references: [id])
-  campaignId      Int?
-  userId          Int?
-  phone           String?
-  name            String?
-  source          String?
-  createdAt       DateTime         @default(now())
-  updatedAt       DateTime         @updatedAt
-  campaign        CampaignMailing? @relation(fields: [campaignId], references: [id])
-  user            User?            @relation(fields: [userId], references: [id])
-  status          LeadStatus       @default(NEW)
-  telegramChatId  String?
-  whatsappChatId  String?
-  lastMessageTime DateTime?
-  lastPlatform    String?
+  id                Int                @id @default(autoincrement())
+  bitrixId          String?            @unique
+  leadsDBId         Int
+  leadsDB           LeadsDB            @relation(fields: [leadsDBId], references: [id])
+  campaignId        Int?
+  userId            Int?
+  phone             String?
+  name              String?
+  source            String?
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+  campaign          CampaignMailing?   @relation(fields: [campaignId], references: [id])
+  user              User?              @relation(fields: [userId], references: [id])
+  status            LeadStatus         @default(NEW)
+  telegramChatId    String?
+  whatsappChatId    String?
+  lastMessageTime   DateTime?
+  lastPlatform      String?
+  conversationState ConversationState?
 
   @@index([campaignId])
   @@index([userId])
@@ -250,13 +252,31 @@ model CampaignMailing {
   user                    User                  @relation(fields: [userId], references: [id])
   userId                  Int
   phoneNumbers            PhoneNumberCampaign[]
-  prompt                  Prompt?               @relation(fields: [promptId], references: [id])
+  prompt                  Prompt?               @relation("PrimaryPrompt", fields: [promptId], references: [id])
   promptId                Int?
   leads                   Lead[]
   leadsDBs                CampaignLeadsDB[]
   googleSheetUrl          String?
   notificationTelegramIds BigInt[]
   defaultPhoneNumber      String?
+  secondaryPrompt         Prompt?               @relation("SecondaryPrompt", fields: [secondaryPromptId], references: [id])
+  secondaryPromptId       Int?
+  isSecondaryAgentActive  Boolean               @default(false)
+  modelName               String                @default("gpt-4o-mini")
+  openaiApiKey            String?
+  knowledgeBases          KnowledgeBase[]
+  maxKnowledgeBlocks      Int                   @default(5)
+}
+
+model ConversationState {
+  id           Int      @id @default(autoincrement())
+  leadId       Int      @unique
+  lead         Lead     @relation(fields: [leadId], references: [id])
+  summary      String
+  lastMessage  String
+  pendingReply Boolean  @default(false)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 }
 
 model PhoneNumberCampaign {
@@ -325,10 +345,40 @@ model Message {
 }
 
 model Prompt {
-  id        Int               @id @default(autoincrement())
-  name      String            @unique
-  content   String
-  createdAt DateTime          @default(now())
-  updatedAt DateTime          @updatedAt
-  campaigns CampaignMailing[]
+  id                 Int               @id @default(autoincrement())
+  name               String            @unique
+  content            String
+  createdAt          DateTime          @default(now())
+  updatedAt          DateTime          @updatedAt
+  primaryCampaigns   CampaignMailing[] @relation("PrimaryPrompt")
+  secondaryCampaigns CampaignMailing[] @relation("SecondaryPrompt")
+}
+
+model MessageQueue {
+  id                   Int      @id @default(autoincrement())
+  campaignId           Int
+  message              String
+  recipientPhoneNumber String
+  senderPhoneNumber    String
+  platform             String
+  status               String
+  errorMessage         String?
+  result               Json?
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+  additionalData Json?
+
+  @@index([status])
+  @@index([createdAt])
+}
+
+model KnowledgeBase {
+  id           Int              @id @default(autoincrement())
+  name         String
+  description  String?
+  pineconeId   String           @unique
+  campaign     CampaignMailing  @relation(fields: [campaignId], references: [id])
+  campaignId   Int
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
 }

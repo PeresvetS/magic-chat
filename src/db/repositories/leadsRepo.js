@@ -399,6 +399,12 @@ async function updateLeadMessageInfo(leadId, data) {
   });
 }
 
+async function getLeadById(leadId) {
+  return await prisma.lead.findUnique({
+    where: { id: leadId },
+  });
+}
+
 module.exports = {
   getLead,
   saveLead,
@@ -406,6 +412,7 @@ module.exports = {
   updateLead,
   deleteLead,
   getLeadsDBs,
+  getLeadById,
   deleteLeadsDB,
   createLeadsDB,
   getLeadBitrix,

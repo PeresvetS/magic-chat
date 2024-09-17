@@ -1,4 +1,4 @@
-// src/services/mailing/services/messageSenderService.js
+// src/services/mailing/services/MessageMailingService.js
 
 const logger = require('../../../utils/logger');
 const { WABASessionService } = require('../../waba');
@@ -10,8 +10,11 @@ const {
   campaignsMailingRepo,
   dialogRepo,
 } = require('../../../db');
+const SupabaseQueueService = require('../../queue/supabaseQueueService');
+const PhoneNumberManagerService = require('../../phone/src/PhoneNumberManagerService');
 
-class MessageSenderService {
+
+class MessageMailingService {
   constructor() {
     this.limits = {
       telegram: 40, // определять через БД
@@ -19,6 +22,101 @@ class MessageSenderService {
       waba: 1000,
     };
   }
+
+  async processQueue(queueItem = null) {
+    if (queueItem) {
+      // Process a single item
+      await this.processSingleQueueItem(queueItem);
+    } else {
+      // Process the entire queue
+      while (true) {
+        const item = await SupabaseQueueService.dequeue();
+        if (!item) {
+          await new Promise(resolve => setTimeout(resolve, 5000)); // Wait for 5 seconds before checking again
+          continue;
+        }
+        await this.processSingleQueueItem(item);
+      }
+    }
+  }
+
+  async processSingleQueueItem(queueItem) {
+    try {
+      let result;
+      logger.info(`Processing queue item ${queueItem.recipient_phone_number} with  campaign_id ${queueItem.campaign_id}`);
+      switch (queueItem.platform) {
+        case 'telegram':
+          result = await this.sendTelegramMessage(
+            queueItem.campaign_id,
+            queueItem.sender_phone_number,
+            queueItem.recipient_phone_number,
+            queueItem.message
+          );
+          break;
+        case 'whatsapp':
+          result = await this.sendWhatsAppMessage(
+            queueItem.campaign_id,
+            queueItem.sender_phone_number,
+            queueItem.recipient_phone_number,
+            queueItem.message
+          );
+          break;
+        case 'waba':
+          result = await this.sendWABAMessage(
+            queueItem.campaign_id,
+            queueItem.sender_phone_number,
+            queueItem.recipient_phone_number,
+            queueItem.message
+          );
+          break;
+        case 'tgwa':
+          result = await this.sendTgAndWa(
+            queueItem.campaign_id,
+            queueItem.sender_phone_number,
+            queueItem.recipient_phone_number,
+            queueItem.message
+          );
+          break;
+        case 'tgwaba':
+          result = await this.sendTgAndWABA(
+            queueItem.campaign_id,
+            queueItem.sender_phone_number,
+            queueItem.recipient_phone_number,
+            queueItem.message
+          );
+          break;
+      }
+
+      if (result.success) {
+        await SupabaseQueueService.markAsCompleted(queueItem.id, { [queueItem.platform]: result });
+      } else {
+        if (result.error === 'DAILY_LIMIT_REACHED') {
+          const newSenderPhoneNumber = await PhoneNumberManagerService.switchToNextPhoneNumber(
+            queueItem.campaign_id,
+            queueItem.sender_phone_number,
+            queueItem.platform
+          );
+          if (newSenderPhoneNumber) {
+            await SupabaseQueueService.enqueueMessage(
+              queueItem.campaign_id,
+              queueItem.message,
+              queueItem.recipient_phone_number,
+              queueItem.platform,
+              newSenderPhoneNumber
+            );
+          } else {
+            await SupabaseQueueService.markAsFailed(queueItem.id, 'No available phone numbers');
+          }
+        } else {
+          await SupabaseQueueService.markAsFailed(queueItem.id, result.error);
+        }
+      }
+    } catch (error) {
+      logger.error(`Error processing queue item ${queueItem.id}:`, error);
+      await SupabaseQueueService.markAsFailed(queueItem.id, error.message);
+    }
+  }
+
 
   async updateOrCreateLeadChatId(campaignId, phoneNumber, chatId, platform) {
     logger.info(
@@ -121,6 +219,11 @@ class MessageSenderService {
     recipientPhoneNumber,
     message,
   ) {
+    if (!campaignId) {
+      logger.error('Campaign ID is undefined');
+      return { success: false, error: 'CAMPAIGN_ID_UNDEFINED' };
+    }
+
     logger.info(
       `Отправка сообщения с ID кампании ${campaignId} от ${senderPhoneNumber} к ${recipientPhoneNumber}`,
     );
@@ -135,27 +238,31 @@ class MessageSenderService {
         return { success: false, error: 'DAILY_LIMIT_REACHED' };
       }
 
-      const client =
-        await TelegramSessionService.createOrGetSession(senderPhoneNumber);
+      const client = await TelegramSessionService.createOrGetSession(senderPhoneNumber);
+
+      if (!await client.isUserAuthorized()) {
+        logger.error(`Клиент Telegram для ${senderPhoneNumber} не авторизован`);
+        return { success: false, error: 'CLIENT_NOT_AUTHORIZED' };
+      }
 
       await this.applyDelay('telegram');
 
-      const recipient = await client.getEntity(recipientPhoneNumber);
-      if (!recipient) {
-        await LeadsService.setLeadUnavailable(recipientPhoneNumber);
-        throw new Error(
-          `Не удалось найти пользователя ${recipientPhoneNumber} в Telegram`,
-        );
-      }
-      const result = await client.sendMessage(recipient, { message });
+      // const recipient = await client.getEntity(recipientPhoneNumber);
+      // if (!recipient) {
+      //   await LeadsService.setLeadUnavailable(recipientPhoneNumber);
+      //   throw new Error(
+      //     `Не удалось найти пользователя ${recipientPhoneNumber} в Telegram`,
+      //   );
+      // }
+      const result = await client.sendMessage(recipientPhoneNumber, { message });
 
-      const peer_id = recipient.id.toString();
-      await this.updateOrCreateLeadChatId(
-        campaignId,
-        recipientPhoneNumber,
-        peer_id,
-        'telegram',
-      );
+      // const peer_id = recipient.id.toString();
+      // await this.updateOrCreateLeadChatId(
+      //   campaignId,
+      //   recipientPhoneNumber,
+      //   peer_id,
+      //   'telegram',
+      // );
 
       const isNewContact = await this.isNewContact(
         userId,
@@ -348,15 +455,17 @@ class MessageSenderService {
     }
   }
 
-  async sendTgAndWa(campaignId, phoneRecipientNumber, message) {
+  async sendTgAndWa(campaignId, senderPhoneNumber, recipientPhoneNumber, message) {
     const telegramResult = await this.sendTelegramMessage(
       campaignId,
-      phoneRecipientNumber,
+      senderPhoneNumber,
+      recipientPhoneNumber,
       message,
     );
     const whatsappResult = await this.sendWhatsAppMessage(
       campaignId,
-      phoneRecipientNumber,
+      senderPhoneNumber,
+      recipientPhoneNumber,
       message,
     );
 
@@ -373,15 +482,17 @@ class MessageSenderService {
     };
   }
 
-  async sendTgAndWABA(campaignId, phoneRecipientNumber, message) {
+  async sendTgAndWABA(campaignId, senderPhoneNumber,recipientPhoneNumber, message) {
     const telegramResult = await this.sendTelegramMessage(
       campaignId,
-      phoneRecipientNumber,
+      senderPhoneNumber,
+      recipientPhoneNumber,
       message,
     );
     const wabaResult = await this.sendWABAMessage(
       campaignId,
-      phoneRecipientNumber,
+      senderPhoneNumber,
+      recipientPhoneNumber,
       message,
     );
 
@@ -524,4 +635,4 @@ class MessageSenderService {
   }
 }
 
-module.exports = new MessageSenderService();
+module.exports = new MessageMailingService();

@@ -11,12 +11,13 @@ const logger = require('./utils/logger');
 const { retryOperation } = require('./utils/helpers');
 const webhookRouter = require('./api/routes/webhooks');
 const { phoneNumberService } = require('./services/phone');
-// const { WABASessionService } = require('./services/waba');
+const { messageMailingService } = require('./services/mailing');
 const requestLogger = require('./api/middleware/requestLogger');
-const { handleMessageService } = require('./services/messaging');
 const { WhatsAppSessionService } = require('./services/whatsapp');
 const { TelegramSessionService } = require('./services/telegram');
 const notificationBot = require('./bot/notification/notificationBot');
+const { handleMessageService, processPendingMessages } = require('./services/messaging');
+const SupabaseQueueService = require('./services/queue/supabaseQueueService');
 
 const app = express();
 
@@ -25,23 +26,54 @@ app.use(express.json());
 app.use(requestLogger);
 app.use('/api', webhookRouter);
 
-async function checkApplicationState() {
-  if (!adminBot.isRunning()) {
-    await restartBot(adminBot, 'Admin');
-  }
-  if (!userBot.isRunning()) {
-    await restartBot(userBot, 'User');
+async function checkAndRestartBot(bot, botType) {
+  if (!bot.isRunning()) {
+    logger.warn(`${botType} bot is not running. Attempting to restart...`);
+    try {
+      await bot.restart();
+      logger.info(`${botType} bot restarted successfully`);
+    } catch (error) {
+      logger.error(`Error restarting ${botType} bot:`, error);
+    }
+  } else if (bot.getPollingError()) {
+    logger.warn(`${botType} bot has a polling error. Attempting to restart...`);
+    try {
+      await bot.restart();
+      logger.info(`${botType} bot restarted successfully`);
+    } catch (error) {
+      logger.error(`Error restarting ${botType} bot:`, error);
+    }
   }
 }
 
-async function restartBot(bot, botType) {
-  logger.warn(`${botType} bot is not running, attempting to restart...`);
-  try {
-    await bot.restart();
-    logger.info(`${botType} bot restarted successfully`);
-  } catch (error) {
-    logger.error(`Error restarting ${botType} bot:`, error);
+async function checkApplicationState() {
+  await Promise.all([
+    checkAndRestartBot(userBot, 'User'),
+    checkAndRestartBot(adminBot, 'Admin'),
+    checkAndRestartBot(notificationBot, 'Notification')
+  ]);
+}
+
+async function processUnfinishedTasks() {
+  logger.info('Processing unfinished tasks...');
+  
+  // Process pending messages from the conversation states
+  await processPendingMessages().catch(error => {
+    logger.error('Error processing pending messages:', error);
+  });
+
+  // Process unfinished queue items
+  const unprocessedItems = await SupabaseQueueService.getUnprocessedItems();
+  for (const item of unprocessedItems) {
+    try {
+      logger.info(`Processing queue item ${item.id} with  campaign_id ${item.campaign_id}`);
+      await messageMailingService.processQueue(item); // Changed from processQueueItem to processQueue
+    } catch (error) {
+      logger.error(`Error processing queue item ${item.id}:`, error);
+    }
   }
+
+  logger.info('Unfinished tasks processed');
 }
 
 async function main() {
@@ -79,6 +111,19 @@ async function main() {
     ]);
     logger.info('Bots initialized and polling started');
 
+    // Обработка незавершенных сообщений при запуске
+    logger.info('Processing pending messages...');
+    await processPendingMessages().catch(console.error);
+    logger.info('Pending messages processed');
+
+    // Обрабока очереди сообщений  
+    logger.info('Processing message queue...');
+    messageMailingService.processQueue().catch(error => {
+      logger.error('Error processing message queue:', error);
+    });
+    logger.info('Message queue processed');
+
+
     // Настройка Express
     app.get('/', (req, res) => {
       res.send('Magic Chat server is running');
@@ -90,70 +135,28 @@ async function main() {
       logger.info(`Server is running on port ${port}`);
     });
 
-    // app.all('/waba-webhook', WABASessionService.getWebhookHandler());
-
-    // Функция проверки состояния ботов
-    async function checkBotsState() {
-      if (!userBot.isRunning() || userBot.getPollingError()) {
-        logger.warn('User bot is not running or has polling error. Attempting to restart...');
-        await userBot.restart();
-      }
-      if (!adminBot.isRunning() || adminBot.getPollingError()) {
-        logger.warn('Admin bot is not running or has polling error. Attempting to restart...');
-        await adminBot.restart();
-      }
-      if (!notificationBot.isRunning() || notificationBot.getPollingError()) {
-        logger.warn('Notification bot is not running or has polling error. Attempting to restart...');
-        await notificationBot.restart();
-      }
-    }
-
     // Запуск периодической проверки состояния ботов
-    setInterval(checkBotsState, 5 * 60 * 1000); // Проверка каждые 5 минут
+    setInterval(checkApplicationState, 5 * 60 * 1000); // Проверка каждые 5 минут
 
     // Функция корректного завершения работы
     async function gracefulShutdown() {
       logger.info('Graceful shutdown initiated');
 
       server.close(() => {
-        logger.info('HTTP server closed');
+        logger.error('HTTP server closed');
       });
 
-      try {
-        await adminBot.stop();
-        logger.info('Admin bot stopped');
-      } catch (error) {
-        logger.error('Error stopping admin bot:', error);
-      }
+      await Promise.all([
+        adminBot.stop().catch(error => logger.error('Error stopping admin bot:', error)),
+        userBot.stop().catch(error => logger.error('Error stopping user bot:', error)),
+        notificationBot.stop().catch(error => logger.error('Error stopping notification bot:', error)),
+        TelegramSessionService.disconnectAllSessions().catch(error => logger.error('Error disconnecting Telegram sessions:', error)),
+        ...Array.from(WhatsAppSessionService.clients.keys()).map(phoneNumber => 
+          WhatsAppSessionService.disconnectSession(phoneNumber).catch(error => logger.error(`Error disconnecting WhatsApp session for ${phoneNumber}:`, error))
+        )
+      ]);
 
-      try {
-        await userBot.stop();
-        logger.info('User bot stopped');
-      } catch (error) {
-        logger.error('Error stopping user bot:', error);
-      }
-
-      try {
-        notificationBot.stop();
-      } catch (error) {
-        logger.error('Error stopping notification bot:', error);
-      }
-
-      try {
-        await TelegramSessionService.disconnectAllSessions();
-        logger.info('All Telegram sessions disconnected');
-      } catch (error) {
-        logger.error('Error disconnecting Telegram sessions:', error);
-      }
-
-      try {
-        for (const [phoneNumber] of WhatsAppSessionService.clients) {
-          await WhatsAppSessionService.disconnectSession(phoneNumber);
-        }
-        logger.info('All WhatsApp sessions disconnected');
-      } catch (error) {
-        logger.error('Error disconnecting WhatsApp sessions:', error);
-      }
+      logger.info('All services stopped');
 
       if (typeof global.releaseLock === 'function') {
         global.releaseLock();
@@ -161,6 +164,11 @@ async function main() {
 
       process.exit(0);
     }
+
+    process.on('unhandledRejection', (reason, promise) => {
+      logger.error('Unhandled Rejection at:', promise);
+      logger.error('Reason:', reason);
+    });
 
     // Обработка сигналов завершения
     process.on('SIGTERM', gracefulShutdown);
@@ -171,6 +179,7 @@ async function main() {
     cron.schedule('0 0 * * *', async () => {
       try {
         await phoneNumberService.resetDailyStats();
+        await processPendingMessages();
         logger.info('Daily stats reset completed');
       } catch (error) {
         logger.error('Error during daily stats reset:', error);
@@ -178,20 +187,14 @@ async function main() {
     });
     logger.info('Daily stats reset scheduled');
 
-    setInterval(
-      async () => {
-        try {
-          await checkApplicationState();
-        } catch (error) {
-          logger.error('Error during application state check:', error);
-        }
-      },
-      3 * 60 * 1000,
-    ); // Проверка каждые 5 минут
+    // Process unfinished tasks before starting the server
+    await processUnfinishedTasks();
+
   } catch (error) {
     logger.error('Error in main function:', error);
     throw error;
   }
 }
+
 
 module.exports = { main, app };

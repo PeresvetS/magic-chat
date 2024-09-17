@@ -1,60 +1,74 @@
 // services/messaging/src/messageProcessor.js
 
 const logger = require('../../../utils/logger');
-const { generateResponse } = require('../../gpt/gptService');
-const ContextManager = require('../../langchain/contextManager');
+const gptService = require('../../gpt/gptService');
+const AgentChain = require('../../langchain/agentChain');
+const leadsService = require('../../leads/src/LeadsService');
 const { saveMessageStats } = require('../../stats/statsService');
-const { countTokensForMessages } = require('../../tokenizer/tokenizer');
 const { saveDialogToFile } = require('../../../utils/messageUtils');
+const campaignMailingService = require('../../campaign/src/campaignsMailingService');
+const { getPendingConversationStates } = require('../../conversation/conversationState');
 
-const contextManagers = new Map();
+const agentChains = new Map();
 
-async function processMessage(lead, senderId, message, phoneNumber, сampaign) {
+async function processMessage(lead, senderId, message, phoneNumber, campaign) {
   logger.info(`Processing message for phone number ${phoneNumber}: ${message}`);
+  logger.debug(`Lead info: ${JSON.stringify(lead)}`);
+  logger.debug(`Campaign info: ${JSON.stringify(campaign)}`);
+
   try {
-    if (!сampaign.prompt) {
+    if (!campaign.prompt) {
       logger.warn(`No prompt provided for processing message from ${senderId}`);
       return null;
     }
-    const contextManager = getOrCreateContextManager(senderId);
 
-    // Проверяем, есть ли уже сообщения в контексте
-    const existingMessages = await contextManager.getMessages();
-    if (existingMessages.length === 0 && сampaign.message) {
-      // Если это первое сообщение и есть приветственное сообщение, добавляем его как сообщение от ассистента
-      await contextManager.addMessage({
-        role: 'assistant',
-        content: сampaign.message,
-      });
+    let agentChain = agentChains.get(senderId);
+    if (!agentChain) {
+      agentChain = new AgentChain(campaign, lead);
+      agentChains.set(senderId, agentChain);
+      logger.info(`Created new AgentChain for ${senderId}`);
     }
 
-    await contextManager.addMessage({ role: 'human', content: message });
-    const messages = await contextManager.getMessages();
+    // Use gptService to generate response
+    const response = await gptService.generateResponse(lead, [{ role: 'human', content: message }], campaign, agentChain);
+    logger.info(`Response generated for ${senderId}: ${response}`);
 
-    const response = await generateResponse(lead, messages, сampaign);
-    logger.info(`Response generated: ${response}`);
+    // Save the response to memory
+    await agentChain.memory.saveContext({ input: message }, { output: response });
 
-    await contextManager.addMessage({ role: 'assistant', content: response });
+    const tokenCount = agentChain.getTokenCount();
+    logger.debug(`Token count for ${senderId}: ${tokenCount}`);
 
-    const tokenCount = countTokensForMessages([
-      ...messages,
-      { role: 'assistant', content: response },
-    ]);
     await saveMessageStats(senderId, phoneNumber, tokenCount);
+    logger.info(`Saved message stats for ${senderId}`);
+
     await saveDialogToFile(senderId, message, response);
+    logger.info(`Saved dialog to file for ${senderId}`);
 
     return response;
   } catch (error) {
-    logger.error('Error in processMessage:', error);
+    logger.error(`Error in processMessage for ${senderId}:`, error);
     throw error;
   }
 }
 
-function getOrCreateContextManager(userTgId) {
-  if (!contextManagers.has(userTgId)) {
-    contextManagers.set(userTgId, new ContextManager());
+async function processPendingMessages() {
+  try {
+    const pendingStates = await getPendingConversationStates();
+
+    for (const state of pendingStates) {
+      const lead = await leadsService.getLeadById(state.leadId);
+      if (lead) {
+        const campaign = await campaignMailingService.getCampaignById(lead.campaignId);
+        if (campaign) {
+          await processMessage(lead, lead.telegramChatId || lead.whatsappChatId, state.lastMessage, lead.phone, campaign);
+        }
+      }
+    }
+    logger.info('Processed all pending messages');
+  } catch (error) {
+    logger.error('Error processing pending messages:', error);
   }
-  return contextManagers.get(userTgId);
 }
 
-module.exports = { processMessage };
+module.exports = { processMessage, processPendingMessages };

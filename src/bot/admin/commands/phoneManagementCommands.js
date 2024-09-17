@@ -93,24 +93,30 @@ module.exports = {
         throw new Error('MAIN_TG_PHONE_NUMBER not set in configuration');
       }
 
-      await bot.sendMessage(
-        msg.chat.id,
-        `Выберите метод авторизации для номера ${mainPhoneNumber}:`,
-        {
-          reply_markup: {
-            inline_keyboard: [
-              [{ text: 'QR-код', callback_data: 'auth_qr' }],
-              [{ text: 'SMS-код', callback_data: 'auth_sms' }]
-            ]
-          }
+      bot.sendMessage(msg.chat.id, `Начинаем процесс авторизации для номера ${mainPhoneNumber}. Следуйте инструкциям.`);
+
+      await TelegramSessionService.authorizeMainClient(
+        async () => {
+          await bot.sendMessage(msg.chat.id, 'Введите код авторизации, полученный в Telegram:');
+          return new Promise((resolve) => {
+            bot.once('message', (codeMsg) => {
+              resolve(codeMsg.text.trim());
+            });
+          });
+        },
+        async () => {
+          await bot.sendMessage(msg.chat.id, 'Введите пароль 2FA (если требуется):');
+          return new Promise((resolve) => {
+            bot.once('message', (passwordMsg) => {
+              resolve(passwordMsg.text.trim());
+            });
+          });
         }
       );
+
+      bot.sendMessage(msg.chat.id, `Основной номер ${mainPhoneNumber} успешно авторизован.`);
     } catch (error) {
-      logger.error('Error in authorize_tg_main_phone:', error);
-      bot.sendMessage(
-        msg.chat.id,
-        `Ошибка при инициализации авторизации: ${error.message}`
-      );
+      bot.sendMessage(msg.chat.id, `Ошибка при авторизации основного номера: ${error.message}`);
     }
   },
 

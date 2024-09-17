@@ -6,16 +6,18 @@
 
   async function createCampaignMailing(telegramId, name) {
     try {
-      // Ищем пользователя по telegram_id
       const user = await getUserByTgId(telegramId);
       if (!user) {
         throw new Error(`User with Telegram ID ${telegramId} not found`);
       }
-
+  
       return await prisma.campaignMailing.create({
         data: { userId: user.id, name }
       });
     } catch (error) {
+      if (error.code === 'P2002' && error.meta?.target?.includes('name')) {
+        throw new Error(`Кампания с именем "${name}" уже существует. Пожалуйста, выберите другое имя.`);
+      }
       logger.error('Error creating campaign mailing:', error);
       throw error;
     }
@@ -453,7 +455,61 @@
   }
   
 
+  async function setSecondaryPrompt(id, promptId) {
+    try {
+      const updatedCampaign = await prisma.campaignMailing.update({
+        where: { id },
+        data: { secondaryPromptId: promptId, updatedAt: new Date() }
+      });
+      logger.info(`Secondary prompt set for campaign: ${id}`);
+      return updatedCampaign;
+    } catch (error) {
+      logger.error(`Error setting secondary prompt for campaign ${id}:`, error);
+      throw error;
+    }
+  }
 
+  async function toggleSecondaryAgent(id, isActive) {
+    try {
+      const updatedCampaign = await prisma.campaignMailing.update({
+        where: { id },
+        data: { isSecondaryAgentActive: isActive, updatedAt: new Date() }
+      });
+      logger.info(`Secondary agent toggled ${isActive ? 'on' : 'off'} for campaign: ${id}`);
+      return updatedCampaign;
+    } catch (error) {
+      logger.error(`Error toggling secondary agent for campaign ${id}:`, error);
+      throw error;
+    }
+  }
+
+  async function setCampaignModel(id, modelName) {
+    try {
+      const updatedCampaign = await prisma.campaignMailing.update({
+        where: { id },
+        data: { modelName, updatedAt: new Date() }
+      });
+      logger.info(`Model set for campaign: ${id}`);
+      return updatedCampaign;
+    } catch (error) {
+      logger.error(`Error setting model for campaign ${id}:`, error);
+      throw error;
+    }
+  }
+
+  async function setCampaignOpenAIKey(id, openaiApiKey) {
+    try {
+      const updatedCampaign = await prisma.campaignMailing.update({
+        where: { id },
+        data: { openaiApiKey, updatedAt: new Date() }
+      });
+      logger.info(`OpenAI API key set for campaign: ${id}`);
+      return updatedCampaign;
+    } catch (error) {
+      logger.error(`Error setting OpenAI API key for campaign ${id}:`, error);
+      throw error;
+    }
+  }
 
   module.exports = {
     getCampaignById,
@@ -481,5 +537,9 @@
     getFirstAvailablePhoneNumber,
     removeNotificationTelegramId,
     getActiveCampaignForPhoneNumber,
-    checkPhoneNumbersAuthentication
+    checkPhoneNumbersAuthentication,
+    setSecondaryPrompt,
+    toggleSecondaryAgent,
+    setCampaignModel,
+    setCampaignOpenAIKey,
   };
