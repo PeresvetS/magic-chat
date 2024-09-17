@@ -199,6 +199,15 @@ class LeadsService {
     }
   }
 
+  async getLeadById(leadId) {
+    try {
+      return await leadsRepo.getLeadById(leadId);
+    } catch (error) {
+      logger.error('Error getting lead by ID:', error);
+      throw error;
+    }
+  }
+
   async getLeadByPhone(phoneNumber) {
     try {
       const formattedPhone = this.formatPhoneNumber(phoneNumber);

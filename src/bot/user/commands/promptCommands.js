@@ -2,6 +2,7 @@
 
 const logger = require('../../../utils/logger');
 const { promptService } = require('../../../services/prompt');
+const { userService } = require('../../../services/user');
 const {
   setUserState,
   getUserState,
@@ -144,6 +145,31 @@ module.exports = {
           'Произошла ошибка при установке содержимого промпта.',
         );
       }
+    }
+  },
+
+  '/set_user_openai_key (.+)': async (bot, msg, match) => {
+    const [, openaiApiKey] = match;
+    if (!openaiApiKey) {
+      bot.sendMessage(
+        msg.chat.id,
+        'Пожалуйста, укажите ключ API OpenAI. Например: /set_user_openai_key sk-...',
+      );
+      return;
+    }
+
+    try {
+      await userService.setUserOpenAIKey(msg.from.id, openaiApiKey);
+      bot.sendMessage(
+        msg.chat.id,
+        'Ключ API OpenAI успешно установлен для вашего аккаунта.',
+      );
+    } catch (error) {
+      logger.error('Error setting user OpenAI API key:', error);
+      bot.sendMessage(
+        msg.chat.id,
+        'Произошла ошибка при установке ключа API OpenAI для вашего аккаунта.',
+      );
     }
   },
 };

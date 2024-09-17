@@ -119,6 +119,20 @@ async function updateUserBanStatus(id, isBanned) {
   }
 }
 
+async function setUserOpenAIKey(userId, openaiApiKey) {
+  try {
+    const updatedUser = await prisma.user.update({
+      where: { id: userId },
+      data: { openaiApiKey }
+    });
+    logger.info(`OpenAI API key set for user: ${userId}`);
+    return updatedUser;
+  } catch (error) {
+    logger.error(`Error setting OpenAI API key for user ${userId}:`, error);
+    throw error;
+  }
+}
+
 module.exports = {
   getUserByTgId,
   getUserByUsername,

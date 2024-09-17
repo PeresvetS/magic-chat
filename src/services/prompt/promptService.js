@@ -61,6 +61,17 @@ const promptService = {
     }
   },
 
+  async updatePromptWithKnowledge(promptId, relevantKnowledge) {
+    try {
+      const prompt = await this.getPromptById(promptId);
+      const updatedContent = `${prompt.content}\n\nRelevant knowledge:\n${relevantKnowledge}`;
+      return updatedContent;
+    } catch (error) {
+      logger.error(`Error updating prompt ${promptId} with knowledge:`, error);
+      throw error;
+    }
+  },
+
   async deletePrompt(id) {
     try {
       await prisma.prompt.delete({

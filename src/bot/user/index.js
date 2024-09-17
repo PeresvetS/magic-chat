@@ -24,8 +24,10 @@ const promptCommands = require('./commands/promptCommands');
 const mailingCommands = require('./commands/mailingCommads');
 const crmSettingsCommands = require('./commands/crmSettingsCommands');
 const subscriptionCommands = require('./commands/subscriptionCommands');
+const knowledgeBaseCommands = require('./commands/knowledgeBaseCommands');
 
 const commandModules = [
+  knowledgeBaseCommands,
   subscriptionCommands,
   crmSettingsCommands,
   mailingCommands,
@@ -88,6 +90,13 @@ function createUserBot() {
     });
   });
 
+  Object.entries(knowledgeBaseCommands).forEach(([command, handler]) => {
+    if (command !== 'documentHandler') {
+      bot.onText(new RegExp(command), (msg, match) => handler(bot, msg, match));
+    }
+  });
+
+  bot.on('document', (msg) => knowledgeBaseCommands.documentHandler(bot, msg));
 
   // Обработчик для всех текстовых сообщений
   bot.on('text', async (msg) => {

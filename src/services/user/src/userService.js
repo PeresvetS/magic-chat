@@ -115,6 +115,15 @@ async function updateUserBanStatus(telegramId, isBanned) {
   }
 }
 
+async function setUserOpenAIKey(userId, openaiApiKey) {
+  try {
+    return await userRepo.setUserOpenAIKey(userId, openaiApiKey);
+  } catch (error) {
+    logger.error('Error in setUserOpenAIKey service:', error);
+    throw error;
+  }
+}
+
 module.exports = {
   banUser,
   unbanUser,
@@ -123,4 +132,5 @@ module.exports = {
   getAllUsers,
   getUserByTgId,
   getUserByIdentifier,
+  setUserOpenAIKey,
 };

@@ -11,11 +11,13 @@ const logger = require('./utils/logger');
 const { retryOperation } = require('./utils/helpers');
 const webhookRouter = require('./api/routes/webhooks');
 const { phoneNumberService } = require('./services/phone');
+const { messageMailingService } = require('./services/mailing');
 const requestLogger = require('./api/middleware/requestLogger');
-const { handleMessageService } = require('./services/messaging');
 const { WhatsAppSessionService } = require('./services/whatsapp');
 const { TelegramSessionService } = require('./services/telegram');
 const notificationBot = require('./bot/notification/notificationBot');
+const { handleMessageService, processPendingMessages } = require('./services/messaging');
+const SupabaseQueueService = require('./services/queue/supabaseQueueService');
 
 const app = express();
 
@@ -52,6 +54,28 @@ async function checkApplicationState() {
   ]);
 }
 
+async function processUnfinishedTasks() {
+  logger.info('Processing unfinished tasks...');
+  
+  // Process pending messages from the conversation states
+  await processPendingMessages().catch(error => {
+    logger.error('Error processing pending messages:', error);
+  });
+
+  // Process unfinished queue items
+  const unprocessedItems = await SupabaseQueueService.getUnprocessedItems();
+  for (const item of unprocessedItems) {
+    try {
+      logger.info(`Processing queue item ${item.id} with  campaign_id ${item.campaign_id}`);
+      await messageMailingService.processQueue(item); // Changed from processQueueItem to processQueue
+    } catch (error) {
+      logger.error(`Error processing queue item ${item.id}:`, error);
+    }
+  }
+
+  logger.info('Unfinished tasks processed');
+}
+
 async function main() {
   try {
     logger.info('Main function started');
@@ -86,6 +110,19 @@ async function main() {
       retryOperation(async () => notificationBot.launch(), 3, 5000),
     ]);
     logger.info('Bots initialized and polling started');
+
+    // Обработка незавершенных сообщений при запуске
+    logger.info('Processing pending messages...');
+    await processPendingMessages().catch(console.error);
+    logger.info('Pending messages processed');
+
+    // Обрабока очереди сообщений  
+    logger.info('Processing message queue...');
+    messageMailingService.processQueue().catch(error => {
+      logger.error('Error processing message queue:', error);
+    });
+    logger.info('Message queue processed');
+
 
     // Настройка Express
     app.get('/', (req, res) => {
@@ -142,12 +179,16 @@ async function main() {
     cron.schedule('0 0 * * *', async () => {
       try {
         await phoneNumberService.resetDailyStats();
+        await processPendingMessages();
         logger.info('Daily stats reset completed');
       } catch (error) {
         logger.error('Error during daily stats reset:', error);
       }
     });
     logger.info('Daily stats reset scheduled');
+
+    // Process unfinished tasks before starting the server
+    await processUnfinishedTasks();
 
   } catch (error) {
     logger.error('Error in main function:', error);

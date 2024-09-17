@@ -483,6 +483,34 @@
     }
   }
 
+  async function setCampaignModel(id, modelName) {
+    try {
+      const updatedCampaign = await prisma.campaignMailing.update({
+        where: { id },
+        data: { modelName, updatedAt: new Date() }
+      });
+      logger.info(`Model set for campaign: ${id}`);
+      return updatedCampaign;
+    } catch (error) {
+      logger.error(`Error setting model for campaign ${id}:`, error);
+      throw error;
+    }
+  }
+
+  async function setCampaignOpenAIKey(id, openaiApiKey) {
+    try {
+      const updatedCampaign = await prisma.campaignMailing.update({
+        where: { id },
+        data: { openaiApiKey, updatedAt: new Date() }
+      });
+      logger.info(`OpenAI API key set for campaign: ${id}`);
+      return updatedCampaign;
+    } catch (error) {
+      logger.error(`Error setting OpenAI API key for campaign ${id}:`, error);
+      throw error;
+    }
+  }
+
   module.exports = {
     getCampaignById,
     getCampaigUserId,
@@ -511,5 +539,7 @@
     getActiveCampaignForPhoneNumber,
     checkPhoneNumbersAuthentication,
     setSecondaryPrompt,
-    toggleSecondaryAgent
+    toggleSecondaryAgent,
+    setCampaignModel,
+    setCampaignOpenAIKey,
   };

@@ -360,6 +360,24 @@ class CampaignMailingService {
       throw error;
     }
   }
+
+  async setCampaignModel(id, modelName) {
+    try {
+      return await campaignsMailingRepo.setCampaignModel(id, modelName);
+    } catch (error) {
+      logger.error('Error in setCampaignModel service:', error);
+      throw error;
+    }
+  }
+
+  async setCampaignOpenAIKey(id, openaiApiKey) {
+    try {
+      return await campaignsMailingRepo.setCampaignOpenAIKey(id, openaiApiKey);
+    } catch (error) {
+      logger.error('Error in setCampaignOpenAIKey service:', error);
+      throw error;
+    }
+  }
 }
 
 module.exports = new CampaignMailingService();
