@@ -24,7 +24,13 @@ class RabbitMQQueueRepo {
 
   async updateQueueItem(id, data) {
     try {
-      return await prisma.messageQueue.update({ where: { id }, data });
+      if (!id) {
+        throw new Error('Invalid queue item id');
+      }
+      return await prisma.messageQueue.update({
+        where: { id },
+        data
+      });
     } catch (error) {
       logger.error(`Ошибка обновления элемента очереди с id ${id}:`, error);
       throw error;

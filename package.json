@@ -19,6 +19,7 @@
     "@pinecone-database/pinecone": "^3.0.3",
     "@prisma/client": "^5.18.0",
     "@supabase/supabase-js": "^2.45.4",
+    "amqplib": "^0.10.4",
     "axios": "^1.7.2",
     "bitrix-gds": "^1.0.7",
     "body-parser": "^1.20.2",
@@ -43,8 +44,7 @@
     "whatsapp-web.js": "^1.25.0",
     "winston": "^3.13.1",
     "winston-daily-rotate-file": "^5.0.0",
-    "xlsx": "^0.18.5",
-    "amqplib": "^0.10.3"
+    "xlsx": "^0.18.5"
   },
   "devDependencies": {
     "eslint": "^8.37.0",

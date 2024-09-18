@@ -24,104 +24,103 @@ class MessageMailingService {
     };
   }
 
-  async processQueue(queueItem = null) {
-    if (queueItem) {
-      // Process a single item
-      await this.processSingleQueueItem(queueItem);
-    } else {
-      // Process the entire queue
-      while (true) {
-        // const item = await SupabaseQueueService.dequeue();
-        const item = await RabbitMQQueueService.dequeue();
-        if (!item) {
-          await new Promise(resolve => setTimeout(resolve, 5000)); // Wait for 5 seconds before checking again
-          continue;
-        }
-        await this.processSingleQueueItem(item);
+  async processQueue(initialQueueItem = null) {
+    let queueItem = initialQueueItem;
+    
+    while (true) {
+      if (!queueItem) {
+        queueItem = await RabbitMQQueueService.dequeue();
       }
+
+      if (!queueItem) {
+        logger.debug('Queue is empty');
+        break;
+      }
+
+      if (!queueItem.id || !queueItem.campaignId) {
+        logger.warn('Invalid queue item:', queueItem);
+        if (queueItem.ackFunction) queueItem.ackFunction();
+        queueItem = null;
+        continue;
+      }
+
+      logger.info(`Processing queue item ${queueItem.id} with campaignId ${queueItem.campaignId}`);
+
+      try {
+        // Обработка элемента очереди
+        const result = await this.processSingleQueueItem(queueItem);
+        await RabbitMQQueueService.markAsCompleted(queueItem, result);
+      } catch (error) {
+        logger.error(`Error processing queue item ${queueItem.id}:`, error);
+        await RabbitMQQueueService.markAsFailed(queueItem, error.message);
+      }
+
+      queueItem = null;
     }
   }
 
   async processSingleQueueItem(queueItem) {
-    try {
-      let result;
-      logger.info(`Processing queue item ${queueItem.recipient_phone_number} with  campaign_id ${queueItem.campaign_id}`);
-      switch (queueItem.platform) {
-        case 'telegram':
-          result = await this.sendTelegramMessage(
-            queueItem.campaign_id,
-            queueItem.sender_phone_number,
-            queueItem.recipient_phone_number,
-            queueItem.message
-          );
-          break;
-        case 'whatsapp':
-          result = await this.sendWhatsAppMessage(
-            queueItem.campaign_id,
-            queueItem.sender_phone_number,
-            queueItem.recipient_phone_number,
-            queueItem.message
-          );
-          break;
-        case 'waba':
-          result = await this.sendWABAMessage(
-            queueItem.campaign_id,
-            queueItem.sender_phone_number,
-            queueItem.recipient_phone_number,
-            queueItem.message
-          );
-          break;
-        case 'tgwa':
-          result = await this.sendTgAndWa(
-            queueItem.campaign_id,
-            queueItem.sender_phone_number,
-            queueItem.recipient_phone_number,
-            queueItem.message
-          );
-          break;
-        case 'tgwaba':
-          result = await this.sendTgAndWABA(
-            queueItem.campaign_id,
-            queueItem.sender_phone_number,
-            queueItem.recipient_phone_number,
-            queueItem.message
-          );
-          break;
-      }
-
-      if (result.success) {
-        // await SupabaseQueueService.markAsCompleted(queueItem.id, { [queueItem.platform]: result });
-        // await RabbitMQQueueService.markAsCompleted(queueItem, result);
-        await RabbitMQQueueService.markAsCompleted(queueItem.id, { [queueItem.platform]: result });
-      
-      } else {
-        if (result.error === 'DAILY_LIMIT_REACHED') {
-          const newSenderPhoneNumber = await PhoneNumberManagerService.switchToNextPhoneNumber(
-            queueItem.campaign_id,
-            queueItem.sender_phone_number,
-            queueItem.platform
-          );
-          if (newSenderPhoneNumber) {
-            await RabbitMQQueueService.enqueue(
-              queueItem.campaign_id,
-              queueItem.message,
-              queueItem.recipient_phone_number,
-              queueItem.platform,
-              newSenderPhoneNumber
-            );
-          } else {
-            await RabbitMQQueueService.markAsFailed(queueItem.id, 'No available phone numbers');
-          }
-        } else {
-          await RabbitMQQueueService.markAsFailed(queueItem.id, result.error);
-        }
-      }
-    } catch (error) {
-      logger.error(`Error processing queue item ${queueItem.id}:`, error);
-      await RabbitMQQueueService.markAsFailed(queueItem.id, error.message);
+    if (!queueItem || !queueItem.id || !queueItem.campaignId) {
+      throw new Error('Invalid queue item');
     }
-  }
 
+    let result;
+    logger.info(`Processing queue item ${queueItem.recipientPhoneNumber} with  campaign_id ${queueItem.campaignId}`);
+    const queueAgrs = {
+      campaignId: queueItem.campaignId,
+      senderPhoneNumber: queueItem.senderPhoneNumber,
+      recipientPhoneNumber: queueItem.recipientPhoneNumber,
+      message: queueItem.message,
+      platform: queueItem.platform,
+    };
+    switch (queueItem.platform) {
+      case 'telegram':
+        result = await this.sendTelegramMessage(queueAgrs);
+        break;
+      case 'whatsapp':
+        result = await this.sendWhatsAppMessage(queueAgrs);
+        break;
+      case 'waba':
+        result = await this.sendWABAMessage(queueAgrs);
+        break;
+      case 'tgwa':
+        result = await this.sendTgAndWa(queueAgrs);
+        break;
+      case 'tgwaba':
+        result = await this.sendTgAndWABA(queueAgrs);
+        break;
+    }
+
+    if (result.success) {
+      // await SupabaseQueueService.markAsCompleted(queueItem.id, { [queueItem.platform]: result });
+      // await RabbitMQQueueService.markAsCompleted(queueItem, result);
+      await RabbitMQQueueService.markAsCompleted(queueItem.id, { [queueItem.platform]: result });
+    
+    } else {
+      if (result.error === 'DAILY_LIMIT_REACHED') {
+        const newSenderPhoneNumber = await PhoneNumberManagerService.switchToNextPhoneNumber(
+          queueItem.campaign_id,
+          queueItem.sender_phone_number,
+          queueItem.platform
+        );
+        if (newSenderPhoneNumber) {
+          await RabbitMQQueueService.enqueue(
+            queueItem.campaign_id,
+            queueItem.message,
+            queueItem.recipient_phone_number,
+            queueItem.platform,
+            newSenderPhoneNumber
+          );
+        } else {
+          await RabbitMQQueueService.markAsFailed(queueItem.id, 'No available phone numbers');
+        }
+      } else {
+        await RabbitMQQueueService.markAsFailed(queueItem.id, result.error);
+      }
+    }
+
+    return result;
+  }
 
   async updateOrCreateLeadChatId(campaignId, phoneNumber, chatId, platform) {
     logger.info(
@@ -218,12 +217,12 @@ class MessageMailingService {
     }
   }
 
-  async sendTelegramMessage(
+  async sendTelegramMessage({
     campaignId,
     senderPhoneNumber,
     recipientPhoneNumber,
     message,
-  ) {
+  }) {
     if (!campaignId) {
       logger.error('Campaign ID is undefined');
       return { success: false, error: 'CAMPAIGN_ID_UNDEFINED' };
@@ -252,13 +251,13 @@ class MessageMailingService {
 
       await this.applyDelay('telegram');
 
-      // const recipient = await client.getEntity(recipientPhoneNumber);
-      // if (!recipient) {
-      //   await LeadsService.setLeadUnavailable(recipientPhoneNumber);
-      //   throw new Error(
-      //     `Не удалось найти пользователя ${recipientPhoneNumber} в Telegram`,
-      //   );
-      // }
+      const recipient = await client.getEntity(recipientPhoneNumber);
+      if (!recipient) {
+        await LeadsService.setLeadUnavailable(recipientPhoneNumber);
+        throw new Error(
+          `Не удалось найти пользователя ${recipientPhoneNumber} в Telegram`,
+        );
+      }
       const result = await client.sendMessage(recipientPhoneNumber, { message });
 
       // const peer_id = recipient.id.toString();
@@ -300,12 +299,12 @@ class MessageMailingService {
     }
   }
 
-  async sendWABAMessage(
+  async sendWABAMessage({
     campaignId,
     senderPhoneNumber,
     recipientPhoneNumber,
     message,
-  ) {
+  }) {
     logger.info(
       `Отправка сообщения WABA с ID кампании ${campaignId} от ${senderPhoneNumber} к ${recipientPhoneNumber}`,
     );
@@ -385,12 +384,12 @@ class MessageMailingService {
     }
   }
 
-  async sendWhatsAppMessage(
+  async sendWhatsAppMessage({
     campaignId,
     senderPhoneNumber,
     recipientPhoneNumber,
     message,
-  ) {
+  }) {
     logger.info(
       `Отправка сообщения с ID кампании ${campaignId} от ${senderPhoneNumber} к ${recipientPhoneNumber}`,
     );
@@ -460,7 +459,7 @@ class MessageMailingService {
     }
   }
 
-  async sendTgAndWa(campaignId, senderPhoneNumber, recipientPhoneNumber, message) {
+  async sendTgAndWa({campaignId, senderPhoneNumber, recipientPhoneNumber, message}) {
     const telegramResult = await this.sendTelegramMessage(
       campaignId,
       senderPhoneNumber,
@@ -487,7 +486,7 @@ class MessageMailingService {
     };
   }
 
-  async sendTgAndWABA(campaignId, senderPhoneNumber,recipientPhoneNumber, message) {
+  async sendTgAndWABA({campaignId, senderPhoneNumber,recipientPhoneNumber, message}) {
     const telegramResult = await this.sendTelegramMessage(
       campaignId,
       senderPhoneNumber,

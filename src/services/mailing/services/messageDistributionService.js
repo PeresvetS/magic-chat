@@ -85,6 +85,7 @@ class MessageDistributionService {
 
         try {
           // Добавляем сообщение в очередь RabbitMQ
+          logger.info(`Enqueuing message for ${platform} with campaignId ${campaignId}`);
           const queueItem = await RabbitMQQueueService.enqueue(
             campaignId,
             message,

@@ -1,7 +1,7 @@
 // src/services/queue/rabbitMQQueueService.js
 
 const amqp = require('amqplib');
-const rabbitMQQueueRepo = require('../../db');
+const { rabbitMQQueueRepo } = require('../../db');
 const logger = require('../../utils/logger');
 const { rabbitMQ } = require('../../db/utils/config');
 
@@ -42,6 +42,7 @@ class RabbitMQQueueService {
 
       await this.channel.sendToQueue(this.queueName, Buffer.from(queueItem.id.toString()), { persistent: true });
 
+      logger.info(`Enqueued message for ${platform} with id ${queueItem.id} and campaignId ${campaignId}`);
       return queueItem;
     } catch (error) {
       logger.error('Ошибка добавления сообщения в очередь:', error);
@@ -59,12 +60,13 @@ class RabbitMQQueueService {
       const queueItemId = parseInt(message.content.toString());
       const queueItem = await rabbitMQQueueRepo.findQueueItem(queueItemId);
 
-      if (!queueItem) {
+      if (!queueItem || !queueItem.id || !queueItem.campaignId) {
+        logger.warn(`Invalid queue item found:`, queueItem);
         this.channel.ack(message);
         return null;
       }
 
-      await rabbitMQQueueRepo.updateQueueItem(queueItemId, { status: 'processing' });
+      await rabbitMQQueueRepo.updateQueueItem(queueItem.id, { status: 'processing' });
 
       return {
         ...queueItem,
@@ -94,21 +96,35 @@ class RabbitMQQueueService {
 
   async markAsFailed(queueItem, errorMessage) {
     try {
-      await rabbitMQQueueRepo.updateQueueItem(queueItem.id, {
+      if (!queueItem || !queueItem.id) {
+        logger.error('Invalid queue item or missing id:', queueItem);
+        return;
+      }
+
+      const updatedItem = await rabbitMQQueueRepo.updateQueueItem(queueItem.id, {
         status: 'failed',
         errorMessage,
+        retryCount: (queueItem.retryCount || 0) + 1,
         updatedAt: new Date()
       });
-      queueItem.nackFunction();
-      logger.info('Сообщение помечено как необработанное и возвращено в очередь');
+
+      if (updatedItem.retryCount >= 5) {
+        logger.warn(`Queue item ${queueItem.id} has reached maximum retry attempts. Removing from queue.`);
+        queueItem.ackFunction(); // Удаляем из очереди
+      } else {
+        queueItem.nackFunction(); // Возвращаем в очередь для повторной попытки
+        logger.info(`Message marked as failed and returned to queue. Retry attempt: ${updatedItem.retryCount}`);
+      }
     } catch (error) {
-      logger.error('Ошибка при отклонении сообщения:', error);
-      throw error;
+      logger.error('Ошибка при обработке неудачного сообщения:', error);
     }
   }
 
   async getUnprocessedItems() {
     try {
+      if (typeof rabbitMQQueueRepo.getUnprocessedItems !== 'function') {
+        throw new Error('getUnprocessedItems is not defined in rabbitMQQueueRepo');
+      }
       return await rabbitMQQueueRepo.getUnprocessedItems();
     } catch (error) {
       logger.error('Ошибка получения необработанных элементов очереди:', error);

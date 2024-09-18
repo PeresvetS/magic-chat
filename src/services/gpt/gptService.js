@@ -11,9 +11,6 @@ const availableFunctions = {
 
 async function generateResponse(lead, messages, campaign, agentChain) {
   try {
-    logger.info(
-      `Generating response for lead ${safeStringify(lead)} with messages: ${safeStringify(messages)} and campaign: ${safeStringify(campaign)}`,
-    );
 
     if (campaign.googleSheetUrl) {
       const googleSheetData = await getGoogleSheetData(campaign.googleSheetUrl);

@@ -20,6 +20,8 @@ const { handleMessageService, processPendingMessages } = require('./services/mes
 // const SupabaseQueueService = require('./services/queue/supabaseQueueService');
 const RabbitMQQueueService = require('./services/queue/rabbitMQQueueService');
 
+let isProcessingUnfinishedTasks = false;
+
 const app = express();
 
 app.use(bodyParser.raw({ type: 'application/x-www-form-urlencoded' }));
@@ -58,34 +60,52 @@ async function checkApplicationState() {
 async function processUnfinishedTasks() {
   logger.info('Processing unfinished tasks...');
   
-  // Process pending messages from the conversation states
-  await processPendingMessages().catch(error => {
-    logger.error('Error processing pending messages:', error);
-  });
+  if (isProcessingUnfinishedTasks) {
+    logger.info('Already processing unfinished tasks. Skipping.');
+    return;
+  }
+  isProcessingUnfinishedTasks = true;
 
-  // Process unfinished queue items
-  const unprocessedItems = await RabbitMQQueueService.getUnprocessedItems();
-  for (const item of unprocessedItems) {
-    try {
-      logger.info(`Processing queue item ${item.id} with  campaign_id ${item.campaign_id}`);
-      await messageMailingService.processQueue(item); // Changed from processQueueItem to processQueue
-    } catch (error) {
-      logger.error(`Error processing queue item ${item.id}:`, error);
+  try {
+    await processPendingMessages();
+
+    const unprocessedItems = await RabbitMQQueueService.getUnprocessedItems();
+    for (const item of unprocessedItems) {
+      if (item && item.id && item.campaignId) {
+        logger.info(`Processing queue item ${item.id} with campaignId ${item.campaignId}`);
+        await messageMailingService.processQueue(item);
+      } else {
+        logger.warn(`Skipping invalid queue item:`, item);
+      }
     }
+  } catch (error) {
+    logger.error('Error processing unfinished tasks:', error);
+  } finally {
+    isProcessingUnfinishedTasks = false;
   }
 
   logger.info('Unfinished tasks processed');
 }
 
+let isProcessingQueue = false;
+
 async function startMessageQueueProcessing() {
+  if (isProcessingQueue) {
+    logger.info('Message queue processing is already running');
+    return;
+  }
+  isProcessingQueue = true;
+
   while (true) {
     try {
       await messageMailingService.processQueue();
+      // Добавляем задержку между проверками очереди
+      await new Promise(resolve => setTimeout(resolve, 5000)); // 5 секунд
     } catch (error) {
       logger.error('Error processing message queue:', error);
+      // Добавляем задержку в случае ошибки
+      await new Promise(resolve => setTimeout(resolve, 10000)); // 10 секунд
     }
-    // Небольшая пауза перед следующей итерацией
-    await new Promise(resolve => setTimeout(resolve, 1000));
   }
 }
 

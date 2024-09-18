@@ -18,7 +18,13 @@ class AgentChain {
     this.lead = lead;
     this.tokenCount = 0;
     this.context = {};
-    this.openaiApiKey = campaign.openaiApiKey || campaign.user.openaiApiKey || config.OPENAI_API_KEY;
+    // Добавляем проверки и значение по умолчанию
+    this.openaiApiKey = config.OPENAI_API_KEY;
+    if (campaign && campaign.openaiApiKey) {
+      this.openaiApiKey = campaign.openaiApiKey;
+    } else if (campaign && campaign.user && campaign.user.openaiApiKey) {
+      this.openaiApiKey = campaign.user.openaiApiKey;
+    }
 
     this.memory = new EnhancedMemory({
       openAIApiKey: this.openaiApiKey,

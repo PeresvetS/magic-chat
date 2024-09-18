@@ -367,6 +367,7 @@ model MessageQueue {
   createdAt            DateTime @default(now())
   updatedAt            DateTime @updatedAt
   additionalData Json?
+  retryCount Int @default(0)
 
   @@index([status])
   @@index([createdAt])
