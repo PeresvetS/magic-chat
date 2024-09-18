@@ -1,6 +1,6 @@
 // src/db/repositories/rabbitMQQueueRepo.js
 
-const { prisma } = require('../utils/prisma');
+const prisma = require('../utils/prisma');
 const logger = require('../../utils/logger');
 
 class RabbitMQQueueRepo {
