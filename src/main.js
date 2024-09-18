@@ -17,7 +17,8 @@ const { WhatsAppSessionService } = require('./services/whatsapp');
 const { TelegramSessionService } = require('./services/telegram');
 const notificationBot = require('./bot/notification/notificationBot');
 const { handleMessageService, processPendingMessages } = require('./services/messaging');
-const SupabaseQueueService = require('./services/queue/supabaseQueueService');
+// const SupabaseQueueService = require('./services/queue/supabaseQueueService');
+const RabbitMQQueueService = require('./services/queue/rabbitMQQueueService');
 
 const app = express();
 
@@ -63,7 +64,7 @@ async function processUnfinishedTasks() {
   });
 
   // Process unfinished queue items
-  const unprocessedItems = await SupabaseQueueService.getUnprocessedItems();
+  const unprocessedItems = await RabbitMQQueueService.getUnprocessedItems();
   for (const item of unprocessedItems) {
     try {
       logger.info(`Processing queue item ${item.id} with  campaign_id ${item.campaign_id}`);
@@ -76,9 +77,24 @@ async function processUnfinishedTasks() {
   logger.info('Unfinished tasks processed');
 }
 
+async function startMessageQueueProcessing() {
+  while (true) {
+    try {
+      await messageMailingService.processQueue();
+    } catch (error) {
+      logger.error('Error processing message queue:', error);
+    }
+    // Небольшая пауза перед следующей итерацией
+    await new Promise(resolve => setTimeout(resolve, 1000));
+  }
+}
+
 async function main() {
   try {
     logger.info('Main function started');
+
+    // Инициализация RabbitMQ
+    await RabbitMQQueueService.connect();
 
     // Инициализация сессий Telegram
     await retryOperation(
@@ -111,16 +127,28 @@ async function main() {
     ]);
     logger.info('Bots initialized and polling started');
 
-    // Обработка незавершенных сообщений при запуске
-    logger.info('Processing pending messages...');
-    await processPendingMessages().catch(console.error);
-    logger.info('Pending messages processed');
+    // Обработка незавершенных задач при запуске
+    logger.info('Processing unfinished tasks...');
+    await processUnfinishedTasks();
+    logger.info('Unfinished tasks processed');
 
-    // Обрабока очереди сообщений  
-    logger.info('Processing message queue...');
-    messageMailingService.processQueue().catch(error => {
-      logger.error('Error processing message queue:', error);
+    // Запуск постоянной обработки очереди сообщений
+    logger.info('Starting continuous message queue processing...');
+    startMessageQueueProcessing().catch(error => {
+      logger.error('Error in message queue processing loop:', error);
     });
+
+    // // Обработка незавершенных сообщений при запуске
+    // logger.info('Processing pending messages...');
+    // await processPendingMessages().catch(console.error); //?
+    // logger.info('Pending messages processed');
+
+    // // Обрабока очереди сообщений  
+    // logger.info('Processing message queue...');
+    // messageMailingService.processQueue().catch(error => {
+    //   logger.error('Error processing message queue:', error);
+    // });
+
     logger.info('Message queue processed');
 
 
@@ -188,7 +216,7 @@ async function main() {
     logger.info('Daily stats reset scheduled');
 
     // Process unfinished tasks before starting the server
-    await processUnfinishedTasks();
+    // await processUnfinishedTasks();
 
   } catch (error) {
     logger.error('Error in main function:', error);

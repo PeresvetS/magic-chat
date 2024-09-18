@@ -10,8 +10,9 @@ const {
   campaignsMailingRepo,
   dialogRepo,
 } = require('../../../db');
-const SupabaseQueueService = require('../../queue/supabaseQueueService');
+// const SupabaseQueueService = require('../../queue/supabaseQueueService');
 const PhoneNumberManagerService = require('../../phone/src/PhoneNumberManagerService');
+const RabbitMQQueueService = require('../../queue/rabbitMQQueueService');
 
 
 class MessageMailingService {
@@ -30,7 +31,8 @@ class MessageMailingService {
     } else {
       // Process the entire queue
       while (true) {
-        const item = await SupabaseQueueService.dequeue();
+        // const item = await SupabaseQueueService.dequeue();
+        const item = await RabbitMQQueueService.dequeue();
         if (!item) {
           await new Promise(resolve => setTimeout(resolve, 5000)); // Wait for 5 seconds before checking again
           continue;
@@ -88,7 +90,10 @@ class MessageMailingService {
       }
 
       if (result.success) {
-        await SupabaseQueueService.markAsCompleted(queueItem.id, { [queueItem.platform]: result });
+        // await SupabaseQueueService.markAsCompleted(queueItem.id, { [queueItem.platform]: result });
+        // await RabbitMQQueueService.markAsCompleted(queueItem, result);
+        await RabbitMQQueueService.markAsCompleted(queueItem.id, { [queueItem.platform]: result });
+      
       } else {
         if (result.error === 'DAILY_LIMIT_REACHED') {
           const newSenderPhoneNumber = await PhoneNumberManagerService.switchToNextPhoneNumber(
@@ -97,7 +102,7 @@ class MessageMailingService {
             queueItem.platform
           );
           if (newSenderPhoneNumber) {
-            await SupabaseQueueService.enqueueMessage(
+            await RabbitMQQueueService.enqueue(
               queueItem.campaign_id,
               queueItem.message,
               queueItem.recipient_phone_number,
@@ -105,15 +110,15 @@ class MessageMailingService {
               newSenderPhoneNumber
             );
           } else {
-            await SupabaseQueueService.markAsFailed(queueItem.id, 'No available phone numbers');
+            await RabbitMQQueueService.markAsFailed(queueItem.id, 'No available phone numbers');
           }
         } else {
-          await SupabaseQueueService.markAsFailed(queueItem.id, result.error);
+          await RabbitMQQueueService.markAsFailed(queueItem.id, result.error);
         }
       }
     } catch (error) {
       logger.error(`Error processing queue item ${queueItem.id}:`, error);
-      await SupabaseQueueService.markAsFailed(queueItem.id, error.message);
+      await RabbitMQQueueService.markAsFailed(queueItem.id, error.message);
     }
   }
 

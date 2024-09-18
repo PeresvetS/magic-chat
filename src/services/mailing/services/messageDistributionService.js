@@ -4,7 +4,9 @@ const MessagingPlatformChecker = require('../checkers/MessagingPlatformChecker')
 const logger = require('../../../utils/logger');
 const { campaignsMailingService } = require('../../campaign');
 const PhoneNumberManagerService = require('../../phone/src/PhoneNumberManagerService');
-const SupabaseQueueService = require('../../queue/supabaseQueueService');
+// const SupabaseQueueService = require('../../queue/supabaseQueueService');
+const RabbitMQQueueService = require('../../queue/rabbitMQQueueService');
+
 
 class MessageDistributionService {
   constructor() {
@@ -72,14 +74,30 @@ class MessageDistributionService {
           continue;
         }
 
-        const queueItem = await SupabaseQueueService.enqueue(
-          campaignId,
-          message,
-          strPhoneNumber,
-          platform,
-          senderPhoneNumber
-        );
-        results[platform] = { queueItemId: queueItem.id, status: 'queued' };
+        // const queueItem = await SupabaseQueueService.enqueue(
+        //   campaignId,
+        //   message,
+        //   strPhoneNumber,
+        //   platform,
+        //   senderPhoneNumber
+        // );
+        // results[platform] = { queueItemId: queueItem.id, status: 'queued' };
+
+        try {
+          // Добавляем сообщение в очередь RabbitMQ
+          const queueItem = await RabbitMQQueueService.enqueue(
+            campaignId,
+            message,
+            strPhoneNumber,
+            platform,
+            senderPhoneNumber
+          );
+          results[platform] = { queueItemId: queueItem.id, status: 'queued' };
+          logger.info(`Message queued for ${platform}: ${queueItem.id}`);
+        } catch (error) {
+          logger.error(`Error enqueueing message for ${platform}:`, error);
+          results[platform] = { error: error.message, status: 'failed' };
+        }
       }
 
       return results;
@@ -241,20 +259,47 @@ class MessageDistributionService {
     }
   }
 
+  // async getDistributionResults(results) {
+  //   const updatedResults = { ...results };
+  //   for (const platform of Object.keys(updatedResults)) {
+  //     if (updatedResults[platform] && updatedResults[platform].queueItemId) {
+  //       const queueItem = await SupabaseQueueService.getQueueItem(updatedResults[platform].queueItemId);
+  //       if (queueItem.status === 'completed') {
+  //         updatedResults[platform] = JSON.parse(queueItem.result);
+  //       } else if (queueItem.status === 'failed') {
+  //         updatedResults[platform] = { success: false, error: queueItem.errorMessage };
+  //       }
+  //     }
+  //   }
+  //   return updatedResults;
+  // }
+
   async getDistributionResults(results) {
     const updatedResults = { ...results };
+    
     for (const platform of Object.keys(updatedResults)) {
       if (updatedResults[platform] && updatedResults[platform].queueItemId) {
-        const queueItem = await SupabaseQueueService.getQueueItem(updatedResults[platform].queueItemId);
-        if (queueItem.status === 'completed') {
-          updatedResults[platform] = JSON.parse(queueItem.result);
-        } else if (queueItem.status === 'failed') {
-          updatedResults[platform] = { success: false, error: queueItem.errorMessage };
+        const queueItem = await RabbitMQQueueService.getQueueItem(updatedResults[platform].queueItemId);
+        
+        if (queueItem) {
+          if (queueItem.status === 'completed') {
+            updatedResults[platform] = JSON.parse(queueItem.result);
+          } else if (queueItem.status === 'failed') {
+            updatedResults[platform] = { success: false, error: queueItem.errorMessage }; //?
+          } else {
+            // Для статусов 'pending' и 'processing'
+            updatedResults[platform] = { status: queueItem.status };
+          }
+        } else {
+          logger.warn(`Queue item not found for ${platform}: ${updatedResults[platform].queueItemId}`);
+          updatedResults[platform] = { status: 'unknown' };
         }
       }
     }
+    
     return updatedResults;
   }
+
 }
 
 module.exports = new MessageDistributionService();

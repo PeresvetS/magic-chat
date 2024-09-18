@@ -8,7 +8,7 @@ const { ConversationSummaryMemory } = require("langchain/memory");
 const { ChatOpenAI } = require("@langchain/openai");
 const { countTokens } = require('../tokenizer/tokenizer');
 const { saveConversationState } = require('../../db');
-const SupabaseQueueService = require('../queue/supabaseQueueService');
+// const SupabaseQueueService = require('../queue/supabaseQueueService');
 const logger = require('../../utils/logger');
 
 class EnhancedMemory {
@@ -73,18 +73,18 @@ class EnhancedMemory {
       const summary = await this.summaryMemory.predictNewSummary(inputValues, outputValues);
       await saveConversationState(this.leadId, output, summary);
 
-      await SupabaseQueueService.enqueue(
-        this.conversationId,
-        output,
-        this.leadId,
-        'langchain',
-        null,
-        {
-          input,
-          summary,
-          leadId: this.leadId,
-        }
-      );
+      // await SupabaseQueueService.enqueue(
+      //   this.conversationId,
+      //   output,
+      //   this.leadId,
+      //   'langchain',
+      //   null,
+      //   {
+      //     input,
+      //     summary,
+      //     leadId: this.leadId,
+      //   }
+      // );
 
       logger.info(`Saved context for conversation: ${this.conversationId}`);
     } catch (error) {
