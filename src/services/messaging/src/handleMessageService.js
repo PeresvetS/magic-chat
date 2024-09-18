@@ -111,7 +111,10 @@
       chatId = message.chat.id.toString();
     }
 
-    return { senderId: chatId, messageText: message.text };
+    // Добавим проверку на наличие текста сообщения
+    const messageText = message.text || message.caption || '';
+
+    return { senderId: chatId, messageText };
   }
 
   async function getLeadIdByChatId(chatId, platform) {

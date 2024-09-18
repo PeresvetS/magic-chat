@@ -2,23 +2,23 @@
 
 const { LLMChain } = require("langchain/chains");
 const { ChatOpenAI } = require("@langchain/openai");
-const { PromptTemplate } = require("@langchain/core/prompts");
+const { ChatPromptTemplate, SystemMessagePromptTemplate, HumanMessagePromptTemplate, AIMessagePromptTemplate } = require("@langchain/core/prompts");
 const { RunnableSequence, RunnablePassthrough } = require("@langchain/core/runnables");
-const { StringOutputParser } = require("@langchain/core/output_parsers");
 const { countTokens } = require('../tokenizer/tokenizer');
 const logger = require('../../utils/logger');
 const EnhancedMemory = require('./enhancedMemory');
 const config = require('../../config');
 const knowledgeBaseService = require('./knowledgeBaseService');
-const promptService = require('../prompt/promptService');
+const { safeStringify } = require('../../utils/helpers');
+const { log } = require("winston");
 
 class AgentChain {
-  constructor(campaign, lead) {
+  constructor(campaign, lead, googleSheetData) {
     this.campaign = campaign;
     this.lead = lead;
+    this.googleSheetData = googleSheetData;
     this.tokenCount = 0;
     this.context = {};
-    // Добавляем проверки и значение по умолчанию
     this.openaiApiKey = config.OPENAI_API_KEY;
     if (campaign && campaign.openaiApiKey) {
       this.openaiApiKey = campaign.openaiApiKey;
@@ -45,28 +45,29 @@ class AgentChain {
     try {
       const llm = new ChatOpenAI({
         modelName: this.campaign.modelName || 'gpt-4o-mini',
-        temperature: 0.2,
+        temperature: 0.5,
         openAIApiKey: this.openaiApiKey,
       });
 
-      const basePrompt = PromptTemplate.fromTemplate(this.campaign.prompt.content);
-      
-      const promptWithKnowledge = async (relevantKnowledge) => {
-        const updatedPromptContent = await promptService.updatePromptWithKnowledge(this.campaign.promptId, relevantKnowledge);
-        return PromptTemplate.fromTemplate(updatedPromptContent);
-      };
+      const systemPrompt = SystemMessagePromptTemplate.fromTemplate(this.campaign.prompt.content);
+      const googleSheetPrompt = SystemMessagePromptTemplate.fromTemplate(this.googleSheetData || "");
+      const humanTemplate = "{input}";
+      const humanMessagePrompt = HumanMessagePromptTemplate.fromTemplate(humanTemplate);
+
+      const chatPrompt = ChatPromptTemplate.fromMessages([
+        systemPrompt,
+        googleSheetPrompt,
+        { role: "system", content: "{context}" },
+        humanMessagePrompt,
+      ]);
+
+      const chain = RunnableSequence.from([
+        chatPrompt,
+        llm,
+      ]);
 
       logger.info(`Created primary agent for campaign: ${this.campaign.id}`);
-      return new LLMChain({ 
-        llm, 
-        prompt: async (input) => {
-          if (input.relevantKnowledge) {
-            return promptWithKnowledge(input.relevantKnowledge);
-          }
-          return basePrompt;
-        },
-        memory: this.memory 
-      });
+      return chain;
     } catch (error) {
       logger.error(`Error creating primary agent: ${error.message}`);
       throw error;
@@ -85,7 +86,7 @@ class AgentChain {
         openAIApiKey: this.openaiApiKey,
       });
 
-      const prompt = PromptTemplate.fromTemplate(this.campaign.secondaryPrompt.content);
+      const prompt = ChatPromptTemplate.fromTemplate(this.campaign.secondaryPrompt.content);
 
       logger.info(`Created secondary agent for campaign: ${this.campaign.id}`);
       return new LLMChain({ llm, prompt, memory: this.memory });
@@ -102,7 +103,8 @@ class AgentChain {
 
   async run(userMessage) {
     try {
-      const context = await this.memory.getContextString(userMessage);
+      let context = '';
+      const contextString = await this.memory.getContextString(userMessage);
 
       let relevantKnowledge = '';
       if (this.campaign.knowledgeBases && this.campaign.knowledgeBases.length > 0) {
@@ -113,52 +115,73 @@ class AgentChain {
         );
         relevantKnowledge = knowledgeBlocks.map(block => block.pageContent).join('\n\n');
       }
+      if (relevantKnowledge) {
+        context = `Relevant Knowledge: ${relevantKnowledge}\n\n${contextString}`;
+      } else {
+        context = contextString;
+      }
+
+      logger.info(`Context: ${safeStringify(context)}`);
 
       const runChain = RunnableSequence.from([
-        {
-          lead: new RunnablePassthrough(),
-          context: new RunnablePassthrough(),
-          relevantKnowledge: new RunnablePassthrough(),
+        RunnablePassthrough.assign({
+          context: () => context,
           ...this.context
-        },
+        }),
         this.primaryAgent,
-        new StringOutputParser(),
         async (primaryResponse) => {
-          if (primaryResponse.includes('FUNCTION_CALL:')) {
-            return primaryResponse;
+          if (!primaryResponse) {
+            logger.warn('Primary response is undefined or null');
+            return 'No response generated';
           }
 
-          if (this.secondaryAgent) {
+          let responseText = primaryResponse;
+          logger.info(`Primary response: ${safeStringify(primaryResponse)}`);
+          if (typeof primaryResponse === 'object') {
+            logger.warn(`Unexpected primary response type: ${typeof primaryResponse}`);
+            responseText = primaryResponse.output || primaryResponse.text || JSON.stringify(primaryResponse);
+          }
+
+          if (responseText.includes('FUNCTION_CALL:')) { // ?
+            return responseText;
+          }
+
+          if (this.campaign.isSecondaryAgentActive && this.secondaryAgent) {
             const secondaryResponse = await this.secondaryAgent.call({
-              primaryResponse,
-              context,
+              input: responseText,
               ...this.context
             });
 
-            this.updateTokenCount(primaryResponse, secondaryResponse.text);
+            this.updateTokenCount(responseText, secondaryResponse.text || '');
 
-            return secondaryResponse.text;
+            return secondaryResponse.text || JSON.stringify(secondaryResponse);
           }
 
-          return primaryResponse;
+          return responseText;
         }
       ]);
 
+      logger.info(`Context: ${safeStringify(context)}`);
+
       const finalResponse = await runChain.invoke({
-        lead: this.lead,
-        context,
-        relevantKnowledge
+        input: userMessage,
       });
 
-      this.updateTokenCount(context, finalResponse);
+      let responseString = typeof finalResponse === 'string' ? finalResponse : JSON.stringify(finalResponse);
 
-      await this.memory.saveContext({ input: userMessage }, { output: finalResponse });
+      // Сохраняем контекст
+      await this.memory.saveContext(
+        { input: userMessage },
+        { output: responseString }
+      );
 
-      logger.info(`Generated response for lead: ${this.lead.id} in campaign: ${this.campaign.id}`);
-      return finalResponse;
+      this.updateTokenCount(userMessage, responseString);
+
+      return responseString;
     } catch (error) {
       logger.error(`Error in AgentChain: ${error.message}`);
-      throw error;
+      logger.error(`Stack trace: ${error.stack}`);
+      return `An error occurred: ${error.message}`;
     }
   }
 

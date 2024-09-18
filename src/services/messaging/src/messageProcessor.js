@@ -2,14 +2,11 @@
 
 const logger = require('../../../utils/logger');
 const gptService = require('../../gpt/gptService');
-const AgentChain = require('../../langchain/agentChain');
 const leadsService = require('../../leads/src/LeadsService');
 const { saveMessageStats } = require('../../stats/statsService');
 const { saveDialogToFile } = require('../../../utils/messageUtils');
 const campaignMailingService = require('../../campaign/src/campaignsMailingService');
 const { getPendingConversationStates } = require('../../conversation/conversationState');
-
-const agentChains = new Map();
 
 async function processMessage(lead, senderId, message, phoneNumber, campaign) {
   logger.info(`Processing message for phone number ${phoneNumber}: ${message}`);
@@ -21,22 +18,10 @@ async function processMessage(lead, senderId, message, phoneNumber, campaign) {
       logger.warn(`No prompt provided for processing message from ${senderId}`);
       return null;
     }
-
-    let agentChain = agentChains.get(senderId);
-    if (!agentChain) {
-      agentChain = new AgentChain(campaign, lead);
-      agentChains.set(senderId, agentChain);
-      logger.info(`Created new AgentChain for ${senderId}`);
-    }
-
     // Use gptService to generate response
-    const response = await gptService.generateResponse(lead, [{ role: 'human', content: message }], campaign, agentChain);
+    const { response, tokenCount } = await gptService.generateResponse(lead, [{ role: 'human', content: message }], campaign);
     logger.info(`Response generated for ${senderId}: ${response}`);
 
-    // Save the response to memory
-    await agentChain.memory.saveContext({ input: message }, { output: response });
-
-    const tokenCount = agentChain.getTokenCount();
     logger.debug(`Token count for ${senderId}: ${tokenCount}`);
 
     await saveMessageStats(senderId, phoneNumber, tokenCount);
