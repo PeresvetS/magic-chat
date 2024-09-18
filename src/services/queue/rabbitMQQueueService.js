@@ -1,23 +1,25 @@
 // src/services/queue/rabbitMQQueueService.js
 
 const amqp = require('amqplib');
-const { PrismaClient } = require('@prisma/client');
+const rabbitMQQueueRepo = require('../../db/repositories/rabbitMQQueueRepo');
 const logger = require('../../utils/logger');
-
-const prisma = new PrismaClient();
+const { rabbitMQ } = require('../../db/utils/config');
 
 class RabbitMQQueueService {
   constructor() {
     this.connection = null;
     this.channel = null;
-    this.queueName = 'messageQueue';
+    this.queueName = rabbitMQ.queue;
   }
 
   async connect() {
     try {
-      this.connection = await amqp.connect('amqp://localhost');
+      this.connection = await amqp.connect(rabbitMQ.url, {
+        heartbeat: rabbitMQ.heartbeat,
+      });
       this.channel = await this.connection.createChannel();
       await this.channel.assertQueue(this.queueName, { durable: true });
+      await this.channel.prefetch(rabbitMQ.prefetch);
     } catch (error) {
       logger.error('Ошибка подключения к RabbitMQ:', error);
       throw error;
@@ -28,20 +30,16 @@ class RabbitMQQueueService {
     try {
       if (!this.channel) await this.connect();
 
-      // Сохраняем сообщение в базу данных
-      const queueItem = await prisma.messageQueue.create({
-        data: {
-          campaignId,
-          message,
-          recipientPhoneNumber,
-          platform,
-          senderPhoneNumber,
-          status: 'pending',
-          additionalData: additionalData ? JSON.stringify(additionalData) : null,
-        }
+      const queueItem = await rabbitMQQueueRepo.createQueueItem({
+        campaignId,
+        message,
+        recipientPhoneNumber,
+        platform,
+        senderPhoneNumber,
+        status: 'pending',
+        additionalData: additionalData ? JSON.stringify(additionalData) : null,
       });
 
-      // Отправляем ID сообщения в RabbitMQ
       await this.channel.sendToQueue(this.queueName, Buffer.from(queueItem.id.toString()), { persistent: true });
 
       return queueItem;
@@ -59,17 +57,14 @@ class RabbitMQQueueService {
       if (!message) return null;
 
       const queueItemId = parseInt(message.content.toString());
-      const queueItem = await prisma.messageQueue.findUnique({ where: { id: queueItemId } });
+      const queueItem = await rabbitMQQueueRepo.findQueueItem(queueItemId);
 
       if (!queueItem) {
         this.channel.ack(message);
         return null;
       }
 
-      await prisma.messageQueue.update({
-        where: { id: queueItemId },
-        data: { status: 'processing' }
-      });
+      await rabbitMQQueueRepo.updateQueueItem(queueItemId, { status: 'processing' });
 
       return {
         ...queueItem,
@@ -84,13 +79,10 @@ class RabbitMQQueueService {
 
   async markAsCompleted(queueItem, result) {
     try {
-      await prisma.messageQueue.update({
-        where: { id: queueItem.id },
-        data: { 
-          status: 'completed', 
-          result: JSON.stringify(result),
-          updatedAt: new Date()
-        }
+      await rabbitMQQueueRepo.updateQueueItem(queueItem.id, {
+        status: 'completed',
+        result: JSON.stringify(result),
+        updatedAt: new Date()
       });
       queueItem.ackFunction();
       logger.info('Сообщение успешно обработано и подтверждено');
@@ -102,13 +94,10 @@ class RabbitMQQueueService {
 
   async markAsFailed(queueItem, errorMessage) {
     try {
-      await prisma.messageQueue.update({
-        where: { id: queueItem.id },
-        data: { 
-          status: 'failed', 
-          errorMessage,
-          updatedAt: new Date()
-        }
+      await rabbitMQQueueRepo.updateQueueItem(queueItem.id, {
+        status: 'failed',
+        errorMessage,
+        updatedAt: new Date()
       });
       queueItem.nackFunction();
       logger.info('Сообщение помечено как необработанное и возвращено в очередь');
@@ -120,14 +109,7 @@ class RabbitMQQueueService {
 
   async getUnprocessedItems() {
     try {
-      return await prisma.messageQueue.findMany({
-        where: {
-          status: {
-            in: ['pending', 'processing']
-          }
-        },
-        orderBy: { createdAt: 'asc' }
-      });
+      return await rabbitMQQueueRepo.getUnprocessedItems();
     } catch (error) {
       logger.error('Ошибка получения необработанных элементов очереди:', error);
       throw error;
@@ -136,9 +118,7 @@ class RabbitMQQueueService {
 
   async getQueueItem(id) {
     try {
-      const item = await prisma.messageQueue.findUnique({
-        where: { id: parseInt(id) }
-      });
+      const item = await rabbitMQQueueRepo.findQueueItem(parseInt(id));
 
       if (!item) {
         logger.warn(`Queue item with id ${id} not found`);
@@ -151,9 +131,6 @@ class RabbitMQQueueService {
       throw error;
     }
   }
-
 }
-
-
 
 module.exports = new RabbitMQQueueService();

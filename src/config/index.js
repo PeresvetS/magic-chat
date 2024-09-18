@@ -34,6 +34,12 @@ const config = {
   PINECONE_API_KEY: process.env.PINECONE_API_KEY,
   PINECONE_ENVIRONMENT: process.env.PINECONE_ENVIRONMENT,
   PINECONE_INDEX: process.env.PINECONE_INDEX,
+
+  // Добавляем конфигурацию RabbitMQ
+  RABBITMQ_URL: process.env.RABBITMQ_URL || 'amqp://localhost',
+  RABBITMQ_QUEUE: process.env.RABBITMQ_QUEUE || 'messageQueue',
+  RABBITMQ_PREFETCH: parseInt(process.env.RABBITMQ_PREFETCH, 10) || 1,
+  RABBITMQ_HEARTBEAT: parseInt(process.env.RABBITMQ_HEARTBEAT, 10) || 60,
 };
 
 // Логирование конфигурации
@@ -42,7 +48,8 @@ Object.entries(config).forEach(([key, value]) => {
   if (
     key.includes('TOKEN') ||
     key.includes('KEY') ||
-    key.includes('PASSWORD')
+    key.includes('PASSWORD') ||
+    key.includes('URL')  // Добавляем URL в список скрываемых значений
   ) {
     logger.info(`${key}: ${value ? '[REDACTED]' : 'Not set'}`);
   } else if (key === 'ALLOWED_ADMINS') {

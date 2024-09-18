@@ -1,10 +1,7 @@
 // src/services/prompt/promptService.js
 
-const { PrismaClient } = require('@prisma/client');
-
 const logger = require('../../utils/logger');
-
-const prisma = new PrismaClient();
+const { prisma } = require('../../db/utils/prisma');
 
 const promptService = {
   async createPrompt(name, content) {
