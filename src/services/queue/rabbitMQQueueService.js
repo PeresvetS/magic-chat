@@ -1,7 +1,7 @@
 // src/services/queue/rabbitMQQueueService.js
 
 const amqp = require('amqplib');
-const rabbitMQQueueRepo = require('../../db/repositories/rabbitMQQueueRepo');
+const rabbitMQQueueRepo = require('../../db');
 const logger = require('../../utils/logger');
 const { rabbitMQ } = require('../../db/utils/config');
 
