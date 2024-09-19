@@ -223,8 +223,7 @@ class BotStateManager {
       throw error;
     }
   }
-  
-  
+
 
   hasNewMessageSince(userId, timestamp) {
     const userState = this.getUserState(userId);

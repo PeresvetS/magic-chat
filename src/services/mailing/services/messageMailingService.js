@@ -10,7 +10,6 @@ const {
   campaignsMailingRepo,
   dialogRepo,
 } = require('../../../db');
-// const SupabaseQueueService = require('../../queue/supabaseQueueService');
 const PhoneNumberManagerService = require('../../phone/src/PhoneNumberManagerService');
 const RabbitMQQueueService = require('../../queue/rabbitMQQueueService');
 

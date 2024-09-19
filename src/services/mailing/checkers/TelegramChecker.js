@@ -3,7 +3,7 @@
 const { Api } = require('telegram/tl');
 
 const logger = require('../../../utils/logger');
-const { TelegramSessionService } = require('../../telegram');
+const { TelegramMainSessionService } = require('../../telegram');
 
 class TelegramChecker {
   constructor() {
@@ -12,7 +12,7 @@ class TelegramChecker {
 
   async initialize() {
     if (!this.client) {
-      this.client = await TelegramSessionService.getMainClient();
+      this.client = await TelegramMainSessionService.getMainClient();
       if (!this.client) {
         throw new Error('Failed to get main Telegram client');
       }

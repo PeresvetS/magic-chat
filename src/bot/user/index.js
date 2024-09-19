@@ -1,7 +1,6 @@
 // src/bot/user/index.js
 
 const path = require('path');
-const qrcode = require('qrcode');
 const fs = require('fs').promises;
 const TelegramBot = require('node-telegram-bot-api');
 
@@ -319,109 +318,6 @@ function createUserBot() {
     handleTelegramAuth,
     handleWhatsAppAuth
   };
-
 }
-
-// async function tryWhatsappAuth(bot, query, phoneNumber, authType) {
-//   await bot.answerCallbackQuery(query.id);
-//   try {
-//     logger.info(`Starting WhatsApp authentication process for ${phoneNumber}`);
-
-//     if (authType === 'qr') {
-//       await bot.sendMessage(
-//         query.message.chat.id,
-//         'Начинаем процесс аутентификации WhatsApp с использованием QR-code. Это может занять некоторое время.',
-//       );
-//       const { qr, client } =
-//         await WhatsAppSessionService.generateQRCode(phoneNumber);
-//       if (!qr) {
-//         throw new Error('Failed to generate QR code');
-//       }
-//       logger.info(`QR code generated for ${phoneNumber}`);
-
-//       // Генерируем изображение QR-кода
-//       const qrImagePath = path.join(
-//         __dirname,
-//         `../../../temp/${phoneNumber.replace(/[^a-zA-Z0-9]/g, '')}_qr.png`,
-//       );
-//       await qrcode.toFile(qrImagePath, qr);
-
-//       // Отправляем изображение QR-кода
-//       await bot.sendPhoto(query.message.chat.id, qrImagePath, {
-//         caption:
-//           'Пожалуйста, отсканируйте этот QR-код в приложении WhatsApp для подключения. У вас есть 5 минут на сканирование.',
-//       });
-
-//       // Удаляем временный файл
-//       await fs.unlink(qrImagePath);
-
-//       // Ожидаем завершения аутентификации
-//       await new Promise((resolve, reject) => {
-//         const timeout = setTimeout(() => {
-//           reject(new Error('Authentication timeout'));
-//         }, 300000); // 5 минут таймаут
-
-//         client.on('ready', () => {
-//           clearTimeout(timeout);
-//           resolve();
-//         });
-
-//         client.on('auth_failure', (msg) => {
-//           clearTimeout(timeout);
-//           reject(new Error(`Authentication failed: ${msg}`));
-//         });
-//       });
-//     } else if (authType === 'phone') {
-//       await bot.sendMessage(
-//         query.message.chat.id,
-//         'Начинаем процесс аутентификации WhatsApp с использованием номера телефона. Это может занять некоторое время.',
-//       );
-//       const client =
-//         await WhatsAppSessionService.authenticateWithPhoneNumber(phoneNumber);
-
-//       // Ожидаем завершения аутентификации
-//       await new Promise((resolve, reject) => {
-//         const timeout = setTimeout(() => {
-//           reject(new Error('Authentication timeout'));
-//         }, 500000);
-
-//         client.on('ready', () => {
-//           clearTimeout(timeout);
-//           resolve();
-//         });
-
-//         client.on('auth_failure', (msg) => {
-//           clearTimeout(timeout);
-//           reject(new Error(`Authentication failed: ${msg}`));
-//         });
-//       });
-//     }
-
-//     await setPhoneAuthenticated(phoneNumber, 'whatsapp', true);
-//     logger.info(`Authentication process completed for ${phoneNumber}`);
-//     await bot.sendMessage(
-//       query.message.chat.id,
-//       `Номер телефона ${phoneNumber} успешно аутентифицирован в WhatsApp.`,
-//     );
-//   } catch (error) {
-//     logger.error(
-//       `Error in WhatsApp authentication process for ${phoneNumber}:`,
-//       error,
-//     );
-//     let errorMessage =
-//       'Произошла ошибка при аутентификации WhatsApp. Попробуйте ещё раз.';
-//     if (error.message.includes('timeout')) {
-//       errorMessage =
-//         'Время ожидания аутентификации истекло. Пожалуйста, попробуйте еще раз.';
-//     } else if (error.message.includes('auth_failure')) {
-//       errorMessage =
-//         'Ошибка аутентификации WhatsApp. Пожалуйста, убедитесь, что вы правильно ввели номер телефона или отсканировали QR-код.';
-//     } else if (error.message.includes('Failed to generate QR code')) {
-//       errorMessage =
-//         'Не удалось сгенерировать QR-код. Пожалуйста, попробуйте еще раз.';
-//     }
-//     await bot.sendMessage(query.message.chat.id, errorMessage);
-//   }
-// }
 
 module.exports = createUserBot();

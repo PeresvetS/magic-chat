@@ -17,7 +17,6 @@ const { WhatsAppSessionService } = require('./services/whatsapp');
 const { TelegramSessionService } = require('./services/telegram');
 const notificationBot = require('./bot/notification/notificationBot');
 const { handleMessageService, processPendingMessages } = require('./services/messaging');
-// const SupabaseQueueService = require('./services/queue/supabaseQueueService');
 const RabbitMQQueueService = require('./services/queue/rabbitMQQueueService');
 
 let isProcessingUnfinishedTasks = false;
@@ -157,17 +156,6 @@ async function main() {
     startMessageQueueProcessing().catch(error => {
       logger.error('Error in message queue processing loop:', error);
     });
-
-    // // Обработка незавершенных сообщений при запуске
-    // logger.info('Processing pending messages...');
-    // await processPendingMessages().catch(console.error); //?
-    // logger.info('Pending messages processed');
-
-    // // Обрабока очереди сообщений  
-    // logger.info('Processing message queue...');
-    // messageMailingService.processQueue().catch(error => {
-    //   logger.error('Error processing message queue:', error);
-    // });
 
     logger.info('Message queue processed');
 

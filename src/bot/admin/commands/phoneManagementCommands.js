@@ -2,7 +2,7 @@
 
 const config = require('../../../config');
 const logger = require('../../../utils/logger');
-const { TelegramSessionService } = require('../../../services/telegram');
+const { TelegramMainSessionService } = require('../../../services/telegram');
 const { WhatsAppMainSessionService } = require('../../../services/whatsapp');
 const { updatePhoneNumberStatus, setPhoneNumberLimit, getPhoneNumberInfo } =
   require('../../../services/phone').phoneNumberService;
@@ -95,7 +95,7 @@ module.exports = {
 
       bot.sendMessage(msg.chat.id, `Начинаем процесс авторизации для номера ${mainPhoneNumber}. Следуйте инструкциям.`);
 
-      await TelegramSessionService.authorizeMainClient(
+      await TelegramMainSessionService.authorizeMainClient(
         async () => {
           await bot.sendMessage(msg.chat.id, 'Введите код авторизации, полученный в Telegram:');
           return new Promise((resolve) => {
