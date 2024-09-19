@@ -3,7 +3,9 @@
 const { TelegramClient } = require('telegram');
 const { StringSession } = require('telegram/sessions');
 const { NewMessage } = require('telegram/events');
+const { Api } = require('telegram/tl');
 
+const mainClientService = require('./telegramMainSessionService');
 const config = require('../../../config');
 const logger = require('../../../utils/logger');
 const { getUserByTgId } = require('../../user').userService;

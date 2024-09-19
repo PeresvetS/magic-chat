@@ -16,7 +16,6 @@ const knowledgeBaseRepo = require('./repositories/knowledgeBaseRepo');
 const rabbitMQQueueRepo = require('./repositories/rabbitMQQueueRepo');
 const telegramSessionsRepo = require('./repositories/telegramSessionsRepo');
 const campaignsMailingRepo = require('./repositories/campaignsMailingRepo');
-const campaignsParsingRepo = require('./repositories/campaignsParsingRepo');
 const whatsappSessionsRepo = require('./repositories/whatsappSessionsRepo');
 const conversationStateRepo = require('./repositories/conversationStateRepo');
 const phoneNumberCampaignRepo = require('./repositories/phoneNumberCampaignRepo');
@@ -39,7 +38,6 @@ module.exports = {
   whatsappSessionsRepo,
   telegramSessionsRepo,
   campaignsMailingRepo,
-  campaignsParsingRepo,
   conversationStateRepo,
   phoneNumberCampaignRepo,
 };

@@ -3,8 +3,7 @@
   const logger = require('../../../utils/logger');
   const { sendResponse } = require('./messageSender');
   const { processMessage } = require('./messageProcessor');
-  const { safeStringify } = require('../../../utils/helpers');
-  const LeadsService = require('../../leads/src/LeadsService');
+  const { leadService } = require('../../leads');
   const TelegramBotStateManager = require('../../telegram/managers/botStateManager');
   const WhatsAppBotStateManager = require('../../whatsapp/managers/botStateManager');
   const WABABotStateManager = require('../../waba/managers/botStateManager');
@@ -123,10 +122,10 @@
       switch (platform) {
         case 'whatsapp':
         case 'waba':
-          lead = await LeadsService.getLeadByWhatsappChatId(chatId);
+          lead = await leadService.getLeadByWhatsappChatId(chatId);
           break;
         case 'telegram':
-          lead = await LeadsService.getLeadByTelegramChatId(chatId);
+          lead = await leadService.getLeadByTelegramChatId(chatId);
           break;
         default:
           throw new Error(`Unsupported platform: ${platform}`);
@@ -142,7 +141,7 @@
     const lead = await getLeadIdByChatId(chatId, platform);
     if (!lead) {
       logger.info(`Lead not found for ${platform} chat ID ${chatId}`);
-      const newLead = await LeadsService.createLead(platform, chatId, userId);
+      const newLead = await leadService.createLead(platform, chatId, userId);
       return newLead;
     }
     return lead;

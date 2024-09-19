@@ -3,8 +3,6 @@
 const MessagingPlatformChecker = require('../checkers/MessagingPlatformChecker');
 const logger = require('../../../utils/logger');
 const { campaignsMailingService } = require('../../campaign');
-const PhoneNumberManagerService = require('../../phone/src/PhoneNumberManagerService');
-// const SupabaseQueueService = require('../../queue/supabaseQueueService');
 const RabbitMQQueueService = require('../../queue/rabbitMQQueueService');
 
 
@@ -73,15 +71,6 @@ class MessageDistributionService {
           );
           continue;
         }
-
-        // const queueItem = await SupabaseQueueService.enqueue(
-        //   campaignId,
-        //   message,
-        //   strPhoneNumber,
-        //   platform,
-        //   senderPhoneNumber
-        // );
-        // results[platform] = { queueItemId: queueItem.id, status: 'queued' };
 
         try {
           // Добавляем сообщение в очередь RabbitMQ
@@ -259,21 +248,6 @@ class MessageDistributionService {
       }
     }
   }
-
-  // async getDistributionResults(results) {
-  //   const updatedResults = { ...results };
-  //   for (const platform of Object.keys(updatedResults)) {
-  //     if (updatedResults[platform] && updatedResults[platform].queueItemId) {
-  //       const queueItem = await SupabaseQueueService.getQueueItem(updatedResults[platform].queueItemId);
-  //       if (queueItem.status === 'completed') {
-  //         updatedResults[platform] = JSON.parse(queueItem.result);
-  //       } else if (queueItem.status === 'failed') {
-  //         updatedResults[platform] = { success: false, error: queueItem.errorMessage };
-  //       }
-  //     }
-  //   }
-  //   return updatedResults;
-  // }
 
   async getDistributionResults(results) {
     const updatedResults = { ...results };

@@ -36,6 +36,19 @@ async function getUserInfo(telegramId) {
   }
 }
 
+async function getUserIdByTelegramId(telegramId) {
+  try {
+    const user = await userRepo.getUserByTgId(telegramId);
+    if (!user) {
+      throw new Error(`User not found for Telegram ID: ${telegramId}`);
+    }
+    return user.id;
+  } catch (error) {
+    logger.error('Error getting user ID by Telegram ID:', error);
+    throw error;
+  }
+}
+
 async function createUser(
   telegramId,
   username = null,
@@ -133,4 +146,5 @@ module.exports = {
   getUserByTgId,
   getUserByIdentifier,
   setUserOpenAIKey,
+  getUserIdByTelegramId,
 };

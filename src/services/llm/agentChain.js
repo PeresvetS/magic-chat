@@ -1,6 +1,5 @@
 // src/services/langchain/agentChain.js
 
-const { LLMChain } = require("langchain/chains");
 const { ChatOpenAI } = require("@langchain/openai");
 const { ChatPromptTemplate, SystemMessagePromptTemplate, HumanMessagePromptTemplate, AIMessagePromptTemplate } = require("@langchain/core/prompts");
 const { RunnableSequence, RunnablePassthrough } = require("@langchain/core/runnables");
@@ -10,7 +9,6 @@ const EnhancedMemory = require('./enhancedMemory');
 const config = require('../../config');
 const knowledgeBaseService = require('./knowledgeBaseService');
 const { safeStringify } = require('../../utils/helpers');
-const { log } = require("winston");
 
 class AgentChain {
   constructor(campaign, lead, googleSheetData) {
@@ -88,8 +86,13 @@ class AgentChain {
 
       const prompt = ChatPromptTemplate.fromTemplate(this.campaign.secondaryPrompt.content);
 
+      const chain = RunnableSequence.from([
+        chatPrompt,
+        llm,
+      ]);
+
       logger.info(`Created secondary agent for campaign: ${this.campaign.id}`);
-      return new LLMChain({ llm, prompt, memory: this.memory });
+      return chain
     } catch (error) {
       logger.error(`Error creating secondary agent: ${error.message}`);
       throw error;

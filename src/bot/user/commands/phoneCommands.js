@@ -3,7 +3,6 @@
 const {
   addPhoneNumber,
   removePhoneNumber,
-  updatePhoneNumberStatus,
   setPhoneNumberLimit,
   getPhoneNumberInfo,
   getUserPhoneNumbers,

@@ -11,7 +11,7 @@ const logger = require('./utils/logger');
 const { retryOperation } = require('./utils/helpers');
 const webhookRouter = require('./api/routes/webhooks');
 const { phoneNumberService } = require('./services/phone');
-const { messageMailingService } = require('./services/mailing');
+const { messageQuequeService } = require('./services/mailing');
 const requestLogger = require('./api/middleware/requestLogger');
 const { WhatsAppSessionService } = require('./services/whatsapp');
 const { TelegramSessionService } = require('./services/telegram');
@@ -72,7 +72,7 @@ async function processUnfinishedTasks() {
     for (const item of unprocessedItems) {
       if (item && item.id && item.campaignId) {
         logger.info(`Processing queue item ${item.id} with campaignId ${item.campaignId}`);
-        await messageMailingService.processQueue(item);
+        await messageQuequeService.processQueue(item);
       } else {
         logger.warn(`Skipping invalid queue item:`, item);
       }
@@ -97,7 +97,7 @@ async function startMessageQueueProcessing() {
 
   while (true) {
     try {
-      await messageMailingService.processQueue();
+      await messageQuequeService.processQueue();
       // Добавляем задержку между проверками очереди
       await new Promise(resolve => setTimeout(resolve, 5000)); // 5 секунд
     } catch (error) {

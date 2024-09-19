@@ -2,7 +2,7 @@
 
 const logger = require('../../utils/logger');
 const { safeStringify } = require('../../utils/helpers');
-const { changeLeadStatusPositive, changeLeadStatusNegative, getGoogleSheetData } = require('./gptFunctions');
+const { changeLeadStatusPositive, changeLeadStatusNegative, getGoogleSheetData } = require('./llmFunctions');
 const AgentChain = require('./agentChain');
 const knowledgeBaseService = require('./knowledgeBaseService');
 

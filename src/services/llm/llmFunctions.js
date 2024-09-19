@@ -2,7 +2,7 @@
 
 const axios = require('axios');
 const logger = require('../../utils/logger');
-const LeadsService = require('../leads/src/LeadsService');
+const { leadService } = require('../leads');
 const bitrixService = require('../crm/src/bitrixService');
 const { sendNotification } = require('../notification/notificationService');
 
@@ -35,7 +35,7 @@ async function getGoogleSheetData(googleSheetUrl) {
   
 async function changeLeadStatusPositive(lead, campaign, messages) {
     try {
-      const updatedLead = await LeadsService.updateLeadStatus(
+      const updatedLead = await leadService.updateLeadStatus(
         lead.id,
         'PROCESSED_POSITIVE',
       );
@@ -72,7 +72,7 @@ async function changeLeadStatusPositive(lead, campaign, messages) {
 
   async function changeLeadStatusNegative(lead, campaign, messages) {
     try {
-      const updatedLead = await LeadsService.updateLeadStatus(
+      const updatedLead = await leadService.updateLeadStatus(
         lead.id,
         'PROCESSED_NEGATIVE',
       );

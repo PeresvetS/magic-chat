@@ -2,17 +2,7 @@
 
 const logger = require('../../../utils/logger');
 const { phoneNumberRepo, userRepo } = require('../../../db');
-
-function validatePhoneNumber(phoneNumber) {
-  const phoneRegex = /^\+[1-9]\d{5,14}$/;
-  if (!phoneRegex.test(phoneNumber)) {
-    logger.warn(`Invalid phone number format: ${phoneNumber}`);
-    throw new Error(
-      'Неверный формат номера телефона. Используйте международный формат, начиная с +',
-    );
-  }
-  logger.info(`Phone number validated successfully: ${phoneNumber}`);
-}
+const { validatePhoneNumber } = require('../../../utils/phoneHelpers');
 
 async function addPhoneNumber(
   userId,
@@ -212,6 +202,71 @@ async function setPhoneAuthenticated(phoneNumber, platform, isAuthenticated) {
   }
 }
 
+async function checkDailyPhoneNumberLimit(phoneNumber, platform) {
+  try {
+    const phoneNumberInfo =
+      await phoneNumberRepo.getPhoneNumberInfo(phoneNumber);
+
+    if (!phoneNumberInfo) {
+      return true; // Если записи нет, считаем что лимит не достигнут
+    }
+
+    switch (platform) {
+      case 'telegram':
+        if (!phoneNumberInfo.telegramAccount) {
+          throw new Error(
+            `No Telegram account found for phone number ${phoneNumber}`,
+          );
+        }
+        return (
+          phoneNumberInfo.telegramAccount.contactsReachedToday <
+          phoneNumberInfo.telegramAccount.dailyLimit
+        );
+      case 'whatsapp':
+        if (!phoneNumberInfo.whatsappAccount) {
+          throw new Error(
+            `No WhatsApp account found for phone number ${phoneNumber}`,
+          );
+        }
+        return (
+          phoneNumberInfo.whatsappAccount.contactsReachedToday <
+          phoneNumberInfo.whatsappAccount.dailyLimit
+        );
+      case 'waba':
+        if (!phoneNumberInfo.WABAAccount) {
+          throw new Error(
+            `No WABA account found for phone number ${phoneNumber}`,
+          );
+        }
+        return (
+          phoneNumberInfo.WABAAccount.contactsReachedToday <
+          phoneNumberInfo.WABAAccount.dailyLimit
+        );
+      default:
+        throw new Error(`Invalid platform: ${platform}`);
+    }
+  } catch (error) {
+    logger.error(`Error checking daily limit for ${platform}:`, error);
+    throw error;
+  }
+}
+
+async function updateMessagePhoneNumberCount(phoneSenderNumber, isNewContact, platform) {
+  try {
+    await phoneNumberRepo.updatePhoneNumberStats(
+      phoneSenderNumber,
+      isNewContact,
+      platform,
+    );
+  } catch (error) {
+    logger.error(
+      `Ошибка обновления счетчика сообщений для ${platform}:`,
+      error,
+    );
+    throw error;
+  }
+}
+
 module.exports = {
   addPhoneNumber,
   removePhoneNumber,
@@ -222,4 +277,6 @@ module.exports = {
   getUserPhoneNumbers,
   resetDailyStats,
   setPhoneAuthenticated,
+  checkDailyPhoneNumberLimit,
+  updateMessagePhoneNumberCount,
 };

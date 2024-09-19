@@ -1,11 +1,11 @@
 // services/messaging/src/messageProcessor.js
 
 const logger = require('../../../utils/logger');
-const gptService = require('../../gpt/gptService');
-const leadsService = require('../../leads/src/LeadsService');
+const gptService = require('../../llm/llmService');
+const { leadService } = require('../../leads/src/leadService');
 const { saveMessageStats } = require('../../stats/statsService');
 const { saveDialogToFile } = require('../../../utils/messageUtils');
-const campaignMailingService = require('../../campaign/src/campaignsMailingService');
+const { campaignMailingService } = require('../../campaign');
 const { getPendingConversationStates } = require('../../conversation/conversationState');
 
 async function processMessage(lead, senderId, message, phoneNumber, campaign) {
@@ -42,7 +42,7 @@ async function processPendingMessages() {
     const pendingStates = await getPendingConversationStates();
 
     for (const state of pendingStates) {
-      const lead = await leadsService.getLeadById(state.leadId);
+      const lead = await leadService.getLeadById(state.leadId);
       if (lead) {
         const campaign = await campaignMailingService.getCampaignById(lead.campaignId);
         if (campaign) {

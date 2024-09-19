@@ -1,7 +1,7 @@
 // src/bot/user/commands/knowledgeBaseCommands.js
 
 const logger = require('../../../utils/logger');
-const knowledgeBaseService = require('../../../services/gpt/knowledgeBaseService');
+const knowledgeBaseService = require('../../../services/llm/knowledgeBaseService');
 const { setUserState, getUserState, clearUserState } = require('../utils/userState');
 const fs = require('fs');
 const path = require('path');

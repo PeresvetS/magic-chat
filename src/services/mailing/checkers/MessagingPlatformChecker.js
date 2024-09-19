@@ -4,7 +4,7 @@ const WABAChecker = require('./WABAChecker');
 const logger = require('../../../utils/logger');
 const TelegramChecker = require('./TelegramChecker');
 const WhatsAppChecker = require('./WhatsAppChecker');
-const LeadsService = require('../../leads/src/LeadsService');
+const { leadService } = require('../../leads/src/leadService');
 const { getPlatformPriority } = require('../../../db').campaignsMailingRepo;
 
 class MessagingPlatformChecker {
@@ -59,7 +59,7 @@ class MessagingPlatformChecker {
             return 'whatsapp';
           }
         }
-        await LeadsService.setLeadUnavailable(phoneNumber);
+        await leadService.setLeadUnavailable(phoneNumber);
         return 'none';
       }
 
@@ -75,7 +75,7 @@ class MessagingPlatformChecker {
             return 'telegram';
           }
         }
-        await LeadsService.setLeadUnavailable(phoneNumber);
+        await leadService.setLeadUnavailable(phoneNumber);
         return 'none';
       }
 
@@ -91,7 +91,7 @@ class MessagingPlatformChecker {
             return 'telegram';
           }
         }
-        await LeadsService.setLeadUnavailable(phoneNumber);
+        await leadService.setLeadUnavailable(phoneNumber);
         return 'none';
       }
 
@@ -109,7 +109,7 @@ class MessagingPlatformChecker {
         if (whatsappAvailable) {
           return 'whatsapp';
         }
-        await LeadsService.setLeadUnavailable(phoneNumber);
+        await leadService.setLeadUnavailable(phoneNumber);
         return 'none';
       }
 
@@ -127,7 +127,7 @@ class MessagingPlatformChecker {
         if (wabaAvailable) {
           return 'waba';
         }
-        await LeadsService.setLeadUnavailable(phoneNumber);
+        await leadService.setLeadUnavailable(phoneNumber);
         return 'none';
       }
 

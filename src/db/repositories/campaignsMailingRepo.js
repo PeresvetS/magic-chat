@@ -497,6 +497,16 @@
     }
   }
 
+  async function getCampaignModel(id) {
+    try {
+      const campaign = await prisma.campaignMailing.findUnique({ where: { id } });
+      return campaign.modelName;
+    } catch (error) {
+      logger.error(`Error getting model for campaign ${id}:`, error);
+      throw error;
+    }
+  }
+
   async function setCampaignOpenAIKey(id, openaiApiKey) {
     try {
       const updatedCampaign = await prisma.campaignMailing.update({
@@ -542,4 +552,5 @@
     toggleSecondaryAgent,
     setCampaignModel,
     setCampaignOpenAIKey,
+    getCampaignModel,
   };

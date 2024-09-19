@@ -3,7 +3,7 @@
 const logger = require('../../../utils/logger');
 const { safeStringify } = require('../../../utils/helpers');
 const BitrixLeadService = require('../lead/bitrixLeadService');
-const LeadsService = require('../../../services/leads/src/LeadsService');
+const { leadService } = require('../../../services/leads');
 const messageDistributionService = require('../../../services/mailing/services/messageDistributionService');
 
 async function processBitrixWebhook(data, user) {
@@ -39,7 +39,7 @@ async function processBitrixWebhook(data, user) {
     logger.info('Extracted lead information', leadData);
 
     // Сохраняем информацию о лиде в базу данных
-    const savedLead = await LeadsService.addLeadToCRM(user.id, {
+    const savedLead = await leadService.addLeadToCRM(user.id, {
       bitrix_id: leadData.id,
       name: leadData.name || '',
       phone: leadData.phone || '',

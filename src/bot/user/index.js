@@ -7,21 +7,22 @@ const TelegramBot = require('node-telegram-bot-api');
 const config = require('../../config');
 const logger = require('../../utils/logger');
 const { userService } = require('../../services/user');
-const wabaCommands = require('./commands/wabaCommands');
-const LeadsService = require('../../services/leads/src/LeadsService');
 const { getUserState, clearUserState } = require('./utils/userState');
 const { TelegramSessionService } = require('../../services/telegram');
 const { WhatsAppSessionService } = require('../../services/whatsapp');
-const { processExcelFile } = require('../../services/leads').xlsProcessor;
+const { xlsProcessor, leadService } = require('../../services/leads');
 const { setPhoneAuthenticated } =
-  require('../../services/phone').phoneNumberService;
+require('../../services/phone').phoneNumberService;
 const PhoneNumberManagerService = require('../../services/phone/src/PhoneNumberManagerService');
+
+const wabaCommands = require('./commands/wabaCommands');
 const helpCommands = require('./commands/helpCommands');
 const phoneCommands = require('./commands/phoneCommands');
 const leadsCommands = require('./commands/leadsCommands');
 const promptCommands = require('./commands/promptCommands');
 const mailingCommands = require('./commands/mailingCommads');
 const crmSettingsCommands = require('./commands/crmSettingsCommands');
+const campaignLLMCommands = require('./commands/campaignLLMCommands');
 const subscriptionCommands = require('./commands/subscriptionCommands');
 const knowledgeBaseCommands = require('./commands/knowledgeBaseCommands');
 
@@ -29,6 +30,7 @@ const commandModules = [
   knowledgeBaseCommands,
   subscriptionCommands,
   crmSettingsCommands,
+  campaignLLMCommands,
   mailingCommands,
   promptCommands,
   phoneCommands,
@@ -159,11 +161,11 @@ function createUserBot() {
             );
             const fileLink = await bot.getFileLink(msg.document.file_id);
             logger.info('Processing Excel file');
-            const leads = await processExcelFile(fileLink);
+            const leads = await xlsProcessor.processExcelFile(fileLink);
             logger.info(
               `Preparing to add leads to LeadsDB ${userState.leadsDBId}`,
             );
-            const addedLeadsCount = await LeadsService.addLeadsToLeadsDB(
+            const addedLeadsCount = await leadService.addLeadsToLeadsDB(
               parseInt(userState.leadsDBId),
               leads,
             );
