@@ -40,8 +40,8 @@ class AgentChain {
       pineconeIndex: config.PINECONE_INDEX,
       maxTokens: 4000,
       summaryModelName: 'gpt-4o-mini',
-      conversationId: lead.id,
       leadId: lead.id,
+      userId: campaign.userId,
     });
 
     this.primaryAgent = this.createPrimaryAgent();
@@ -143,6 +143,7 @@ class AgentChain {
       }
 
       logger.info(`Context: ${safeStringify(context)}`);
+      logger.info(`Primary agent: ${safeStringify(this.context)}`);
 
       const runChain = RunnableSequence.from([
         RunnablePassthrough.assign({
@@ -224,19 +225,6 @@ class AgentChain {
 
   getTokenCount() {
     return this.tokenCount;
-  }
-
-  async loadFullConversation() {
-    try {
-      const conversation = await this.memory.loadFullConversation();
-      logger.info(
-        `Loaded full conversation for lead: ${this.lead.id} in campaign: ${this.campaign.id}`,
-      );
-      return conversation;
-    } catch (error) {
-      logger.error(`Error loading full conversation: ${error.message}`);
-      throw error;
-    }
   }
 }
 

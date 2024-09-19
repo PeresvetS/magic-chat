@@ -197,11 +197,13 @@ model Lead {
   campaign          CampaignMailing?   @relation(fields: [campaignId], references: [id])
   user              User?              @relation(fields: [userId], references: [id])
   status            LeadStatus         @default(NEW)
+  dialog            Dialog?            @relation(fields: [dialogId], references: [id])
   telegramChatId    String?
   whatsappChatId    String?
   lastMessageTime   DateTime?
   lastPlatform      String?
   conversationState ConversationState?
+  dialogId          Int?
 
   @@index([campaignId])
   @@index([userId])
@@ -324,6 +326,7 @@ model WhatsappSession {
 
 model Dialog {
   id           Int       @id @default(autoincrement())
+  leadId       Int       @unique // Добавьте это поле
   userId       Int
   contactId    String
   contactPhone String?
@@ -331,6 +334,7 @@ model Dialog {
   messages     Message[]
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
+  Lead         Lead[]
 
   @@unique([userId, contactId, platform])
 }
@@ -366,20 +370,20 @@ model MessageQueue {
   result               Json?
   createdAt            DateTime @default(now())
   updatedAt            DateTime @updatedAt
-  additionalData Json?
-  retryCount Int @default(0)
+  additionalData       Json?
+  retryCount           Int      @default(0)
 
   @@index([status])
   @@index([createdAt])
 }
 
 model KnowledgeBase {
-  id           Int              @id @default(autoincrement())
-  name         String
-  description  String?
-  pineconeId   String           @unique
-  campaign     CampaignMailing  @relation(fields: [campaignId], references: [id])
-  campaignId   Int
-  createdAt    DateTime         @default(now())
-  updatedAt    DateTime         @updatedAt
+  id          Int             @id @default(autoincrement())
+  name        String
+  description String?
+  pineconeId  String          @unique
+  campaign    CampaignMailing @relation(fields: [campaignId], references: [id])
+  campaignId  Int
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
 }

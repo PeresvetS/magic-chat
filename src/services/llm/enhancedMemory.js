@@ -1,4 +1,4 @@
-// src/services/langchain/enhancedMemory.js
+// src/services/llm/enhancedMemory.js
 
 const { VectorStoreRetrieverMemory } = require('langchain/memory');
 const { PineconeStore } = require('@langchain/pinecone');
@@ -12,7 +12,7 @@ const { StringOutputParser } = require('@langchain/core/output_parsers');
 const { HumanMessage, AIMessage } = require('@langchain/core/messages');
 
 const { countTokens } = require('../tokenizer/tokenizer');
-const { conversationStateRepo } = require('../../db');
+const messageService = require('../dialog/messageService');
 const { safeStringify } = require('../../utils/helpers');
 const logger = require('../../utils/logger');
 
@@ -21,13 +21,13 @@ class EnhancedMemory {
     this.pinecone = new Pinecone();
     this.openAIApiKey = args.openAIApiKey;
     this.pineconeIndex = args.pineconeIndex;
-    this.conversationId = args.conversationId; // ?
+    this.leadId = args.leadId;
     this.maxTokens = args.maxTokens || 4000;
     this.summaryModelName = args.summaryModelName || 'gpt-4o-mini';
-    this.leadId = args.leadId;
-    this.inputKey = 'input'; // Изменено на 'input'
-    this.outputKey = 'output'; // Изменено на 'output'
+    this.inputKey = 'input';
+    this.outputKey = 'output';
     this.chatHistory = new ChatMessageHistory();
+    this.userId = args.userId;
 
     this.vectorStoreMemory = null;
     this.summaryMemory = null;
@@ -52,7 +52,6 @@ class EnhancedMemory {
       });
 
       this.summaryMemory = new ConversationSummaryMemory({
-        // не в векторе
         llm: new ChatOpenAI({
           modelName: this.summaryModelName,
           openAIApiKey: this.openAIApiKey,
@@ -62,11 +61,10 @@ class EnhancedMemory {
       });
 
       logger.info(
-        `Initialized Pinecone for conversation: ${this.conversationId}`,
+        `Initialized Pinecone for lead: ${this.leadId}`,
       );
     } catch (error) {
       logger.error(`Error initializing Pinecone: ${error.message}`);
-      // Не выбрасываем ошибку, чтобы класс мог работать без памяти
     }
   }
 
@@ -79,27 +77,22 @@ class EnhancedMemory {
         `Saving context - Input: ${JSON.stringify(input)}, Output: ${JSON.stringify(output)}`,
       );
 
-      if (this.vectorStore) {
-        // Сохраняем input с ролью 'human'
-        await this.vectorStore.addDocuments([
-          {
-            pageContent: this.cleanText(input[this.inputKey]),
-            metadata: {
-              role: 'human',
-              timestamp: new Date().toISOString(),
-              conversationId: this.conversationId,
-            },
-          },
-        ]);
+      // Save to database
+      await messageService.saveMessage(
+        this.leadId, 
+        input[this.inputKey], 
+        output[this.outputKey],
+        this.userId // Добавьте это
+      );
 
-        // Сохраняем output с ролью 'ai'
+      if (this.vectorStore) {
+        // Save to vector store
         await this.vectorStore.addDocuments([
           {
-            pageContent: this.cleanText(output[this.outputKey]),
+            pageContent: this.cleanText(`Human: ${input[this.inputKey]}\nAI: ${output[this.outputKey]}`),
             metadata: {
-              role: 'ai',
+              leadId: this.leadId,
               timestamp: new Date().toISOString(),
-              conversationId: this.conversationId,
             },
           },
         ]);
@@ -111,15 +104,10 @@ class EnhancedMemory {
       }
 
       if (this.summaryMemory) {
-        const summary = await this.summaryMemory.loadMemoryVariables();
-        await this.saveConversationState(
-          this.leadId,
-          output[this.outputKey],
-          summary.summary,
-        );
+        await this.summaryMemory.saveContext(input, output);
       }
 
-      logger.info(`Saved context for conversation: ${this.conversationId}`);
+      logger.info(`Saved context for lead: ${this.leadId}`);
     } catch (error) {
       logger.error(`Error saving context: ${error.message}`);
       logger.error(
@@ -183,107 +171,79 @@ class EnhancedMemory {
     try {
       let history = [];
       let summary = '';
-
-      logger.info(`Loading memory values: ${safeStringify(values)}`);
+      let vectorHistory = [];
 
       const inputForMemory = this.prepareInputForMemory(values);
 
+      // Get recent messages from database
+      const recentMessages = await messageService.getRecentMessages(this.leadId, 10);
+      let totalTokens = 0;
+
+      logger.info(`Recent messages: ${safeStringify(recentMessages)}`);
+
+      for (const message of recentMessages.reverse()) {
+        const messageTokens = countTokens(message.userRequest) + countTokens(message.assistantResponse);
+        if (totalTokens + messageTokens > this.maxTokens) {
+          break;
+        }
+        history.push(new HumanMessage(message.userRequest));
+        history.push(new AIMessage(message.assistantResponse));
+        totalTokens += messageTokens;
+      }
+
+      logger.info(`History: ${safeStringify(history)}`);
+
       if (this.vectorStoreMemory) {
-        const vectorStoreResult =
-          await this.vectorStoreMemory.loadMemoryVariables(inputForMemory);
-        let historyArray = [];
-
-        if (typeof vectorStoreResult.history === 'string') {
-          // Если история - строка, разбиваем ее на отдельные сообщения
-          historyArray = vectorStoreResult.history
-            .split('\n')
-            .filter((msg) => msg.trim() !== '');
-        } else if (Array.isArray(vectorStoreResult.history)) {
-          historyArray = vectorStoreResult.history;
-        }
-
-        // Преобразуем строки в объекты сообщений
-        history = historyArray.map((msg) => {
-          const [role, content] = msg.split(': ', 2);
-          if (role.toLowerCase() === 'human') {
-            return new HumanMessage(content);
-          }
-          if (role.toLowerCase() === 'ai') {
-            return new AIMessage(content);
-          }
-          // Если роль не определена, считаем сообщение пользовательским
-          return new HumanMessage(msg);
-        });
-
-        if (history.length > 10) {
-          // Берем последние 10 элементов для истории
-          const recentHistory = history.slice(-10);
-
-          // Суммаризируем остальные элементы
-          const toSummarize = history.slice(0, -10);
-          summary = await this.summarizeHistory(toSummarize);
-
-          history = recentHistory;
-        }
-
-        logger.info(
-          `Loaded in vectorStoreMemory history: ${safeStringify(history)}`,
-        );
-        logger.info(`Generated summary: ${safeStringify(summary)}`);
+        const vectorStoreResult = await this.vectorStoreMemory.loadMemoryVariables(inputForMemory);
+        vectorHistory = vectorStoreResult.history || [];
       }
 
       if (this.summaryMemory) {
-        const summaryResult =
-          await this.summaryMemory.loadMemoryVariables(inputForMemory);
-        if (!summary) {
-          summary = summaryResult.summary || '';
-        }
-        logger.info(
-          `Loaded in summaryMemory summary: ${safeStringify(summary)}`,
-        );
+        const summaryResult = await this.summaryMemory.loadMemoryVariables(inputForMemory);
+        summary = summaryResult.summary || '';
       }
 
-      // Ограничиваем размер summary до 2000 токенов
+      // If we have more messages than fit in the token limit, summarize the rest
+      if (recentMessages.length > history.length / 2 || totalTokens >= this.maxTokens) {
+        const messagesToSummarize = recentMessages.slice((history.length / 2));
+        const additionalSummary = await this.summarizeHistory(messagesToSummarize);
+        summary = `${additionalSummary}\n\n${summary}`.trim();
+      }
+
+      // Limit summary to 2000 tokens
       if (countTokens(summary) > 2000) {
         summary = await this.truncateSummary(summary, 2000);
       }
 
-      const summaryTokens = countTokens(summary);
-      const historyTokens = countTokens(JSON.stringify(history));
-
-      logger.info(`Summary tokens: ${summaryTokens}`);
-      logger.info(`History tokens: ${historyTokens}`);
-
-      logger.info(
-        `Loaded memory variables for conversation: ${this.conversationId}`,
-      );
-      return { history, summary };
+      logger.info(`Loaded memory variables for lead: ${this.leadId}`);
+      return { history, summary, vectorHistory };
     } catch (error) {
       logger.error(`Error loading memory variables: ${error.message}`);
-      return { history: [], summary: '' };
+      return { history: [], summary: '', vectorHistory: [] };
     }
   }
 
-  async summarizeHistory(historyToSummarize) {
+  async summarizeHistory(messagesToSummarize) {
     const llm = new ChatOpenAI({
-      modelName: 'gpt-4o-mini',
+      modelName: this.summaryModelName,
       temperature: 0,
       maxTokens: 2000,
+      openAIApiKey: this.openAIApiKey,
     });
 
     const summarizePrompt = ChatPromptTemplate.fromTemplate(
-      'Summarize the following conversation history in a concise manner, capturing the main points and context. Keep your summary under 2000 tokens:\n\n{history}',
+      'Summarize the following conversation history in a concise manner, capturing the main points and context. Keep your summary under 2000 tokens:\n\n{history}'
     );
 
     const chain = summarizePrompt.pipe(llm).pipe(new StringOutputParser());
 
-    const history = Array.isArray(historyToSummarize)
-      ? historyToSummarize.map((m) => `${m.role}: ${m.content}`).join('\n')
-      : historyToSummarize;
+    const history = messagesToSummarize
+      .map(m => `Human: ${m.userRequest}\nAI: ${m.assistantResponse}`)
+      .join('\n\n');
 
     try {
       const summary = await chain.invoke({ history });
-      logger.info(`Generated summary: ${summary}`);
+      logger.info(`Generated summary for lead: ${this.leadId}`);
       return summary;
     } catch (error) {
       logger.error(`Error summarizing history: ${error.message}`);
@@ -314,12 +274,19 @@ class EnhancedMemory {
   async getContextString(userMessage) {
     try {
       let contextString = `Human: ${userMessage}\nAI:`;
-      const { history, summary } = await this.loadMemoryVariables({
+      const { history, summary, vectorHistory } = await this.loadMemoryVariables({
         [this.inputKey]: userMessage,
       });
+
+      logger.info(`History: ${safeStringify(history)}`);
+      logger.info(`Summary: ${safeStringify(summary)}`);
+      logger.info(`Vector History: ${safeStringify(vectorHistory)}`);
+
       const historyString = Array.isArray(history)
-        ? history.map((m) => `${m.role}: ${m.content}`).join('\n')
+        ? history.map((m) => `${m._getType()}: ${m.content}`).join('\n')
         : '';
+
+      logger.info(`History String: ${safeStringify(historyString)}`);
 
       if (historyString !== '') {
         contextString = `Recent conversation:\n${historyString}\n\n${contextString}`;
@@ -329,38 +296,17 @@ class EnhancedMemory {
         contextString = `Summary: ${summary}\n\n${contextString}`;
       }
 
+      if (vectorHistory !== '') {
+        contextString = `Relevant from vector store history: ${vectorHistory}\n\n${contextString}`;
+      }
+
       logger.info(
         `Generated context string for conversation: ${this.conversationId}`,
       );
       return contextString;
     } catch (error) {
       logger.error(`Error getting context string: ${error.message}`);
-      return {
-        contextString: `Human: ${userMessage}\nAI:`,
-        memoryVariables: {},
-      };
-    }
-  }
-
-  async loadFullConversation() {
-    try {
-      const results = await this.vectorStore.similaritySearch('', 1000, {
-        conversationId: this.conversationId,
-      });
-
-      const sortedResults = results
-        .map((result) => ({
-          role: result.metadata.role,
-          content: result.pageContent,
-          created_at: result.metadata.created_at || new Date().toISOString(),
-        }))
-        .sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
-
-      logger.info(`Loaded full conversation: ${this.conversationId}`);
-      return sortedResults;
-    } catch (error) {
-      logger.error(`Error loading full conversation: ${error.message}`);
-      throw error;
+      return `Human: ${userMessage}\nAI:`;
     }
   }
 }
