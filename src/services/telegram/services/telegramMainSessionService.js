@@ -9,7 +9,7 @@ const logger = require('../../../utils/logger');
 const { telegramSessionsRepo } = require('../../../db');
 const { checkAuthorization } = require('./authTelegramService');
 
-class MainClientService {
+class TelegramMainSessionService {
   constructor() {
     this.mainClient = null;
   }
@@ -98,4 +98,4 @@ class MainClientService {
   }
 }
 
-module.exports = new MainClientService();
+module.exports = new TelegramMainSessionService();

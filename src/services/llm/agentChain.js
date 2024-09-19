@@ -5,7 +5,6 @@ const {
   ChatPromptTemplate,
   SystemMessagePromptTemplate,
   HumanMessagePromptTemplate,
-  AIMessagePromptTemplate,
 } = require('@langchain/core/prompts');
 const {
   RunnableSequence,
@@ -122,7 +121,13 @@ class AgentChain {
       let context = '';
       const contextString = await this.memory.getContextString(userMessage);
 
+      if (!this.campaign.knowledgeBases) {
+        this.campaign.knowledgeBases = await knowledgeBaseService.getKnowledgeBaseByCampaignId(this.campaign.id);
+      }
+
+      logger.info(`Context string: ${this.campaign.knowledgeBases}`);
       let relevantKnowledge = '';
+      logger.info(`Knowledge bases: ${safeStringify(this.campaign.knowledgeBases)}`);
       if (
         this.campaign.knowledgeBases &&
         this.campaign.knowledgeBases.length > 0
@@ -132,6 +137,7 @@ class AgentChain {
           userMessage,
           this.campaign.maxKnowledgeBlocks,
         );
+        logger.info(`Knowledge blocks: ${safeStringify(knowledgeBlocks)}`);
         relevantKnowledge = knowledgeBlocks
           .map((block) => block.pageContent)
           .join('\n\n');
@@ -141,6 +147,8 @@ class AgentChain {
       } else {
         context = contextString;
       }
+
+      logger.info(`Context: ${relevantKnowledge}`);
 
       const runChain = RunnableSequence.from([
         RunnablePassthrough.assign({

@@ -1,16 +1,13 @@
 // src/bot/user/index.js
 
-const path = require('path');
-const fs = require('fs').promises;
 const TelegramBot = require('node-telegram-bot-api');
 
 const config = require('../../config');
 const logger = require('../../utils/logger');
 const { userService } = require('../../services/user');
-const { getUserState, clearUserState } = require('./utils/userState');
+const { getUserState } = require('./utils/userState');
 const { TelegramSessionService } = require('../../services/telegram');
 const { WhatsAppSessionService } = require('../../services/whatsapp');
-const { xlsProcessor, leadService } = require('../../services/leads');
 const { setPhoneAuthenticated } =
   require('../../services/phone').phoneNumberService;
 const PhoneNumberManagerService = require('../../services/phone/src/PhoneNumberManagerService');
@@ -100,13 +97,17 @@ function createUserBot() {
     });
   });
 
-  Object.entries(knowledgeBaseCommands).forEach(([command, handler]) => {
-    if (command !== 'documentHandler') {
-      bot.onText(new RegExp(command), (msg, match) => handler(bot, msg, match));
+  bot.on('document', async (msg) => {
+    const userState = getUserState(msg.from.id);
+  
+    if (userState && userState.action === 'add_kb_document') {
+      await knowledgeBaseCommands.documentHandler(bot, msg);
+    } else if (userState && userState.action === 'upload_leads_to_db') {
+      await leadsCommands.documentHandler(bot, msg);
+    } else {
+      bot.sendMessage(msg.chat.id, 'Пожалуйста, сначала выберите действие (добавление документа в базу знаний или загрузка лидов).');
     }
   });
-
-  bot.on('document', (msg) => knowledgeBaseCommands.documentHandler(bot, msg));
 
   // Обработчик для всех текстовых сообщений
   bot.on('text', async (msg) => {
@@ -144,75 +145,6 @@ function createUserBot() {
     } catch (error) {
       logger.error('Error handling message:', error);
       bot.sendMessage(msg.chat.id, 'Произошла ошибка при обработке сообщения.');
-    }
-  });
-
-  bot.on('document', async (msg) => {
-    logger.info(`Received document from user ${msg.from.id}`);
-    try {
-      const userId = msg.from.id;
-      const userState = getUserState(userId);
-
-      logger.info(`User state for ${userId}: ${JSON.stringify(userState)}`);
-
-      if (userState && userState.action === 'upload_leads_to_db') {
-        const allowedMimeTypes = [
-          'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-          'application/vnd.ms-excel',
-        ];
-
-        logger.info(`Processing document for LeadsDB ${userState.leadsDBId}`);
-
-        if (allowedMimeTypes.includes(msg.document.mime_type)) {
-          try {
-            logger.info(
-              `Processing Excel file for LeadsDB ${userState.leadsDBId}`,
-            );
-            const fileLink = await bot.getFileLink(msg.document.file_id);
-            logger.info('Processing Excel file');
-            const leads = await xlsProcessor.processExcelFile(fileLink);
-            logger.info(
-              `Preparing to add leads to LeadsDB ${userState.leadsDBId}`,
-            );
-            const addedLeadsCount = await leadService.addLeadsToLeadsDB(
-              parseInt(userState.leadsDBId),
-              leads,
-            );
-            logger.info(`Leads added to LeadsDB ${userState.leadsDBId}`);
-            bot.sendMessage(
-              msg.chat.id,
-              `Успешно добавлено ${addedLeadsCount} лидов в базу лидов (ID: ${userState.leadsDBId}).`,
-            );
-          } catch (error) {
-            logger.error('Error processing Excel file:', error);
-            bot.sendMessage(
-              msg.chat.id,
-              'Произошла ошибка при обработке Excel файла. Пожалуйста, попробуйте еще раз.',
-            );
-          } finally {
-            clearUserState(userId);
-          }
-        } else {
-          bot.sendMessage(
-            msg.chat.id,
-            'Пожалуйста, отправьте файл в формате XLS или XLSX.',
-          );
-        }
-      } else {
-        logger.info(
-          `Received document without active upload_leads_to_db state for user ${userId}`,
-        );
-        bot.sendMessage(
-          msg.chat.id,
-          'Пожалуйста, сначала используйте команду /upload_leads_to_db для указания базы лидов, затем отправьте файл.',
-        );
-      }
-    } catch (error) {
-      logger.error('Error handling document:', error);
-      bot.sendMessage(
-        msg.chat.id,
-        'Произошла ошибка при обработке документа. Пожалуйста, попробуйте еще раз или обратитесь к администратору.',
-      );
     }
   });
 

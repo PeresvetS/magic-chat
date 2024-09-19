@@ -2,6 +2,7 @@
 
 const MessagingPlatformChecker = require('../checkers/MessagingPlatformChecker');
 const logger = require('../../../utils/logger');
+const PhoneNumberManagerService = require('../../phone/src/phoneNumberManagerService');
 const { campaignsMailingService } = require('../../campaign');
 const RabbitMQQueueService = require('../../queue/rabbitMQQueueService');
 

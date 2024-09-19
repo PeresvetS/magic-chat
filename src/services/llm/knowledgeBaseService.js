@@ -3,8 +3,9 @@
 const { Pinecone } = require('@pinecone-database/pinecone');
 const { OpenAIEmbeddings } = require('@langchain/openai');
 const { PineconeStore } = require('@langchain/pinecone');
+const { v4: uuidv4 } = require('uuid');
 
-const { knowledgeBaseRepository } = require('../../db');
+const { knowledgeBaseRepo, campaignsMailingRepo } = require('../../db');
 const config = require('../../config');
 const logger = require('../../utils/logger');
 const { processFile } = require('../../utils/fileProcessing');
@@ -19,21 +20,30 @@ class KnowledgeBaseService {
 
   async createKnowledgeBase(name, description, campaignId, documents) {
     try {
+      // Check if the campaign exists
+      const campaign = await campaignsMailingRepo.getCampaignById(campaignId);
+      if (!campaign) {
+        throw new Error(`Campaign with ID ${campaignId} not found`);
+      }
+
       const pineconeIndex = this.pinecone.Index(config.PINECONE_INDEX);
+
+      // Generate a unique pineconeId
+      const uniquePineconeId = `${config.PINECONE_INDEX}_${uuidv4()}`;
 
       const vectorStore = await PineconeStore.fromDocuments(
         documents,
         this.embeddings,
         {
           pineconeIndex,
-          namespace: `campaign_${campaignId}`,
+          namespace: uniquePineconeId,
         },
       );
 
-      const knowledgeBase = await knowledgeBaseRepository.create({
+      const knowledgeBase = await knowledgeBaseRepo.create({
         name,
         description,
-        pineconeId: config.PINECONE_INDEX,
+        pineconeId: uniquePineconeId,
         campaignId,
       });
 
@@ -50,7 +60,7 @@ class KnowledgeBaseService {
   async getRelevantKnowledge(campaignId, query, maxBlocks) {
     try {
       const knowledgeBases =
-        await knowledgeBaseRepository.findByCampaignId(campaignId);
+        await knowledgeBaseRepo.findByCampaignId(campaignId);
       const pineconeIndex = this.pinecone.Index(config.PINECONE_INDEX);
 
       let allResults = [];
@@ -60,7 +70,7 @@ class KnowledgeBaseService {
           this.embeddings,
           {
             pineconeIndex,
-            namespace: `campaign_${campaignId}`,
+            namespace: kb.pineconeId,  // Use the unique pineconeId here
           },
         );
 
@@ -83,7 +93,7 @@ class KnowledgeBaseService {
 
   async getKnowledgeBaseByName(name) {
     try {
-      const knowledgeBase = await knowledgeBaseRepository.findByName(name);
+      const knowledgeBase = await knowledgeBaseRepo.findByName(name);
       return knowledgeBase;
     } catch (error) {
       logger.error(`Error getting knowledge base by name: ${error.message}`);
@@ -91,12 +101,32 @@ class KnowledgeBaseService {
     }
   }
 
+  async getKnowledgeBaseByCampaignId(id) {
+    try {
+      const knowledgeBase = await knowledgeBaseRepo.findByCampaignId(id);
+      return knowledgeBase;
+    } catch (error) {
+      logger.error(`Error getting knowledge base by campaign id: ${error.message}`);
+      throw error;
+    }
+  }
+
   async listKnowledgeBases() {
     try {
-      const knowledgeBases = await knowledgeBaseRepository.findAll();
+      const knowledgeBases = await knowledgeBaseRepo.findAll();
       return knowledgeBases;
     } catch (error) {
       logger.error(`Error listing knowledge bases: ${error.message}`);
+      throw error;
+    }
+  }
+
+  async getCampaignKnowledgeBases(id) {
+    try {
+      const campaign = await campaignsMailingRepo.getCampaignKnowledgeBases(id);
+      return campaign.knowledgeBases;
+    } catch (error) {
+      logger.error(`Error getting knowledge bases for campaign ${id}:`, error);
       throw error;
     }
   }
@@ -107,7 +137,7 @@ class KnowledgeBaseService {
       if (!knowledgeBase) {
         throw new Error(`Knowledge base "${name}" not found`);
       }
-      await knowledgeBaseRepository.delete(knowledgeBase.id);
+      await knowledgeBaseRepo.delete(knowledgeBase.id);
       // Удаление данных из Pinecone
       const pineconeIndex = this.pinecone.Index(config.PINECONE_INDEX);
       await pineconeIndex.delete1({
@@ -123,7 +153,7 @@ class KnowledgeBaseService {
 
   async addDocumentToKnowledgeBase(kbId, file) {
     try {
-      const knowledgeBase = await knowledgeBaseRepository.findById(kbId);
+      const knowledgeBase = await knowledgeBaseRepo.findById(kbId);
       if (!knowledgeBase) {
         throw new Error(`Knowledge base with ID ${kbId} not found`);
       }
@@ -135,11 +165,18 @@ class KnowledgeBaseService {
         this.embeddings,
         {
           pineconeIndex,
-          namespace: `campaign_${knowledgeBase.campaignId}`,
+          namespace: knowledgeBase.pineconeId,
         },
       );
 
-      await vectorStore.addDocuments(documents);
+      // Добавляем документы порциями
+      const batchSize = 100;
+      for (let i = 0; i < documents.length; i += batchSize) {
+        const batch = documents.slice(i, i + batchSize);
+        await vectorStore.addDocuments(batch);
+        logger.info(`Added batch ${i / batchSize + 1} to knowledge base: ${kbId}`);
+      }
+
       logger.info(`Added document to knowledge base: ${kbId}`);
     } catch (error) {
       logger.error(`Error adding document to knowledge base: ${error.message}`);

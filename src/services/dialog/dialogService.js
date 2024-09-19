@@ -26,7 +26,7 @@ async function saveDialog(
   }
 }
 
-async function isNewContact(userId, contactId, platform) {
+async function chetkIsNewContact(userId, contactId, platform) {
   try {
     const existingDialog = await dialogRepo.getDialog(
       userId,
@@ -42,5 +42,5 @@ async function isNewContact(userId, contactId, platform) {
 
 module.exports = {
   saveDialog,
-  isNewContact,
+  chetkIsNewContact,
 };

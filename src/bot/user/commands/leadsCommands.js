@@ -243,9 +243,13 @@ module.exports = {
     const userState = getUserState(userId);
 
     logger.info(`Received message with ${userState} and ${userState?.action}`);
+  },
+
+  documentHandler: async (bot, msg) => {
+    const userId = msg.from.id;
+    const userState = getUserState(userId);
 
     if (userState && userState.action === 'upload_leads_to_db') {
-      logger.info(`XLS file is ${msg.document?.mime_type}`);
       if (
         msg.document &&
         (msg.document.mime_type === 'application/vnd.ms-excel' ||

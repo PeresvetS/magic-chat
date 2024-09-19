@@ -266,7 +266,7 @@ model CampaignMailing {
   isSecondaryAgentActive  Boolean               @default(false)
   modelName               String                @default("gpt-4o-mini")
   openaiApiKey            String?
-  knowledgeBases          KnowledgeBase[]
+  knowledgeBases          KnowledgeBase[]    
   maxKnowledgeBlocks      Int                   @default(5)
 }
 

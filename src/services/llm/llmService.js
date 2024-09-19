@@ -32,6 +32,7 @@ async function generateResponse(lead, messages, campaign) {
     }
 
     let agentChain = agentChains.get(lead.id);
+    logger.info(`AgentChain: ${safeStringify(campaign)}`);
     if (!agentChain) {
       agentChain = new AgentChain(campaign, lead, googleSheetPrompt);
       agentChains.set(lead.id, agentChain);

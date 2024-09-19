@@ -8,7 +8,7 @@ const { WhatsAppSessionService } = require('../../whatsapp');
 const {
   getCampaigUserId,
 } = require('../../campaign/src/campaignsMailingService');
-const { saveDialog, isNewContact } = require('../../dialog/dialogService');
+const { saveDialog, chetkIsNewContact } = require('../../dialog/dialogService');
 const { updateMessagePhoneNumberCount, checkDailyPhoneNumberLimit } =
   require('../../phone').phoneNumberService;
 const {
@@ -68,7 +68,7 @@ async function sendTelegramMessage({
     //   'telegram',
     // );
 
-    const isNewContact = await isNewContact(userId, recipient.id, 'telegram');
+    const isNewContact = await chetkIsNewContact(userId, recipient.id, 'telegram');
     await updateMessagePhoneNumberCount(
       senderPhoneNumber,
       isNewContact,
@@ -129,7 +129,7 @@ async function sendWABAMessage({
       'waba',
     );
 
-    const isNewContact = await isNewContact(
+    const isNewContact = await chetkIsNewContact(
       userId,
       recipientPhoneNumber,
       'waba',
@@ -204,7 +204,7 @@ async function sendWhatsAppMessage({
       'whatsapp',
     );
 
-    const isNewContact = await isNewContact(
+    const isNewContact = await chetkIsNewContact(
       userId,
       formattedNumber,
       'whatsapp',

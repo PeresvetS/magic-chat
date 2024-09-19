@@ -9,7 +9,7 @@ const {
   sendWABAMessage,
   sendTgAndWa,
   sendTgAndWABA,
-} = require('./messageDistributionService');
+} = require('./messageMailingService');
 
 async function processQueue(initialQueueItem = null) {
   let queueItem = initialQueueItem;

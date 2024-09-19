@@ -372,9 +372,26 @@
 
   async function getCampaignById(id) {
     try {
-      return await prisma.campaignMailing.findUnique({ where: { id } });
+      return await prisma.campaignMailing.findUnique({
+        where: { id },
+        include: {
+          phoneNumbers: true,
+          prompt: true,
+          knowledgeBases: true,
+        }
+      });
     } catch (error) {
       logger.error(`Error getting campaign by ID ${id}:`, error.message);
+      throw error;
+    }
+  }
+
+  async function getCampaignKnowledgeBases(id) {
+    try {
+      const campaign = await prisma.campaignMailing.findUnique({ where: { id }, include: { knowledgeBases: true } });
+      return campaign.knowledgeBases;
+    } catch (error) {
+      logger.error(`Error getting knowledge bases for campaign ${id}:`, error);
       throw error;
     }
   }
@@ -553,4 +570,5 @@
     setCampaignModel,
     setCampaignOpenAIKey,
     getCampaignModel,
+    getCampaignKnowledgeBases
   };

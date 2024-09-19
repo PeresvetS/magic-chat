@@ -2,6 +2,7 @@
 
 const fs = require('fs');
 const path = require('path');
+const axios = require('axios');
 
 const logger = require('../../../utils/logger');
 const knowledgeBaseService = require('../../../services/llm/knowledgeBaseService');
@@ -45,7 +46,7 @@ module.exports = {
       logger.error('Error creating knowledge base:', error);
       bot.sendMessage(
         msg.chat.id,
-        'Произошла ошибка при с��здании базы знаний.',
+        'Произошла ошибка при сздании базы знаний.',
       );
     }
   },
@@ -135,19 +136,37 @@ module.exports = {
     if (userState && userState.action === 'add_kb_document') {
       try {
         const fileId = msg.document.file_id;
-        const fileInfo = await bot.getFile(fileId);
         const fileName = msg.document.file_name;
-        const filePath = path.join(
-          __dirname,
-          '..',
-          '..',
-          '..',
-          'temp',
-          fileName,
-        );
+        
+        // Создаем директорию temp, если она не существует
+        const tempDir = path.join(__dirname, '..', '..', '..', 'temp');
+        if (!fs.existsSync(tempDir)) {
+          fs.mkdirSync(tempDir, { recursive: true });
+        }
 
-        // Скачиваем файл
-        await bot.downloadFile(fileId, filePath);
+        // Формируем путь к файлу
+        const filePath = path.join(tempDir, fileName.replace(/[/\\?%*:|"<>]/g, '-'));
+
+        logger.info(`Попытка скачивания файла: ${filePath}`);
+        
+        // Скачиваем файл с серверов Telegram
+        const fileLink = await bot.getFileLink(fileId);
+        const response = await axios({
+          method: 'get',
+          url: fileLink,
+          responseType: 'stream'
+        });
+
+        // Сохраняем файл
+        const writer = fs.createWriteStream(filePath);
+        response.data.pipe(writer);
+
+        await new Promise((resolve, reject) => {
+          writer.on('finish', resolve);
+          writer.on('error', reject);
+        });
+        
+        logger.info(`Файл успешно скачан и сохранен: ${filePath}`);
 
         const file = {
           name: fileName,
@@ -168,7 +187,7 @@ module.exports = {
         // Удаляем временный файл
         fs.unlinkSync(filePath);
       } catch (error) {
-        logger.error('Error adding document to knowledge base:', error);
+        logger.error('Ошибка при добавлении документа в базу знаний:', error);
         bot.sendMessage(
           msg.chat.id,
           'Произошла ошибка при добавлении документа в базу знаний.',

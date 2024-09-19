@@ -5,6 +5,7 @@ const botStateManager = require('./managers/botStateManager');
 const authTelegramService = require('./services/authTelegramService');
 const onlineStatusManager = require('./managers/onlineStatusManager');
 const TelegramSessionService = require('./services/telegramSessionService');
+const TelegramMainSessionService = require('./services/telegramMainSessionService');
 
 module.exports = {
   sessionManager,
@@ -12,4 +13,5 @@ module.exports = {
   onlineStatusManager,
   authTelegramService,
   TelegramSessionService,
+  TelegramMainSessionService,
 };

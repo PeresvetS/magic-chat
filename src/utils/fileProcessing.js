@@ -2,7 +2,7 @@
 
 const { PDFLoader } = require('@langchain/community/document_loaders/fs/pdf');
 const { DocxLoader } = require('@langchain/community/document_loaders/fs/docx');
-const { Document } = require('@langchain/core/documents');
+const { RecursiveCharacterTextSplitter } = require('langchain/text_splitter');
 
 const logger = require('./logger');
 
@@ -28,17 +28,32 @@ async function processDocx(filePath) {
   }
 }
 
+async function splitDocument(doc) {
+  const splitter = new RecursiveCharacterTextSplitter({
+    chunkSize: 1000,
+    chunkOverlap: 200,
+  });
+  return await splitter.splitDocuments([doc]);
+}
+
 async function processFile(file) {
   const fileExtension = file.name.split('.').pop().toLowerCase();
 
+  let docs;
   switch (fileExtension) {
     case 'pdf':
-      return processPDF(file.path);
+      docs = await processPDF(file.path);
+      break;
     case 'docx':
-      return processDocx(file.path);
+      docs = await processDocx(file.path);
+      break;
     default:
       throw new Error(`Unsupported file format: ${fileExtension}`);
   }
+
+  // Разделяем документ на меньшие части
+  const splitDocs = await Promise.all(docs.map(splitDocument));
+  return splitDocs.flat();
 }
 
 module.exports = {
