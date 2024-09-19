@@ -19,7 +19,9 @@ async function addPhoneNumber(
     if (userId) {
       const user = await userRepo.getUserById(userId);
       if (!user) {
-        logger.warn(`User with ID ${userId} not found. Proceeding without user association.`);
+        logger.warn(
+          `User with ID ${userId} not found. Proceeding without user association.`,
+        );
       }
     }
 
@@ -251,7 +253,11 @@ async function checkDailyPhoneNumberLimit(phoneNumber, platform) {
   }
 }
 
-async function updateMessagePhoneNumberCount(phoneSenderNumber, isNewContact, platform) {
+async function updateMessagePhoneNumberCount(
+  phoneSenderNumber,
+  isNewContact,
+  platform,
+) {
   try {
     await phoneNumberRepo.updatePhoneNumberStats(
       phoneSenderNumber,

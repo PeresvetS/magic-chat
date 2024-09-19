@@ -35,10 +35,7 @@ module.exports = {
     }
 
     try {
-      const leadsDB = await leadService.createLeadsDB(
-        leadsDBName,
-        msg.from.id,
-      );
+      const leadsDB = await leadService.createLeadsDB(leadsDBName, msg.from.id);
       bot.sendMessage(
         msg.chat.id,
         `База лидов "${leadsDBName}" успешно создана. ID: ${leadsDB.id}`,

@@ -1,10 +1,15 @@
 // src/bot/user/commands/knowledgeBaseCommands.js
 
-const logger = require('../../../utils/logger');
-const knowledgeBaseService = require('../../../services/llm/knowledgeBaseService');
-const { setUserState, getUserState, clearUserState } = require('../utils/userState');
 const fs = require('fs');
 const path = require('path');
+
+const logger = require('../../../utils/logger');
+const knowledgeBaseService = require('../../../services/llm/knowledgeBaseService');
+const {
+  setUserState,
+  getUserState,
+  clearUserState,
+} = require('../utils/userState');
 
 module.exports = {
   '/create_kb ([^\\s]+) ([^\\s]+)': async (bot, msg, match) => {
@@ -17,7 +22,12 @@ module.exports = {
       return;
     }
     try {
-      const knowledgeBase = await knowledgeBaseService.createKnowledgeBase(kbName, '', parseInt(campaignId), []);
+      const knowledgeBase = await knowledgeBaseService.createKnowledgeBase(
+        kbName,
+        '',
+        parseInt(campaignId),
+        [],
+      );
       bot.sendMessage(
         msg.chat.id,
         `База знаний "${kbName}" успешно создана для кампании ${campaignId}. ID: ${knowledgeBase.id}`,
@@ -50,7 +60,8 @@ module.exports = {
       return;
     }
     try {
-      const knowledgeBase = await knowledgeBaseService.getKnowledgeBaseByName(kbName);
+      const knowledgeBase =
+        await knowledgeBaseService.getKnowledgeBaseByName(kbName);
       if (!knowledgeBase) {
         bot.sendMessage(msg.chat.id, `База знаний "${kbName}" не найдена.`);
         return;
@@ -82,7 +93,9 @@ module.exports = {
         return;
       }
 
-      const kbList = knowledgeBases.map((kb) => `- ${kb.name} (ID: ${kb.id}, Кампания: ${kb.campaignId})`).join('\n');
+      const kbList = knowledgeBases
+        .map((kb) => `- ${kb.name} (ID: ${kb.id}, Кампания: ${kb.campaignId})`)
+        .join('\n');
       bot.sendMessage(msg.chat.id, `Ваши базы знаний:\n${kbList}`);
     } catch (error) {
       logger.error('Error listing knowledge bases:', error);
@@ -104,10 +117,7 @@ module.exports = {
     }
     try {
       await knowledgeBaseService.deleteKnowledgeBase(kbName);
-      bot.sendMessage(
-        msg.chat.id,
-        `База знаний "${kbName}" успешно удалена.`,
-      );
+      bot.sendMessage(msg.chat.id, `База знаний "${kbName}" успешно удалена.`);
     } catch (error) {
       logger.error('Error deleting knowledge base:', error);
       bot.sendMessage(
@@ -127,18 +137,28 @@ module.exports = {
         const fileId = msg.document.file_id;
         const fileInfo = await bot.getFile(fileId);
         const fileName = msg.document.file_name;
-        const filePath = path.join(__dirname, '..', '..', '..', 'temp', fileName);
+        const filePath = path.join(
+          __dirname,
+          '..',
+          '..',
+          '..',
+          'temp',
+          fileName,
+        );
 
         // Скачиваем файл
         await bot.downloadFile(fileId, filePath);
 
         const file = {
           name: fileName,
-          path: filePath
+          path: filePath,
         };
 
-        await knowledgeBaseService.addDocumentToKnowledgeBase(userState.kbId, file);
-        
+        await knowledgeBaseService.addDocumentToKnowledgeBase(
+          userState.kbId,
+          file,
+        );
+
         bot.sendMessage(
           msg.chat.id,
           `Документ успешно добавлен в базу знаний "${userState.kbName}".`,

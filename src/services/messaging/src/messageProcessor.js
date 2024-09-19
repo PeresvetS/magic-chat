@@ -6,7 +6,9 @@ const { leadService } = require('../../leads/src/leadService');
 const { saveMessageStats } = require('../../stats/statsService');
 const { saveDialogToFile } = require('../../../utils/messageUtils');
 const { campaignMailingService } = require('../../campaign');
-const { getPendingConversationStates } = require('../../conversation/conversationState');
+const {
+  getPendingConversationStates,
+} = require('../../conversation/conversationState');
 
 async function processMessage(lead, senderId, message, phoneNumber, campaign) {
   logger.info(`Processing message for phone number ${phoneNumber}: ${message}`);
@@ -19,7 +21,11 @@ async function processMessage(lead, senderId, message, phoneNumber, campaign) {
       return null;
     }
     // Use gptService to generate response
-    const { response, tokenCount } = await gptService.generateResponse(lead, [{ role: 'human', content: message }], campaign);
+    const { response, tokenCount } = await gptService.generateResponse(
+      lead,
+      [{ role: 'human', content: message }],
+      campaign,
+    );
     logger.info(`Response generated for ${senderId}: ${response}`);
 
     logger.debug(`Token count for ${senderId}: ${tokenCount}`);
@@ -44,9 +50,17 @@ async function processPendingMessages() {
     for (const state of pendingStates) {
       const lead = await leadService.getLeadById(state.leadId);
       if (lead) {
-        const campaign = await campaignMailingService.getCampaignById(lead.campaignId);
+        const campaign = await campaignMailingService.getCampaignById(
+          lead.campaignId,
+        );
         if (campaign) {
-          await processMessage(lead, lead.telegramChatId || lead.whatsappChatId, state.lastMessage, lead.phone, campaign);
+          await processMessage(
+            lead,
+            lead.telegramChatId || lead.whatsappChatId,
+            state.lastMessage,
+            lead.phone,
+            campaign,
+          );
         }
       }
     }

@@ -5,7 +5,6 @@ const logger = require('../../../utils/logger');
 const { campaignsMailingService } = require('../../campaign');
 const RabbitMQQueueService = require('../../queue/rabbitMQQueueService');
 
-
 class MessageDistributionService {
   constructor() {
     this.lastMessageTimes = new Map();
@@ -60,7 +59,7 @@ class MessageDistributionService {
       };
 
       for (const platform of platforms.split(',')) {
-        let senderPhoneNumber =
+        const senderPhoneNumber =
           await PhoneNumberManagerService.getNextAvailablePhoneNumber(
             campaignId,
             platform,
@@ -74,13 +73,15 @@ class MessageDistributionService {
 
         try {
           // Добавляем сообщение в очередь RabbitMQ
-          logger.info(`Enqueuing message for ${platform} with campaignId ${campaignId}`);
+          logger.info(
+            `Enqueuing message for ${platform} with campaignId ${campaignId}`,
+          );
           const queueItem = await RabbitMQQueueService.enqueue(
             campaignId,
             message,
             strPhoneNumber,
             platform,
-            senderPhoneNumber
+            senderPhoneNumber,
           );
           results[platform] = { queueItemId: queueItem.id, status: 'queued' };
           logger.info(`Message queued for ${platform}: ${queueItem.id}`);
@@ -162,7 +163,6 @@ class MessageDistributionService {
     );
     return results;
   }
-
 
   getSuccessfulPlatform(result) {
     for (const platform of ['telegram', 'whatsapp', 'waba', 'tgwa', 'tgwaba']) {
@@ -251,30 +251,36 @@ class MessageDistributionService {
 
   async getDistributionResults(results) {
     const updatedResults = { ...results };
-    
+
     for (const platform of Object.keys(updatedResults)) {
       if (updatedResults[platform] && updatedResults[platform].queueItemId) {
-        const queueItem = await RabbitMQQueueService.getQueueItem(updatedResults[platform].queueItemId);
-        
+        const queueItem = await RabbitMQQueueService.getQueueItem(
+          updatedResults[platform].queueItemId,
+        );
+
         if (queueItem) {
           if (queueItem.status === 'completed') {
             updatedResults[platform] = JSON.parse(queueItem.result);
           } else if (queueItem.status === 'failed') {
-            updatedResults[platform] = { success: false, error: queueItem.errorMessage }; //?
+            updatedResults[platform] = {
+              success: false,
+              error: queueItem.errorMessage,
+            }; // ?
           } else {
             // Для статусов 'pending' и 'processing'
             updatedResults[platform] = { status: queueItem.status };
           }
         } else {
-          logger.warn(`Queue item not found for ${platform}: ${updatedResults[platform].queueItemId}`);
+          logger.warn(
+            `Queue item not found for ${platform}: ${updatedResults[platform].queueItemId}`,
+          );
           updatedResults[platform] = { status: 'unknown' };
         }
       }
     }
-    
+
     return updatedResults;
   }
-
 }
 
 module.exports = new MessageDistributionService();

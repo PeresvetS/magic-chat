@@ -12,9 +12,8 @@ const { TelegramSessionService } = require('../../services/telegram');
 const { WhatsAppSessionService } = require('../../services/whatsapp');
 const { xlsProcessor, leadService } = require('../../services/leads');
 const { setPhoneAuthenticated } =
-require('../../services/phone').phoneNumberService;
+  require('../../services/phone').phoneNumberService;
 const PhoneNumberManagerService = require('../../services/phone/src/PhoneNumberManagerService');
-
 const wabaCommands = require('./commands/wabaCommands');
 const helpCommands = require('./commands/helpCommands');
 const phoneCommands = require('./commands/phoneCommands');
@@ -47,8 +46,13 @@ function createUserBot() {
   function handlePollingError(error) {
     logger.error('User bot polling error:', error);
     pollingError = error;
-    if (error.code === 'ETELEGRAM' && error.message.includes('terminated by other getUpdates request')) {
-      logger.warn('User bot: Another instance is running. Attempting to restart...');
+    if (
+      error.code === 'ETELEGRAM' &&
+      error.message.includes('terminated by other getUpdates request')
+    ) {
+      logger.warn(
+        'User bot: Another instance is running. Attempting to restart...',
+      );
       setTimeout(async () => {
         try {
           await bot.stopPolling();
@@ -61,7 +65,6 @@ function createUserBot() {
       }, 5000);
     }
   }
-  
 
   PhoneNumberManagerService.setNotificationCallback((telegramId, message) => {
     bot.sendMessage(telegramId, message);
@@ -74,7 +77,10 @@ function createUserBot() {
           try {
             const userInfo = await userService.getUserInfo(msg.from.id);
             if (!userInfo || !userInfo.isSubscribed) {
-              bot.sendMessage(msg.chat.id, 'У вас нет активной подписки. Обратитесь к администратору для её оформления.');
+              bot.sendMessage(
+                msg.chat.id,
+                'У вас нет активной подписки. Обратитесь к администратору для её оформления.',
+              );
               return;
             }
             if (userInfo.isBanned) {
@@ -84,7 +90,10 @@ function createUserBot() {
             await handler(bot, msg, match);
           } catch (error) {
             logger.error(`Error executing command ${command}:`, error);
-            bot.sendMessage(msg.chat.id, `Произошла ошибка при выполнении команды: ${error.message}`);
+            bot.sendMessage(
+              msg.chat.id,
+              `Произошла ошибка при выполнении команды: ${error.message}`,
+            );
           }
         });
       }
@@ -211,7 +220,9 @@ function createUserBot() {
     const [action, authType, phoneNumber, platform] = query.data.split('_');
     logger.info(`Received callback query: ${query.data}`);
 
-    if (action !== 'auth') return;
+    if (action !== 'auth') {
+      return;
+    }
 
     try {
       switch (platform) {
@@ -226,17 +237,19 @@ function createUserBot() {
       }
     } catch (error) {
       logger.error(`Error handling ${platform} authentication:`, error);
-      bot.answerCallbackQuery(query.id, `Ошибка аутентификации: ${error.message}`);
+      bot.answerCallbackQuery(
+        query.id,
+        `Ошибка аутентификации: ${error.message}`,
+      );
     }
   });
 
   bot.on('polling_error', handlePollingError);
-  
+
   process.on('unhandledRejection', (reason, promise) => {
     logger.error('Unhandled Rejection at:', promise);
     logger.error('Reason:', reason);
   });
-
 
   async function launch() {
     if (isRunning) {
@@ -274,7 +287,7 @@ function createUserBot() {
   async function restart() {
     logger.info('Restarting User bot');
     await stop();
-    await new Promise(resolve => setTimeout(resolve, 1000));
+    await new Promise((resolve) => setTimeout(resolve, 1000));
     await launch();
     logger.info('User bot restarted successfully');
   }
@@ -282,33 +295,54 @@ function createUserBot() {
   async function handleTelegramAuth(bot, query, phoneNumber, authType) {
     try {
       if (authType === 'code') {
-        await TelegramSessionService.authenticateSession(phoneNumber, bot, query.message.chat.id);
+        await TelegramSessionService.authenticateSession(
+          phoneNumber,
+          bot,
+          query.message.chat.id,
+        );
       } else if (authType === 'qr') {
-        await TelegramSessionService.generateQRCode(phoneNumber, bot, query.message.chat.id);
+        await TelegramSessionService.generateQRCode(
+          phoneNumber,
+          bot,
+          query.message.chat.id,
+        );
       }
       await setPhoneAuthenticated(phoneNumber, 'telegram', true);
-      bot.sendMessage(query.message.chat.id, `Номер телефона ${phoneNumber} успешно аутентифицирован в Telegram.`);
+      bot.sendMessage(
+        query.message.chat.id,
+        `Номер телефона ${phoneNumber} успешно аутентифицирован в Telegram.`,
+      );
     } catch (error) {
-      bot.sendMessage(query.message.chat.id, `Ошибка аутентификации: ${error.message}`);
+      bot.sendMessage(
+        query.message.chat.id,
+        `Ошибка аутентификации: ${error.message}`,
+      );
     }
   }
 
   async function handleWhatsAppAuth(bot, query, phoneNumber, authType) {
     try {
       if (authType === 'qr') {
-        const { qr, client } = await WhatsAppSessionService.generateQRCode(phoneNumber);
+        const { qr, client } =
+          await WhatsAppSessionService.generateQRCode(phoneNumber);
         // Send QR code and wait for authentication
       } else if (authType === 'phone') {
-        const client = await WhatsAppSessionService.authenticateWithPhoneNumber(phoneNumber);
+        const client =
+          await WhatsAppSessionService.authenticateWithPhoneNumber(phoneNumber);
         // Wait for authentication
       }
       await setPhoneAuthenticated(phoneNumber, 'whatsapp', true);
-      bot.sendMessage(query.message.chat.id, `Номер телефона ${phoneNumber} успешно аутентифицирован в WhatsApp.`);
+      bot.sendMessage(
+        query.message.chat.id,
+        `Номер телефона ${phoneNumber} успешно аутентифицирован в WhatsApp.`,
+      );
     } catch (error) {
-      bot.sendMessage(query.message.chat.id, `Ошибка аутентификации: ${error.message}`);
+      bot.sendMessage(
+        query.message.chat.id,
+        `Ошибка аутентификации: ${error.message}`,
+      );
     }
   }
-  
 
   return {
     bot,
@@ -318,7 +352,7 @@ function createUserBot() {
     isRunning: () => isRunning,
     getPollingError: () => pollingError,
     handleTelegramAuth,
-    handleWhatsAppAuth
+    handleWhatsAppAuth,
   };
 }
 

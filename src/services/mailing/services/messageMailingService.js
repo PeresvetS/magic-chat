@@ -5,10 +5,16 @@ const { WABASessionService } = require('../../waba');
 const { leadService } = require('../../leads/src/leadService');
 const { TelegramSessionService } = require('../../telegram');
 const { WhatsAppSessionService } = require('../../whatsapp');
-const { getCampaigUserId } = require('../../campaign/src/campaignsMailingService');
+const {
+  getCampaigUserId,
+} = require('../../campaign/src/campaignsMailingService');
 const { saveDialog, isNewContact } = require('../../dialog/dialogService');
-const { updateMessagePhoneNumberCount, checkDailyPhoneNumberLimit } = require('../../phone').phoneNumberService;
-const { formatPhoneNumberForWhatsApp, applyDelay } = require('../../../utils/phoneHelpers');
+const { updateMessagePhoneNumberCount, checkDailyPhoneNumberLimit } =
+  require('../../phone').phoneNumberService;
+const {
+  formatPhoneNumberForWhatsApp,
+  applyDelay,
+} = require('../../../utils/phoneHelpers');
 
 async function sendTelegramMessage({
   campaignId,
@@ -35,9 +41,10 @@ async function sendTelegramMessage({
       return { success: false, error: 'DAILY_LIMIT_REACHED' };
     }
 
-    const client = await TelegramSessionService.createOrGetSession(senderPhoneNumber);
+    const client =
+      await TelegramSessionService.createOrGetSession(senderPhoneNumber);
 
-    if (!await client.isUserAuthorized()) {
+    if (!(await client.isUserAuthorized())) {
       logger.error(`Клиент Telegram для ${senderPhoneNumber} не авторизован`);
       return { success: false, error: 'CLIENT_NOT_AUTHORIZED' };
     }
@@ -61,11 +68,7 @@ async function sendTelegramMessage({
     //   'telegram',
     // );
 
-    const isNewContact = await isNewContact(
-      userId,
-      recipient.id,
-      'telegram',
-    );
+    const isNewContact = await isNewContact(userId, recipient.id, 'telegram');
     await updateMessagePhoneNumberCount(
       senderPhoneNumber,
       isNewContact,
@@ -131,7 +134,11 @@ async function sendWABAMessage({
       recipientPhoneNumber,
       'waba',
     );
-    await updateMessagePhoneNumberCount(senderPhoneNumber, isNewContact, 'waba');
+    await updateMessagePhoneNumberCount(
+      senderPhoneNumber,
+      isNewContact,
+      'waba',
+    );
     await saveDialog(
       userId,
       recipientPhoneNumber,
@@ -228,7 +235,12 @@ async function sendWhatsAppMessage({
   }
 }
 
-async function sendTgAndWa({campaignId, senderPhoneNumber, recipientPhoneNumber, message}) {
+async function sendTgAndWa({
+  campaignId,
+  senderPhoneNumber,
+  recipientPhoneNumber,
+  message,
+}) {
   const telegramResult = await sendTelegramMessage(
     campaignId,
     senderPhoneNumber,
@@ -255,7 +267,12 @@ async function sendTgAndWa({campaignId, senderPhoneNumber, recipientPhoneNumber,
   };
 }
 
-async function sendTgAndWABA({campaignId, senderPhoneNumber,recipientPhoneNumber, message}) {
+async function sendTgAndWABA({
+  campaignId,
+  senderPhoneNumber,
+  recipientPhoneNumber,
+  message,
+}) {
   const telegramResult = await sendTelegramMessage(
     campaignId,
     senderPhoneNumber,
@@ -288,4 +305,4 @@ module.exports = {
   sendWhatsAppMessage,
   sendTgAndWa,
   sendTgAndWABA,
-};  
+};

@@ -16,7 +16,10 @@ const requestLogger = require('./api/middleware/requestLogger');
 const { WhatsAppSessionService } = require('./services/whatsapp');
 const { TelegramSessionService } = require('./services/telegram');
 const notificationBot = require('./bot/notification/notificationBot');
-const { handleMessageService, processPendingMessages } = require('./services/messaging');
+const {
+  handleMessageService,
+  processPendingMessages,
+} = require('./services/messaging');
 const RabbitMQQueueService = require('./services/queue/rabbitMQQueueService');
 
 let isProcessingUnfinishedTasks = false;
@@ -52,13 +55,13 @@ async function checkApplicationState() {
   await Promise.all([
     checkAndRestartBot(userBot, 'User'),
     checkAndRestartBot(adminBot, 'Admin'),
-    checkAndRestartBot(notificationBot, 'Notification')
+    checkAndRestartBot(notificationBot, 'Notification'),
   ]);
 }
 
 async function processUnfinishedTasks() {
   logger.info('Processing unfinished tasks...');
-  
+
   if (isProcessingUnfinishedTasks) {
     logger.info('Already processing unfinished tasks. Skipping.');
     return;
@@ -71,10 +74,12 @@ async function processUnfinishedTasks() {
     const unprocessedItems = await RabbitMQQueueService.getUnprocessedItems();
     for (const item of unprocessedItems) {
       if (item && item.id && item.campaignId) {
-        logger.info(`Processing queue item ${item.id} with campaignId ${item.campaignId}`);
+        logger.info(
+          `Processing queue item ${item.id} with campaignId ${item.campaignId}`,
+        );
         await messageQuequeService.processQueue(item);
       } else {
-        logger.warn(`Skipping invalid queue item:`, item);
+        logger.warn('Skipping invalid queue item:', item);
       }
     }
   } catch (error) {
@@ -99,11 +104,11 @@ async function startMessageQueueProcessing() {
     try {
       await messageQuequeService.processQueue();
       // Добавляем задержку между проверками очереди
-      await new Promise(resolve => setTimeout(resolve, 5000)); // 5 секунд
+      await new Promise((resolve) => setTimeout(resolve, 5000)); // 5 секунд
     } catch (error) {
       logger.error('Error processing message queue:', error);
       // Добавляем задержку в случае ошибки
-      await new Promise(resolve => setTimeout(resolve, 10000)); // 10 секунд
+      await new Promise((resolve) => setTimeout(resolve, 10000)); // 10 секунд
     }
   }
 }
@@ -153,12 +158,11 @@ async function main() {
 
     // Запуск постоянной обработки очереди сообщений
     logger.info('Starting continuous message queue processing...');
-    startMessageQueueProcessing().catch(error => {
+    startMessageQueueProcessing().catch((error) => {
       logger.error('Error in message queue processing loop:', error);
     });
 
     logger.info('Message queue processed');
-
 
     // Настройка Express
     app.get('/', (req, res) => {
@@ -183,13 +187,30 @@ async function main() {
       });
 
       await Promise.all([
-        adminBot.stop().catch(error => logger.error('Error stopping admin bot:', error)),
-        userBot.stop().catch(error => logger.error('Error stopping user bot:', error)),
-        notificationBot.stop().catch(error => logger.error('Error stopping notification bot:', error)),
-        TelegramSessionService.disconnectAllSessions().catch(error => logger.error('Error disconnecting Telegram sessions:', error)),
-        ...Array.from(WhatsAppSessionService.clients.keys()).map(phoneNumber => 
-          WhatsAppSessionService.disconnectSession(phoneNumber).catch(error => logger.error(`Error disconnecting WhatsApp session for ${phoneNumber}:`, error))
-        )
+        adminBot
+          .stop()
+          .catch((error) => logger.error('Error stopping admin bot:', error)),
+        userBot
+          .stop()
+          .catch((error) => logger.error('Error stopping user bot:', error)),
+        notificationBot
+          .stop()
+          .catch((error) =>
+            logger.error('Error stopping notification bot:', error),
+          ),
+        TelegramSessionService.disconnectAllSessions().catch((error) =>
+          logger.error('Error disconnecting Telegram sessions:', error),
+        ),
+        ...Array.from(WhatsAppSessionService.clients.keys()).map(
+          (phoneNumber) =>
+            WhatsAppSessionService.disconnectSession(phoneNumber).catch(
+              (error) =>
+                logger.error(
+                  `Error disconnecting WhatsApp session for ${phoneNumber}:`,
+                  error,
+                ),
+            ),
+        ),
       ]);
 
       logger.info('All services stopped');
@@ -225,12 +246,10 @@ async function main() {
 
     // Process unfinished tasks before starting the server
     // await processUnfinishedTasks();
-
   } catch (error) {
     logger.error('Error in main function:', error);
     throw error;
   }
 }
-
 
 module.exports = { main, app };

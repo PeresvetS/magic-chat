@@ -380,7 +380,9 @@ async function setPhoneAuthenticated(phoneNumber, platform, isAuthenticated) {
     });
 
     if (!phoneNumberRecord) {
-      logger.info(`Phone number ${phoneNumber} not found. Creating new record.`);
+      logger.info(
+        `Phone number ${phoneNumber} not found. Creating new record.`,
+      );
       phoneNumberRecord = await prisma.phoneNumber.create({
         data: { phoneNumber },
       });

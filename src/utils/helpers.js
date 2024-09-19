@@ -92,7 +92,6 @@ async function retryOperation(operation, maxRetries, delays) {
 }
 /* eslint-enable no-await-in-loop */
 
-
 module.exports = {
   delay,
   safeStringify,

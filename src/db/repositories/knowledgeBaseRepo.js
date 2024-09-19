@@ -28,11 +28,17 @@ const knowledgeBaseRepository = {
 
   async findByCampaignId(campaignId) {
     try {
-      const result = await prisma.knowledgeBase.findMany({ where: { campaignId } });
-      logger.info(`Found ${result.length} knowledge bases for campaign: ${campaignId}`);
+      const result = await prisma.knowledgeBase.findMany({
+        where: { campaignId },
+      });
+      logger.info(
+        `Found ${result.length} knowledge bases for campaign: ${campaignId}`,
+      );
       return result;
     } catch (error) {
-      logger.error(`Error finding knowledge bases by campaign id: ${error.message}`);
+      logger.error(
+        `Error finding knowledge bases by campaign id: ${error.message}`,
+      );
       throw error;
     }
   },

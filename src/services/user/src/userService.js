@@ -6,7 +6,6 @@ const logger = require('../../../utils/logger');
 const { getUserSubscriptionInfo } = require('./subscriptionService');
 const { getUserPhoneNumbers } = require('../../phone').phoneNumberService;
 
-
 async function getUserInfo(telegramId) {
   try {
     const user = await this.getUserByTgId(telegramId);

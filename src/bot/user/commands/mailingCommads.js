@@ -5,7 +5,10 @@ const {
   getUserState,
   clearUserState,
 } = require('../utils/userState');
-const { checkMailingStatus, checkBulkDistributionStatus } = require('../utils/mailingStatusChecker');
+const {
+  checkMailingStatus,
+  checkBulkDistributionStatus,
+} = require('../utils/mailingStatusChecker');
 const { leadService } = require('../../../services/leads');
 const { campaignsMailingService } = require('../../../services/campaign');
 const { distributionService } = require('../../../services/mailing');
@@ -211,7 +214,6 @@ module.exports = {
         );
 
         await checkMailingStatus(bot, msg, initialResult, phoneNumber);
-
       } catch (error) {
         logger.error('Error in mailing test:', error);
         bot.sendMessage(
@@ -595,7 +597,7 @@ module.exports = {
     }
   },
 
- '/send_mc_to_leads ([^\\s]+) (NEW|UNAVAILABLE|PROCESSED_NEGATIVE|PROCESSED_POSITIVE)':
+  '/send_mc_to_leads ([^\\s]+) (NEW|UNAVAILABLE|PROCESSED_NEGATIVE|PROCESSED_POSITIVE)':
     async (bot, msg, match) => {
       const [, campaignName, status] = match;
 
@@ -694,8 +696,12 @@ module.exports = {
         );
 
         // Запускаем асинхронный процесс проверки статуса отправки
-        checkBulkDistributionStatus(bot, msg.chat.id, results.details, campaign.id);
-
+        checkBulkDistributionStatus(
+          bot,
+          msg.chat.id,
+          results.details,
+          campaign.id,
+        );
       } catch (error) {
         logger.error('Error in send_mc_to_leads:', error);
         bot.sendMessage(

@@ -9,13 +9,21 @@ const mainClientService = require('./telegramMainSessionService');
 const config = require('../../../config');
 const logger = require('../../../utils/logger');
 const { getUserByTgId } = require('../../user').userService;
-const { setPhoneAuthenticated, addPhoneNumber, getPhoneNumberInfo } = require('../../phone').phoneNumberService;
+const { setPhoneAuthenticated, addPhoneNumber, getPhoneNumberInfo } =
+  require('../../phone').phoneNumberService;
 const { processIncomingMessage } =
   require('../../messaging').handleMessageService;
 const sessionManager = require('../managers/sessionManager');
 const { telegramSessionsRepo } = require('../../../db');
 const TelegramMainSessionService = require('./telegramMainSessionService');
-const { checkAuthorization, connectWithRetry, reauthorizeSession, get2FAPasswordFromUser, getAuthCodeFromUser, generateQRCode } = require('./authTelegramService');
+const {
+  checkAuthorization,
+  connectWithRetry,
+  reauthorizeSession,
+  get2FAPasswordFromUser,
+  getAuthCodeFromUser,
+  generateQRCode,
+} = require('./authTelegramService');
 
 class TelegramSessionService {
   constructor() {
@@ -30,7 +38,7 @@ class TelegramSessionService {
 
   async maintainConnection(client) {
     let reconnectAttempts = 0;
-    
+
     const reconnect = async () => {
       try {
         if (!client.connected) {
@@ -41,20 +49,25 @@ class TelegramSessionService {
         }
       } catch (error) {
         reconnectAttempts++;
-        logger.error(`Failed to reconnect (attempt ${reconnectAttempts}):`, error);
-        
+        logger.error(
+          `Failed to reconnect (attempt ${reconnectAttempts}):`,
+          error,
+        );
+
         if (reconnectAttempts >= this.MAX_RETRIES) {
-          logger.error('Max reconnect attempts reached. Manual intervention required.');
+          logger.error(
+            'Max reconnect attempts reached. Manual intervention required.',
+          );
           // Здесь можно добавить код для уведомления администратора
           return;
         }
-        
+
         setTimeout(reconnect, this.RETRY_DELAY);
       }
     };
 
     client.on('disconnect', reconnect);
-    
+
     // Периодическая проверка соединения
     setInterval(async () => {
       try {
@@ -93,12 +106,12 @@ class TelegramSessionService {
     try {
       const session = await this.createOrGetSession(phoneNumber);
       await connectWithRetry(session, 0, maxRetries, retryDelay);
-      
+
       if (!(await checkAuthorization(session))) {
         logger.warn(`Manual reauthorization required for ${phoneNumber}`);
         throw new Error('MANUAL_REAUTH_REQUIRED');
       }
-      
+
       logger.info(`Successfully reauthorized session for ${phoneNumber}`);
       return session;
     } catch (error) {
@@ -134,7 +147,11 @@ class TelegramSessionService {
             logger.warn(
               `Session for ${phoneNumber} is not authorized. Attempting to reauthorize...`,
             );
-            await reauthorizeSession(phoneNumber, this.MAX_RETRIES, this.RETRY_DELAY);
+            await reauthorizeSession(
+              phoneNumber,
+              this.MAX_RETRIES,
+              this.RETRY_DELAY,
+            );
           }
         } catch (error) {
           logger.error(
@@ -186,7 +203,11 @@ class TelegramSessionService {
         logger.warn(
           `AUTH_KEY_DUPLICATED for ${phoneNumber}. Attempting to reauthorize.`,
         );
-        return await reauthorizeSession(phoneNumber, this.MAX_RETRIES, this.RETRY_DELAY);
+        return await reauthorizeSession(
+          phoneNumber,
+          this.MAX_RETRIES,
+          this.RETRY_DELAY,
+        );
       }
       logger.error(`Error creating session for ${phoneNumber}:`, error);
       throw error;
@@ -230,12 +251,11 @@ class TelegramSessionService {
 
       const sessionString = client.session.save();
       await telegramSessionsRepo.saveSession(phoneNumber, sessionString);
-      
+
       // Добавляем обработчик входящих сообщений после аутентификации
       client.addEventHandler(async (event) => {
         await processIncomingMessage(phoneNumber, event, 'telegram');
       }, new NewMessage({}));
-
 
       return client;
     } catch (error) {
@@ -263,7 +283,12 @@ class TelegramSessionService {
       await bot.sendMessage(chatId, 'QR-код для аутентификации:', {
         reply_markup: {
           inline_keyboard: [
-            [{ text: 'Отправить QR-код', callback_data: `qr_code_${phoneNumber}` }],
+            [
+              {
+                text: 'Отправить QR-код',
+                callback_data: `qr_code_${phoneNumber}`,
+              },
+            ],
           ],
         },
       });
@@ -276,19 +301,23 @@ class TelegramSessionService {
   async handleSuccessfulAuthentication(phoneNumber, bot, chatId, telegramId) {
     try {
       // Проверяем, существует ли номер телефона в базе данных
-      let phoneNumberRecord = await getPhoneNumberInfo(phoneNumber);
-      
+      const phoneNumberRecord = await getPhoneNumberInfo(phoneNumber);
+
       // Если номер не существует, создаем его
       if (!phoneNumberRecord) {
         const user = await getUserByTgId(telegramId);
-        logger.info(`Phone number ${phoneNumber} not found. Creating new record.`);
+        logger.info(
+          `Phone number ${phoneNumber} not found. Creating new record.`,
+        );
         await addPhoneNumber(user.id, phoneNumber, 'telegram');
       }
 
       // Устанавливаем статус аутентификации
       await setPhoneAuthenticated(phoneNumber, 'telegram', true);
-      logger.info(`Authentication successful for ${phoneNumber}. Updated database.`);
-      
+      logger.info(
+        `Authentication successful for ${phoneNumber}. Updated database.`,
+      );
+
       // Получаем клиент и сохраняем сессию
       const client = await this.createOrGetSession(phoneNumber);
       if (client) {
@@ -296,16 +325,26 @@ class TelegramSessionService {
         await this.saveSession(phoneNumber, sessionString);
         logger.info(`Session saved for ${phoneNumber}`);
       } else {
-        logger.warn(`No client found for ${phoneNumber}. Unable to save session.`);
+        logger.warn(
+          `No client found for ${phoneNumber}. Unable to save session.`,
+        );
       }
 
-      await bot.sendMessage(chatId, `Номер телефона ${phoneNumber} успешно аутентифицирован.`);
+      await bot.sendMessage(
+        chatId,
+        `Номер телефона ${phoneNumber} успешно аутентифицирован.`,
+      );
     } catch (error) {
-      logger.error(`Error updating authentication status for ${phoneNumber}:`, error);
-      await bot.sendMessage(chatId, `Произошла ошибка при обновлении статуса аутентификации: ${error.message}`);
+      logger.error(
+        `Error updating authentication status for ${phoneNumber}:`,
+        error,
+      );
+      await bot.sendMessage(
+        chatId,
+        `Произошла ошибка при обновлении статуса аутентификации: ${error.message}`,
+      );
     }
   }
-
 
   async getSession(phoneNumber) {
     if (this.sessions.has(phoneNumber)) {
@@ -404,7 +443,6 @@ class TelegramSessionService {
         appVersion: '5.3.1',
         langCode: 'ru',
       },
-      
     );
 
     await client.connect();

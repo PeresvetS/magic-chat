@@ -96,7 +96,7 @@ class MessagingPlatformChecker {
       }
 
       case 'tgwa': {
-        const [telegramAvailable, whatsappAvailable] = await Promise.all([
+        [telegramAvailable, whatsappAvailable] = await Promise.all([
           this.checkTelegram(phoneNumber),
           this.checkWhatsApp(phoneNumber),
         ]);
@@ -114,7 +114,7 @@ class MessagingPlatformChecker {
       }
 
       case 'tgwaba': {
-        const [telegramAvailable, wabaAvailable] = await Promise.all([
+        [telegramAvailable, wabaAvailable] = await Promise.all([
           this.checkTelegram(phoneNumber),
           this.checkWABA(phoneNumber),
         ]);

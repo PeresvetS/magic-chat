@@ -59,15 +59,15 @@ async function getUserIdByCampaignId(campaignId) {
 async function getUserById(id) {
   try {
     logger.info(`Getting user by ID: ${id}`);
-    
+
     if (!id) {
       throw new Error('User ID is required');
     }
 
     const user = await prisma.user.findUnique({
       where: {
-        id: parseInt(id, 10)
-      }
+        id: parseInt(id, 10),
+      },
     });
 
     if (!user) {
@@ -131,7 +131,7 @@ async function setUserOpenAIKey(userId, openaiApiKey) {
   try {
     const updatedUser = await prisma.user.update({
       where: { id: userId },
-      data: { openaiApiKey }
+      data: { openaiApiKey },
     });
     logger.info(`OpenAI API key set for user: ${userId}`);
     return updatedUser;

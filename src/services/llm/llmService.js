@@ -2,7 +2,11 @@
 
 const logger = require('../../utils/logger');
 const { safeStringify } = require('../../utils/helpers');
-const { changeLeadStatusPositive, changeLeadStatusNegative, getGoogleSheetData } = require('./llmFunctions');
+const {
+  changeLeadStatusPositive,
+  changeLeadStatusNegative,
+  getGoogleSheetData,
+} = require('./llmFunctions');
 const AgentChain = require('./agentChain');
 const knowledgeBaseService = require('./knowledgeBaseService');
 
@@ -15,7 +19,9 @@ const agentChains = new Map();
 
 async function generateResponse(lead, messages, campaign) {
   try {
-    logger.info(`Generating response for lead ${safeStringify(lead)} with messages: ${safeStringify(messages)} and campaign: ${safeStringify(campaign)}`);
+    logger.info(
+      `Generating response for lead ${safeStringify(lead)} with messages: ${safeStringify(messages)} and campaign: ${safeStringify(campaign)}`,
+    );
 
     let googleSheetPrompt = '';
     if (campaign.googleSheetUrl) {
@@ -33,13 +39,19 @@ async function generateResponse(lead, messages, campaign) {
     }
 
     // Запускаем AgentChain
-    const response = await agentChain.run(messages[messages.length - 1].content);
+    const response = await agentChain.run(
+      messages[messages.length - 1].content,
+    );
 
     // Проверяем, нужно ли вызвать функцию
     if (response.includes('FUNCTION_CALL:')) {
       const functionName = response.split('FUNCTION_CALL:')[1].trim();
       if (functionName in availableFunctions) {
-        const functionResult = await availableFunctions[functionName](lead, campaign, messages);
+        const functionResult = await availableFunctions[functionName](
+          lead,
+          campaign,
+          messages,
+        );
         return `Function ${functionName} called. Result: ${safeStringify(functionResult)}`;
       }
       return `Function ${functionName} not found.`;

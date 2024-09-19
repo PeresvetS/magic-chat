@@ -3,11 +3,11 @@
 const { TelegramClient } = require('telegram');
 const { StringSession } = require('telegram/sessions');
 const { Api } = require('telegram/tl');
+
 const config = require('../../../config');
 const logger = require('../../../utils/logger');
 const { telegramSessionsRepo } = require('../../../db');
 const { checkAuthorization } = require('./authTelegramService');
-
 
 class MainClientService {
   constructor() {
@@ -52,9 +52,14 @@ class MainClientService {
 
   async authorizeMainClient(getAuthCode, get2FAPassword) {
     if (!this.mainClient) {
-      this.mainClient = new TelegramClient(new StringSession(""), config.API_ID, config.API_HASH, {
-        connectionRetries: 5,
-      });
+      this.mainClient = new TelegramClient(
+        new StringSession(''),
+        config.API_ID,
+        config.API_HASH,
+        {
+          connectionRetries: 5,
+        },
+      );
     }
 
     await this.mainClient.start({
@@ -69,7 +74,10 @@ class MainClientService {
 
     logger.info('Main Telegram client successfully authorized');
     const sessionString = this.mainClient.session.save();
-    await telegramSessionsRepo.saveSession(config.MAIN_TG_PHONE_NUMBER, sessionString);
+    await telegramSessionsRepo.saveSession(
+      config.MAIN_TG_PHONE_NUMBER,
+      sessionString,
+    );
   }
 
   async checkTelegram(phoneNumber) {

@@ -1,8 +1,17 @@
 // src/services/langchain/agentChain.js
 
-const { ChatOpenAI } = require("@langchain/openai");
-const { ChatPromptTemplate, SystemMessagePromptTemplate, HumanMessagePromptTemplate, AIMessagePromptTemplate } = require("@langchain/core/prompts");
-const { RunnableSequence, RunnablePassthrough } = require("@langchain/core/runnables");
+const { ChatOpenAI } = require('@langchain/openai');
+const {
+  ChatPromptTemplate,
+  SystemMessagePromptTemplate,
+  HumanMessagePromptTemplate,
+  AIMessagePromptTemplate,
+} = require('@langchain/core/prompts');
+const {
+  RunnableSequence,
+  RunnablePassthrough,
+} = require('@langchain/core/runnables');
+
 const { countTokens } = require('../tokenizer/tokenizer');
 const logger = require('../../utils/logger');
 const EnhancedMemory = require('./enhancedMemory');
@@ -30,7 +39,7 @@ class AgentChain {
       pineconeEnvironment: config.PINECONE_ENVIRONMENT,
       pineconeIndex: config.PINECONE_INDEX,
       maxTokens: 4000,
-      summaryModelName: "gpt-4o-mini",
+      summaryModelName: 'gpt-4o-mini',
       conversationId: lead.id,
       leadId: lead.id,
     });
@@ -47,22 +56,24 @@ class AgentChain {
         openAIApiKey: this.openaiApiKey,
       });
 
-      const systemPrompt = SystemMessagePromptTemplate.fromTemplate(this.campaign.prompt.content);
-      const googleSheetPrompt = SystemMessagePromptTemplate.fromTemplate(this.googleSheetData || "");
-      const humanTemplate = "{input}";
-      const humanMessagePrompt = HumanMessagePromptTemplate.fromTemplate(humanTemplate);
+      const systemPrompt = SystemMessagePromptTemplate.fromTemplate(
+        this.campaign.prompt.content,
+      );
+      const googleSheetPrompt = SystemMessagePromptTemplate.fromTemplate(
+        this.googleSheetData || '',
+      );
+      const humanTemplate = '{input}';
+      const humanMessagePrompt =
+        HumanMessagePromptTemplate.fromTemplate(humanTemplate);
 
       const chatPrompt = ChatPromptTemplate.fromMessages([
         systemPrompt,
         googleSheetPrompt,
-        { role: "system", content: "{context}" },
+        { role: 'system', content: '{context}' },
         humanMessagePrompt,
       ]);
 
-      const chain = RunnableSequence.from([
-        chatPrompt,
-        llm,
-      ]);
+      const chain = RunnableSequence.from([chatPrompt, llm]);
 
       logger.info(`Created primary agent for campaign: ${this.campaign.id}`);
       return chain;
@@ -73,7 +84,10 @@ class AgentChain {
   }
 
   createSecondaryAgent() {
-    if (!this.campaign.isSecondaryAgentActive || !this.campaign.secondaryPrompt) {
+    if (
+      !this.campaign.isSecondaryAgentActive ||
+      !this.campaign.secondaryPrompt
+    ) {
       return null;
     }
 
@@ -84,15 +98,14 @@ class AgentChain {
         openAIApiKey: this.openaiApiKey,
       });
 
-      const prompt = ChatPromptTemplate.fromTemplate(this.campaign.secondaryPrompt.content);
+      const prompt = ChatPromptTemplate.fromTemplate(
+        this.campaign.secondaryPrompt.content,
+      );
 
-      const chain = RunnableSequence.from([
-        chatPrompt,
-        llm,
-      ]);
+      const chain = RunnableSequence.from([chatPrompt, llm]);
 
       logger.info(`Created secondary agent for campaign: ${this.campaign.id}`);
-      return chain
+      return chain;
     } catch (error) {
       logger.error(`Error creating secondary agent: ${error.message}`);
       throw error;
@@ -110,13 +123,18 @@ class AgentChain {
       const contextString = await this.memory.getContextString(userMessage);
 
       let relevantKnowledge = '';
-      if (this.campaign.knowledgeBases && this.campaign.knowledgeBases.length > 0) {
+      if (
+        this.campaign.knowledgeBases &&
+        this.campaign.knowledgeBases.length > 0
+      ) {
         const knowledgeBlocks = await knowledgeBaseService.getRelevantKnowledge(
           this.campaign.id,
           userMessage,
-          this.campaign.maxKnowledgeBlocks
+          this.campaign.maxKnowledgeBlocks,
         );
-        relevantKnowledge = knowledgeBlocks.map(block => block.pageContent).join('\n\n');
+        relevantKnowledge = knowledgeBlocks
+          .map((block) => block.pageContent)
+          .join('\n\n');
       }
       if (relevantKnowledge) {
         context = `Relevant Knowledge: ${relevantKnowledge}\n\n${contextString}`;
@@ -129,7 +147,7 @@ class AgentChain {
       const runChain = RunnableSequence.from([
         RunnablePassthrough.assign({
           context: () => context,
-          ...this.context
+          ...this.context,
         }),
         this.primaryAgent,
         async (primaryResponse) => {
@@ -141,18 +159,24 @@ class AgentChain {
           let responseText = primaryResponse;
           logger.info(`Primary response: ${safeStringify(primaryResponse)}`);
           if (typeof primaryResponse === 'object') {
-            logger.warn(`Unexpected primary response type: ${typeof primaryResponse}`);
-            responseText = primaryResponse.output || primaryResponse.text || JSON.stringify(primaryResponse);
+            logger.warn(
+              `Unexpected primary response type: ${typeof primaryResponse}`,
+            );
+            responseText =
+              primaryResponse.output ||
+              primaryResponse.text ||
+              JSON.stringify(primaryResponse);
           }
 
-          if (responseText.includes('FUNCTION_CALL:')) { // ?
+          if (responseText.includes('FUNCTION_CALL:')) {
+            // ?
             return responseText;
           }
 
           if (this.campaign.isSecondaryAgentActive && this.secondaryAgent) {
             const secondaryResponse = await this.secondaryAgent.call({
               input: responseText,
-              ...this.context
+              ...this.context,
             });
 
             this.updateTokenCount(responseText, secondaryResponse.text || '');
@@ -161,7 +185,7 @@ class AgentChain {
           }
 
           return responseText;
-        }
+        },
       ]);
 
       logger.info(`Context: ${safeStringify(context)}`);
@@ -170,12 +194,15 @@ class AgentChain {
         input: userMessage,
       });
 
-      let responseString = typeof finalResponse === 'string' ? finalResponse : JSON.stringify(finalResponse);
+      const responseString =
+        typeof finalResponse === 'string'
+          ? finalResponse
+          : JSON.stringify(finalResponse);
 
       // Сохраняем контекст
       await this.memory.saveContext(
         { input: userMessage },
-        { output: responseString }
+        { output: responseString },
       );
 
       this.updateTokenCount(userMessage, responseString);
@@ -190,7 +217,9 @@ class AgentChain {
 
   updateTokenCount(input, output) {
     this.tokenCount += countTokens(input) + countTokens(output);
-    logger.info(`Updated token count for campaign: ${this.campaign.id}. Total: ${this.tokenCount}`);
+    logger.info(
+      `Updated token count for campaign: ${this.campaign.id}. Total: ${this.tokenCount}`,
+    );
   }
 
   getTokenCount() {
@@ -200,7 +229,9 @@ class AgentChain {
   async loadFullConversation() {
     try {
       const conversation = await this.memory.loadFullConversation();
-      logger.info(`Loaded full conversation for lead: ${this.lead.id} in campaign: ${this.campaign.id}`);
+      logger.info(
+        `Loaded full conversation for lead: ${this.lead.id} in campaign: ${this.campaign.id}`,
+      );
       return conversation;
     } catch (error) {
       logger.error(`Error loading full conversation: ${error.message}`);

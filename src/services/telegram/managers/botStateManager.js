@@ -158,38 +158,42 @@ class BotStateManager {
   async getCorrectPeer(phoneNumber, userId) {
     try {
       const cacheKey = `${phoneNumber}_${userId}`;
-      
+
       if (this.peerCache.has(cacheKey)) {
         logger.info('Peer is reused from cache');
         return this.peerCache.get(cacheKey);
       }
-  
+
       logger.info(`Creating new peer for ${phoneNumber} and user ${userId}`);
-      
+
       const session = await this.getSession(phoneNumber);
       logger.info(`Session checked for ${phoneNumber}`);
-  
+
       let entity;
-  
+
       // Попробуем получить сущность пользователя через getInputEntity
       try {
         entity = await session.getInputEntity(Number(userId));
       } catch (error) {
-        logger.warn(`Failed to get entity via getInputEntity for userId ${userId}: ${error.message}`);
+        logger.warn(
+          `Failed to get entity via getInputEntity for userId ${userId}: ${error.message}`,
+        );
       }
-  
+
       if (!entity) {
         // Если не удалось, попробуем получить из контактов
         try {
           const contacts = await session.getContacts();
           entity = contacts.find(
-            (contact) => contact.id.toString() === userId.toString()
+            (contact) => contact.id.toString() === userId.toString(),
           );
         } catch (error) {
-          logger.warn(`Failed to get contacts for userId ${userId}: ${error.message}`);
+          logger.warn(
+            `Failed to get contacts for userId ${userId}: ${error.message}`,
+          );
         }
       }
-  
+
       if (!entity) {
         // Если не удалось, попробуем получить из диалогов
         try {
@@ -199,17 +203,18 @@ class BotStateManager {
             .map((dialog) => dialog.entity)
             .find((entity) => entity.id.toString() === userId.toString());
         } catch (error) {
-          logger.warn(`Failed to get dialogs for userId ${userId}: ${error.message}`);
+          logger.warn(
+            `Failed to get dialogs for userId ${userId}: ${error.message}`,
+          );
         }
       }
-  
+
       if (entity) {
         const newPeer = { peer: entity, session };
         this.peerCache.set(cacheKey, newPeer);
         return newPeer;
-      } else {
-        throw new Error(`Could not find entity for userId ${userId}`);
       }
+      throw new Error(`Could not find entity for userId ${userId}`);
     } catch (error) {
       logger.error(`Error in getCorrectPeer: ${error.message}`);
       if (
@@ -224,7 +229,6 @@ class BotStateManager {
     }
   }
 
-
   hasNewMessageSince(userId, timestamp) {
     const userState = this.getUserState(userId);
     return userState.lastMessageTimestamp > timestamp;
@@ -234,27 +238,27 @@ class BotStateManager {
     logger.info(
       `Начало обработки сообщения для пользователя ${userId}: ${message}`,
     );
-  
+
     const userState = this.getUserState(userId);
     userState.messageBuffer.push(message);
     userState.lastMessageTimestamp = Date.now();
-  
+
     if (userState.processingMessage) {
       logger.info(`Сообщение добавлено в буфер для пользователя ${userId}`);
       return '';
     }
-  
+
     userState.processingMessage = true;
     let status = userState.state;
-  
+
     logger.info(`Состояние бота: ${status}`);
-  
+
     if (userState.state === 'offline' && OnlineStatusManager.isOnline(userId)) {
       status = 'pre-online';
     }
-  
+
     this.resetOfflineTimer(phoneNumber, userId);
-  
+
     try {
       switch (status) {
         case 'offline':
@@ -263,26 +267,30 @@ class BotStateManager {
           break;
         case 'online':
         case 'typing':
-          await retryOperation(() => this.markMessagesAsRead(phoneNumber, userId));
+          await retryOperation(() =>
+            this.markMessagesAsRead(phoneNumber, userId),
+          );
           break;
       }
-  
+
       // Ждем завершения setPreOnline с таймаутом
       const startTime = Date.now();
       while (!userState.preOnlineComplete) {
         if (Date.now() - startTime > RETRY_OPTIONS.TIMEOUT) {
-          logger.warn(`Timeout waiting for preOnline to complete for user ${userId}`);
+          logger.warn(
+            `Timeout waiting for preOnline to complete for user ${userId}`,
+          );
           break;
         }
-        await new Promise(resolve => setTimeout(resolve, 100));
+        await new Promise((resolve) => setTimeout(resolve, 100));
       }
-  
+
       await this.handleTypingState(phoneNumber, userId);
-  
+
       const combinedMessage = userState.messageBuffer.join('\n');
       userState.messageBuffer = [];
       userState.processingMessage = false;
-  
+
       logger.info(`Завершена обработка сообщения для пользователя ${userId}`);
       return combinedMessage || '';
     } catch (error) {

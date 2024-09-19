@@ -49,7 +49,7 @@ Object.entries(config).forEach(([key, value]) => {
     key.includes('TOKEN') ||
     key.includes('KEY') ||
     key.includes('PASSWORD') ||
-    key.includes('URL')  // Добавляем URL в список скрываемых значений
+    key.includes('URL') // Добавляем URL в список скрываемых значений
   ) {
     logger.info(`${key}: ${value ? '[REDACTED]' : 'Not set'}`);
   } else if (key === 'ALLOWED_ADMINS') {

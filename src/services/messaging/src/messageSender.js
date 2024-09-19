@@ -114,9 +114,7 @@ async function sendResponse(
           phoneNumber,
           platform,
         );
-        logger.info(
-          `Message sent to ${userId},   : ${JSON.stringify(result)}`,
-        );
+        logger.info(`Message sent to ${userId},   : ${JSON.stringify(result)}`);
         BotStateManager.resetOfflineTimer(phoneNumber, userId);
 
         await new Promise((resolve) =>

@@ -29,7 +29,7 @@ class RabbitMQQueueRepo {
       }
       return await prisma.messageQueue.update({
         where: { id },
-        data
+        data,
       });
     } catch (error) {
       logger.error(`Ошибка обновления элемента очереди с id ${id}:`, error);
@@ -42,10 +42,10 @@ class RabbitMQQueueRepo {
       return await prisma.messageQueue.findMany({
         where: {
           status: {
-            in: ['pending', 'processing']
-          }
+            in: ['pending', 'processing'],
+          },
         },
-        orderBy: { createdAt: 'asc' }
+        orderBy: { createdAt: 'asc' },
       });
     } catch (error) {
       logger.error('Ошибка получения необработанных элементов очереди:', error);

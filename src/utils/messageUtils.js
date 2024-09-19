@@ -25,8 +25,10 @@ async function retryOperation(operation, options = {}) {
     retryDelay = RETRY_OPTIONS.RETRY_DELAY,
     shouldRetry = RETRY_OPTIONS.SHOULD_RETRY,
     onRetry = (error, attemptNumber) => {
-      logger.warn(`Retry attempt ${attemptNumber} due to error: ${error.message}`);
-    }
+      logger.warn(
+        `Retry attempt ${attemptNumber} due to error: ${error.message}`,
+      );
+    },
   } = options;
 
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
@@ -36,9 +38,9 @@ async function retryOperation(operation, options = {}) {
       if (attempt === maxRetries || !shouldRetry(error)) {
         throw error;
       }
-      
+
       onRetry(error, attempt);
-      await new Promise(resolve => setTimeout(resolve, retryDelay));
+      await new Promise((resolve) => setTimeout(resolve, retryDelay));
     }
   }
 }

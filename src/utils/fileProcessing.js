@@ -1,8 +1,9 @@
 // src/utils/fileProcessing.js
 
-const { PDFLoader } = require("@langchain/community/document_loaders/fs/pdf");
-const { DocxLoader } = require("@langchain/community/document_loaders/fs/docx");
-const { Document } = require("@langchain/core/documents");
+const { PDFLoader } = require('@langchain/community/document_loaders/fs/pdf');
+const { DocxLoader } = require('@langchain/community/document_loaders/fs/docx');
+const { Document } = require('@langchain/core/documents');
+
 const logger = require('./logger');
 
 async function processPDF(filePath) {
@@ -29,7 +30,7 @@ async function processDocx(filePath) {
 
 async function processFile(file) {
   const fileExtension = file.name.split('.').pop().toLowerCase();
-  
+
   switch (fileExtension) {
     case 'pdf':
       return processPDF(file.path);
@@ -41,5 +42,5 @@ async function processFile(file) {
 }
 
 module.exports = {
-  processFile
+  processFile,
 };

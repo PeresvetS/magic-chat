@@ -4,20 +4,17 @@ const logger = require('../../utils/logger');
 const { getUserByTgId } = require('../../db/repositories/userRepo');
 const notificationBot = require('../../bot/notification/notificationBot');
 
-
 async function sendNotification(updatedLead, campaign, lead, messages) {
-    const recentMessages = messages.slice(-6);
+  const recentMessages = messages.slice(-6);
 
-    const messageHistory =
-        recentMessages.length > 0
-        ? recentMessages
-            .map(
-              (msg) => `${msg.role === 'human' ? '👤' : '🤖'} ${msg.content}`,
-            )
-            .join('\n\n')
-        : 'История сообщений недоступна';
+  const messageHistory =
+    recentMessages.length > 0
+      ? recentMessages
+          .map((msg) => `${msg.role === 'human' ? '👤' : '🤖'} ${msg.content}`)
+          .join('\n\n')
+      : 'История сообщений недоступна';
 
-    const message = `
+  const message = `
 Новый успешный лид!
 
 👤 Имя: ${updatedLead.name || 'Не указано'}
@@ -34,16 +31,16 @@ ${updatedLead.bitrixId ? `🔢 Bitrix ID: ${updatedLead.bitrixId}` : ''}
 ${messageHistory}
     `;
 
-    try {
-      for (const telegramId of campaign.notificationTelegramIds) {
-        await notificationBot.sendNotification(telegramId, message);
-      }
-      logger.info(
-        `Notifications sent to ${campaign.notificationTelegramIds.length} recipients for lead ${updatedLead.id}`,
-      );
-    } catch (error) {
-      logger.error('Error sending notifications:', error);
+  try {
+    for (const telegramId of campaign.notificationTelegramIds) {
+      await notificationBot.sendNotification(telegramId, message);
     }
+    logger.info(
+      `Notifications sent to ${campaign.notificationTelegramIds.length} recipients for lead ${updatedLead.id}`,
+    );
+  } catch (error) {
+    logger.error('Error sending notifications:', error);
+  }
 }
 
 module.exports = { sendNotification };

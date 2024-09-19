@@ -6,10 +6,11 @@ async function checkMailingStatus(bot, msg, initialResult, phoneNumber) {
   const maxAttempts = 10;
   let attempts = 0;
   while (attempts < maxAttempts) {
-    await new Promise(resolve => setTimeout(resolve, 5000)); // Ждем 5 секунд между проверками
-    const result = await distributionService.getDistributionResults(initialResult);
-    
-    if (Object.values(result).some(r => r && r.status !== 'queued')) {
+    await new Promise((resolve) => setTimeout(resolve, 5000)); // Ждем 5 секунд между проверками
+    const result =
+      await distributionService.getDistributionResults(initialResult);
+
+    if (Object.values(result).some((r) => r && r.status !== 'queued')) {
       // Отправляем результаты пользователю
       let message = '';
       if (result.telegram && result.telegram.success) {
@@ -50,7 +51,9 @@ async function checkBulkDistributionStatus(bot, chatId, details, campaignId) {
   for (let i = 0; i < details.length; i++) {
     const detail = details[i];
     if (detail.status === 'queued') {
-      const result = await distributionService.getDistributionResults(detail.queueItems);
+      const result = await distributionService.getDistributionResults(
+        detail.queueItems,
+      );
       if (distributionService.isSuccessfulSend(result)) {
         completed++;
         detail.status = 'completed';
@@ -63,7 +66,8 @@ async function checkBulkDistributionStatus(bot, chatId, details, campaignId) {
     }
 
     if ((i + 1) % updateInterval === 0 || i === details.length - 1) {
-      const progressMessage = `Прогресс отправки для кампании ${campaignId}:\n` +
+      const progressMessage =
+        `Прогресс отправки для кампании ${campaignId}:\n` +
         `Обработано: ${i + 1}/${totalItems}\n` +
         `Успешно отправлено: ${completed}\n` +
         `Не удалось отправить: ${failed}`;
@@ -71,16 +75,15 @@ async function checkBulkDistributionStatus(bot, chatId, details, campaignId) {
     }
 
     // Небольшая задержка, чтобы не перегружать систему
-    await new Promise(resolve => setTimeout(resolve, 100));
+    await new Promise((resolve) => setTimeout(resolve, 100));
   }
 
-  const finalMessage = `Рассылка для кампании ${campaignId} завершена.\n` +
+  const finalMessage =
+    `Рассылка для кампании ${campaignId} завершена.\n` +
     `Всего обработано: ${totalItems}\n` +
     `Успешно отправлено: ${completed}\n` +
     `Не удалось отправить: ${failed}`;
   bot.sendMessage(chatId, finalMessage);
 }
-
-
 
 module.exports = { checkMailingStatus, checkBulkDistributionStatus };
