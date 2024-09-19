@@ -12,7 +12,6 @@ const {
 const { leadService } = require('../../../services/leads');
 const { campaignsMailingService } = require('../../../services/campaign');
 const { distributionService } = require('../../../services/mailing');
-const { promptService } = require('../../../services/prompt');
 const logger = require('../../../utils/logger');
 
 async function getCampaignByName(name, bot, chatId) {
