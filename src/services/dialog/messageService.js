@@ -21,7 +21,17 @@ async function getRecentMessages(leadId, limit = 10) {
   }
 }
 
+async function getAllMessages(leadId) {
+  try {
+    return await messageRepo.getAllMessages(leadId);
+  } catch (error) {
+    logger.error(`Error in messageService.getAllMessages: ${error.message}`);
+    throw error;
+  }
+}
+
 module.exports = {
   saveMessage,
   getRecentMessages,
+  getAllMessages,
 };

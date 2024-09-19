@@ -142,9 +142,6 @@ class AgentChain {
         context = contextString;
       }
 
-      logger.info(`Context: ${safeStringify(context)}`);
-      logger.info(`Primary agent: ${safeStringify(this.context)}`);
-
       const runChain = RunnableSequence.from([
         RunnablePassthrough.assign({
           context: () => context,

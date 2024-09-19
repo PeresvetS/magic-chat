@@ -13,8 +13,8 @@ async function saveMessage(leadId, userRequest, assistantResponse, userId) {
             create: { 
               leadId,
               userId,
-              contactId: leadId.toString(), // Используем leadId как contactId
-              platform: 'default' // Добавьте соответствующую платформу или передайте ее как параметр
+              contactId: leadId.toString(),
+              platform: 'default'
             },
           },
         },
@@ -41,7 +41,20 @@ async function getRecentMessages(leadId, limit = 10) {
   }
 }
 
+async function getAllMessages(leadId) {
+  try {
+    return await prisma.message.findMany({
+      where: { dialog: { leadId } },
+      orderBy: { createdAt: 'asc' },
+    });
+  } catch (error) {
+    logger.error(`Error getting all messages: ${error.message}`);
+    throw error;
+  }
+}
+
 module.exports = {
   saveMessage,
   getRecentMessages,
+  getAllMessages,
 };

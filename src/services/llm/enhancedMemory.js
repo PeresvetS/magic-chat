@@ -4,9 +4,7 @@ const { VectorStoreRetrieverMemory } = require('langchain/memory');
 const { PineconeStore } = require('@langchain/pinecone');
 const { OpenAIEmbeddings } = require('@langchain/openai');
 const { Pinecone } = require('@pinecone-database/pinecone');
-const { ConversationSummaryMemory } = require('langchain/memory');
 const { ChatOpenAI } = require('@langchain/openai');
-const { ChatMessageHistory } = require('langchain/stores/message/in_memory');
 const { ChatPromptTemplate } = require('@langchain/core/prompts');
 const { StringOutputParser } = require('@langchain/core/output_parsers');
 const { HumanMessage, AIMessage } = require('@langchain/core/messages');
@@ -26,11 +24,9 @@ class EnhancedMemory {
     this.summaryModelName = args.summaryModelName || 'gpt-4o-mini';
     this.inputKey = 'input';
     this.outputKey = 'output';
-    this.chatHistory = new ChatMessageHistory();
     this.userId = args.userId;
 
     this.vectorStoreMemory = null;
-    this.summaryMemory = null;
 
     this.initializePinecone();
   }
@@ -49,15 +45,6 @@ class EnhancedMemory {
         inputKey: this.inputKey,
         outputKey: this.outputKey,
         memoryKey: 'history',
-      });
-
-      this.summaryMemory = new ConversationSummaryMemory({
-        llm: new ChatOpenAI({
-          modelName: this.summaryModelName,
-          openAIApiKey: this.openAIApiKey,
-        }),
-        chatHistory: this.chatHistory,
-        memoryKey: 'summary',
       });
 
       logger.info(
@@ -82,7 +69,7 @@ class EnhancedMemory {
         this.leadId, 
         input[this.inputKey], 
         output[this.outputKey],
-        this.userId // Добавьте это
+        this.userId
       );
 
       if (this.vectorStore) {
@@ -96,15 +83,6 @@ class EnhancedMemory {
             },
           },
         ]);
-      }
-
-      if (this.chatHistory) {
-        await this.chatHistory.addUserMessage(input[this.inputKey]);
-        await this.chatHistory.addAIChatMessage(output[this.outputKey]);
-      }
-
-      if (this.summaryMemory) {
-        await this.summaryMemory.saveContext(input, output);
       }
 
       logger.info(`Saved context for lead: ${this.leadId}`);
@@ -154,19 +132,6 @@ class EnhancedMemory {
     return { [this.outputKey]: JSON.stringify(values) };
   }
 
-  async saveConversationState(leadId, output, summary) {
-    try {
-      await conversationStateRepo.saveConversationState(
-        leadId,
-        output,
-        summary,
-      );
-      logger.info('Conversation state saved successfully');
-    } catch (error) {
-      logger.error('Error saving conversation state:', error);
-    }
-  }
-
   async loadMemoryVariables(values = {}) {
     try {
       let history = [];
@@ -179,8 +144,6 @@ class EnhancedMemory {
       const recentMessages = await messageService.getRecentMessages(this.leadId, 10);
       let totalTokens = 0;
 
-      logger.info(`Recent messages: ${safeStringify(recentMessages)}`);
-
       for (const message of recentMessages.reverse()) {
         const messageTokens = countTokens(message.userRequest) + countTokens(message.assistantResponse);
         if (totalTokens + messageTokens > this.maxTokens) {
@@ -191,23 +154,17 @@ class EnhancedMemory {
         totalTokens += messageTokens;
       }
 
-      logger.info(`History: ${safeStringify(history)}`);
-
       if (this.vectorStoreMemory) {
         const vectorStoreResult = await this.vectorStoreMemory.loadMemoryVariables(inputForMemory);
         vectorHistory = vectorStoreResult.history || [];
       }
 
-      if (this.summaryMemory) {
-        const summaryResult = await this.summaryMemory.loadMemoryVariables(inputForMemory);
-        summary = summaryResult.summary || '';
-      }
+      // Get all messages beyond the recent 10
+      const allMessages = await messageService.getAllMessages(this.leadId);
+      const messagesToSummarize = allMessages.slice(10);
 
-      // If we have more messages than fit in the token limit, summarize the rest
-      if (recentMessages.length > history.length / 2 || totalTokens >= this.maxTokens) {
-        const messagesToSummarize = recentMessages.slice((history.length / 2));
-        const additionalSummary = await this.summarizeHistory(messagesToSummarize);
-        summary = `${additionalSummary}\n\n${summary}`.trim();
+      if (messagesToSummarize.length > 0) {
+        summary = await this.summarizeHistory(messagesToSummarize);
       }
 
       // Limit summary to 2000 tokens
@@ -278,15 +235,9 @@ class EnhancedMemory {
         [this.inputKey]: userMessage,
       });
 
-      logger.info(`History: ${safeStringify(history)}`);
-      logger.info(`Summary: ${safeStringify(summary)}`);
-      logger.info(`Vector History: ${safeStringify(vectorHistory)}`);
-
       const historyString = Array.isArray(history)
         ? history.map((m) => `${m._getType()}: ${m.content}`).join('\n')
         : '';
-
-      logger.info(`History String: ${safeStringify(historyString)}`);
 
       if (historyString !== '') {
         contextString = `Recent conversation:\n${historyString}\n\n${contextString}`;
@@ -299,10 +250,6 @@ class EnhancedMemory {
       if (vectorHistory !== '') {
         contextString = `Relevant from vector store history: ${vectorHistory}\n\n${contextString}`;
       }
-
-      logger.info(
-        `Generated context string for conversation: ${this.conversationId}`,
-      );
       return contextString;
     } catch (error) {
       logger.error(`Error getting context string: ${error.message}`);
