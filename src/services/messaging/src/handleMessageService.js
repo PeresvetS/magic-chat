@@ -9,6 +9,13 @@ const WhatsAppBotStateManager = require('../../whatsapp/managers/botStateManager
 const WABABotStateManager = require('../../waba/managers/botStateManager');
 const { getActiveCampaignForPhoneNumber } =
   require('../../campaign').campaignsMailingService;
+const voiceService = require('../../voice/voiceService');
+const fileService = require('./fileService');
+const { safeStringify } = require('../../../utils/helpers');
+const { Api } = require('telegram/tl');
+const fs = require('fs').promises;
+const path = require('path');
+const os = require('os');
 
 logger.info('HandleMessageService loaded');
 logger.info(
@@ -34,17 +41,57 @@ async function processIncomingMessage(
       `Starting processIncomingMessage for ${platform}, phone: ${phoneNumber}`,
     );
 
-    const { senderId, messageText } = await extractMessageInfo(event, platform);
-    if (!senderId || !messageText) {
+    const { senderId, messageText, messageType, filePath, message } = await extractMessageInfo(event, platform);
+    logger.info(`Extracted message info: senderId=${senderId}, messageType=${messageType}, filePath=${filePath}`);
+
+    if (!senderId) {
       logger.warn(
         `Invalid message info extracted for ${platform}, phone: ${phoneNumber}`,
       );
       return;
     }
 
-    logger.info(
-      `Processing ${platform} message for ${phoneNumber}: senderId=${senderId}, text=${messageText}`,
-    );
+    let textToProcess = messageText;
+
+    if (messageType === 'document' || messageType === 'photo' || messageType === 'video') {
+      try {
+        await fileService.processFile({ reply: (text) => sendResponse(senderId, text, phoneNumber, platform) }, filePath);
+      } catch (fileError) {
+        logger.error(`Error processing file: ${fileError.message}`);
+        await sendResponse(senderId, 'Извините, произошла ошибка при обработке файла.', phoneNumber, platform);
+      }
+      return;
+    } else if (messageType === 'voice' || messageType === 'audio') {
+      try {
+        if (!filePath) {
+          throw new Error('File ID is undefined for audio message');
+        }
+        logger.info(`Processing audio message with filePath: ${filePath}`);
+        const localFilePath = await fileService.getFileUrl(filePath, platform, phoneNumber, message);
+        logger.info(`Got file path: ${localFilePath}`);
+
+        try {
+          const stats = await fs.stat(localFilePath);
+          if (stats.size === 0) {
+            throw new Error(`File is empty: ${localFilePath}`);
+          }
+          logger.info(`File exists and is not empty, size: ${stats.size} bytes`);
+          
+          textToProcess = await voiceService.transcribeAudio(localFilePath);
+          logger.info(`Transcribed audio: ${textToProcess}`);
+
+          // Удаляем временный файл
+          await fs.unlink(localFilePath).catch(err => logger.warn(`Failed to delete temp file: ${err}`));
+        } catch (fileError) {
+          throw new Error(`Error processing file: ${fileError.message}`);
+        }
+      } catch (audioError) {
+        logger.error(`Error processing audio: ${audioError.message}`);
+        logger.error(`Error stack: ${audioError.stack}`);
+        await sendResponse(senderId, 'Извините, произошла ошибка при обработке аудио сообщения. Пожалуйста, попробуйте отправить текстовое сообщение или другое аудио.', phoneNumber, platform);
+        return;
+      }
+    }
 
     const activeCampaign = await getActiveCampaignForPhoneNumber(phoneNumber);
     logger.info(
@@ -77,12 +124,10 @@ async function processIncomingMessage(
     );
     logger.info(`Lead: ${JSON.stringify(lead)}`);
 
-    const messageToProcess = combinedMessage || messageText;
-
     const response = await processMessage(
       lead,
       senderId,
-      messageToProcess,
+      textToProcess,
       phoneNumber,
       activeCampaign,
     );
@@ -105,6 +150,7 @@ async function processIncomingMessage(
       `Error processing incoming ${platform} message for ${phoneNumber}:`,
       error,
     );
+    await sendResponse(senderId, 'Извините, произошла ошибка при обработке вашего сообщения. Пожалуйста, попробуйте еще раз позже.', phoneNumber, platform);
   }
 }
 
@@ -136,21 +182,42 @@ async function extractMessageInfo(event, platform) {
       chatId: event.chatId,
     };
   }
-  const { message } = event;
-  if (!message) {
+  
+  // Для Telegram
+  if (!event || !event.message) {
     logger.warn('Telegram event does not contain a message');
     return {};
   }
 
-  let chatId = message.chatId ? message.chatId.toString() : null;
-  if (!chatId && message.chat && message.chat.id) {
-    chatId = message.chat.id.toString();
+  const { message } = event;
+
+  let chatId = message.peerId ? message.peerId.userId.toString() : null;
+
+  let messageType = 'text';
+  let messageText = message.text || '';
+  let filePath = null;
+
+  logger.info(`Extracting message info: ${JSON.stringify(message)}`);
+
+  if (message.media) {
+    if (message.media instanceof Api.MessageMediaDocument) {
+      const document = message.media.document;
+      if (document.mimeType === 'audio/ogg') {
+        messageType = 'voice';
+        filePath = document.id.toString();
+      } else {
+        messageType = 'document';
+        filePath = document.id.toString();
+      }
+    } else if (message.media instanceof Api.MessageMediaPhoto) {
+      messageType = 'photo';
+      filePath = message.media.photo.id.toString();
+    }
   }
 
-  // Добавим проверку на наличие текста сообщения
-  const messageText = message.text || message.caption || '';
+  logger.info(`Extracted message info: chatId=${chatId}, messageType=${messageType}, filePath=${filePath}`);
 
-  return { senderId: chatId, messageText };
+  return { senderId: chatId, messageText, messageType, filePath, message };
 }
 
 async function getLeadIdByChatId(chatId, platform) {

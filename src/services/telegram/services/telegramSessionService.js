@@ -434,7 +434,7 @@ class TelegramSessionService {
 
     const client = new TelegramClient(
       stringSession,
-      config.API_ID,
+      parseInt(config.API_ID),
       config.API_HASH,
       {
         connectionRetries: 3,

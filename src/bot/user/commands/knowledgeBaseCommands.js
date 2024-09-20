@@ -139,7 +139,7 @@ module.exports = {
         const fileName = msg.document.file_name;
         
         // Создаем директорию temp, если она не существует
-        const tempDir = path.join(__dirname, '..', '..', '..', 'temp');
+        const tempDir = path.join(__dirname, '..', '..', '..', '..', 'temp');
         if (!fs.existsSync(tempDir)) {
           fs.mkdirSync(tempDir, { recursive: true });
         }

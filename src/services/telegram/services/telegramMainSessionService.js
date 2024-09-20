@@ -22,6 +22,9 @@ class TelegramMainSessionService {
   }
 
   async initializeMainClient() {
+    logger.info('Initializing main Telegram client');
+    logger.info(`API_ID: ${config.API_ID}, API_HASH: ${config.API_HASH}`);
+    
     const sessionData = await telegramSessionsRepo.getSession(
       config.MAIN_TG_PHONE_NUMBER,
     );
@@ -29,7 +32,7 @@ class TelegramMainSessionService {
       const stringSession = new StringSession(sessionData.session);
       this.mainClient = new TelegramClient(
         stringSession,
-        config.API_ID,
+        parseInt(config.API_ID),
         config.API_HASH,
         {
           connectionRetries: 5,
@@ -54,7 +57,7 @@ class TelegramMainSessionService {
     if (!this.mainClient) {
       this.mainClient = new TelegramClient(
         new StringSession(''),
-        config.API_ID,
+        parseInt(config.API_ID),
         config.API_HASH,
         {
           connectionRetries: 5,

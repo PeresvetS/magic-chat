@@ -8,6 +8,7 @@ const config = {
   API_HASH: process.env.API_HASH,
   PORT: process.env.PORT || 3000,
   API_KEY: process.env.API_KEY,
+  GROQ_API_KEY: process.env.GROQ_API_KEY,
   POSTGRES_URL: process.env.POSTGRES_URL,
   POSTGRES_USER: process.env.POSTGRES_USER,
   POSTGRES_PORT: process.env.POSTGRES_PORT,
