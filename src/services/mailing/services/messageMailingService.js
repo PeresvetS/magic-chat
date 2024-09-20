@@ -5,6 +5,7 @@ const { WABASessionService } = require('../../waba');
 const { leadService } = require('../../leads/src/leadService');
 const { TelegramSessionService } = require('../../telegram');
 const { WhatsAppSessionService } = require('../../whatsapp');
+const { Api } = require('telegram/tl');
 const {
   getCampaigUserId,
 } = require('../../campaign/src/campaignsMailingService');
@@ -22,76 +23,12 @@ async function sendTelegramMessage({
   recipientPhoneNumber,
   message,
 }) {
-  if (!campaignId) {
-    logger.error('Campaign ID is undefined');
-    return { success: false, error: 'CAMPAIGN_ID_UNDEFINED' };
-  }
-
-  logger.info(
-    `Отправка сообщения с ID кампании ${campaignId} от ${senderPhoneNumber} к ${recipientPhoneNumber}`,
-  );
   try {
-    const userId = await getCampaigUserId(campaignId);
-    logger.info(`Отправка рассылки от пользователя ID с ${userId}`);
-
-    if (!(await checkDailyPhoneNumberLimit(senderPhoneNumber, 'telegram'))) {
-      logger.warn(
-        `Достигнут дневной лимит Telegram для номера телефона: ${senderPhoneNumber}`,
-      );
-      return { success: false, error: 'DAILY_LIMIT_REACHED' };
-    }
-
-    const client =
-      await TelegramSessionService.createOrGetSession(senderPhoneNumber);
-
-    if (!(await client.isUserAuthorized())) {
-      logger.error(`Клиент Telegram для ${senderPhoneNumber} не авторизован`);
-      return { success: false, error: 'CLIENT_NOT_AUTHORIZED' };
-    }
-
-    await applyDelay('telegram');
-
-    const recipient = await client.getEntity(recipientPhoneNumber);
-    if (!recipient) {
-      await leadService.setLeadUnavailable(recipientPhoneNumber);
-      throw new Error(
-        `Не удалось найти пользователя ${recipientPhoneNumber} в Telegram`,
-      );
-    }
-    const result = await client.sendMessage(recipientPhoneNumber, { message });
-
-    // const peer_id = recipient.id.toString();
-    // await updateOrCreateLeadChatId(
-    //   campaignId,
-    //   recipientPhoneNumber,
-    //   peer_id,
-    //   'telegram',
-    // );
-
-    const isNewContact = await chetkIsNewContact(userId, recipient.id, 'telegram');
-    await updateMessagePhoneNumberCount(
-      senderPhoneNumber,
-      isNewContact,
-      'telegram',
-    );
-    await saveDialog(
-      userId,
-      recipient.id,
-      'telegram',
-      '',
-      message,
-      recipientPhoneNumber,
-    );
-    logger.info(
-      `Сообщение отправлено на ${recipientPhoneNumber} через Telegram с ${senderPhoneNumber}`,
-    );
-    return { success: true, messageId: result.id };
+    const result = await TelegramSessionService.sendTelegramMessage(recipientPhoneNumber, senderPhoneNumber, campaignId, message);
+    return { success: true, messageId: result.id, status: 'completed' };
   } catch (error) {
-    logger.error(
-      `Ошибка отправки сообщения Telegram для кампании ${campaignId} на ${recipientPhoneNumber}:`,
-      error,
-    );
-    return { success: false, error: error.message };
+    logger.error(`Error sending Telegram message for campaign ${campaignId} to ${recipientPhoneNumber}:`, error);
+    return { success: false, error: error.message, status: 'failed' };
   }
 }
 
@@ -153,7 +90,7 @@ async function sendWABAMessage({
     return { success: true, messageId: result.id };
   } catch (error) {
     logger.error(
-      `Ошибка отправки сообщения WABA для кампании ${campaignId} на ${recipientPhoneNumber}:`,
+      `Ошика отправки сообщения WABA для кампании ${campaignId} на ${recipientPhoneNumber}:`,
       error,
     );
     return { success: false, error: error.message };

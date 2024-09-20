@@ -88,15 +88,60 @@ class TelegramMainSessionService {
     try {
       const client = await this.getMainClient();
       const result = await client.invoke(
-        new Api.contacts.ResolvePhone({
-          phone: phoneNumber,
-        }),
+        new Api.contacts.ImportContacts({
+          contacts: [
+            new Api.InputPhoneContact({
+              clientId: BigInt(Math.floor(Math.random() * 1000000000)),
+              phone: phoneNumber,
+              firstName: "Search",
+              lastName: "User",
+            }),
+          ],
+        })
       );
 
       return result.users && result.users.length > 0;
     } catch (error) {
       logger.error(`Error checking Telegram for number ${phoneNumber}:`, error);
       return false;
+    }
+  }
+
+  async findUserByPhoneNumber(phoneNumber) {
+    logger.info(`Searching for user with phone number: ${phoneNumber}`);
+    try {
+      const client = await this.getMainClient();
+      
+      const result = await client.invoke(
+        new Api.contacts.ImportContacts({
+          contacts: [
+            new Api.InputPhoneContact({
+              clientId: BigInt(Math.floor(Math.random() * 1000000000)),
+              phone: phoneNumber,
+              firstName: "Search",
+              lastName: "User",
+            }),
+          ],
+        })
+      );
+
+      if (result.users && result.users.length > 0) {
+        const user = result.users[0];
+        logger.info(`User found: ${user.id}`);
+        
+        // Получаем полную информацию о пользователе
+        const fullUser = await client.invoke(new Api.users.GetFullUser({
+          id: user.id
+        }));
+        
+        return fullUser.user;
+      } else {
+        logger.info(`User not found for phone number: ${phoneNumber}`);
+        return null;
+      }
+    } catch (error) {
+      logger.error(`Error searching for user with phone number ${phoneNumber}:`, error);
+      throw error;
     }
   }
 }

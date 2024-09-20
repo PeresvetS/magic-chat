@@ -63,28 +63,26 @@ async function processIncomingMessage(
       return;
     } else if (messageType === 'voice' || messageType === 'audio') {
       try {
-        if (!filePath) {
-          throw new Error('File ID is undefined for audio message');
+        if (!message || !message.media) {
+          throw new Error('Message does not contain media');
         }
-        logger.info(`Processing audio message with filePath: ${filePath}`);
-        const localFilePath = await fileService.getFileUrl(filePath, platform, phoneNumber, message);
+        
+        logger.info(`Processing audio message for ${platform}`);
+        
+        let localFilePath;
+        if (platform === 'telegram') {
+          localFilePath = await fileService.downloadTelegramVoiceMessage(message);
+        } else {
+          localFilePath = await fileService.getFileUrl(filePath, platform, phoneNumber, message);
+        }
+        
         logger.info(`Got file path: ${localFilePath}`);
 
-        try {
-          const stats = await fs.stat(localFilePath);
-          if (stats.size === 0) {
-            throw new Error(`File is empty: ${localFilePath}`);
-          }
-          logger.info(`File exists and is not empty, size: ${stats.size} bytes`);
-          
-          textToProcess = await voiceService.transcribeAudio(localFilePath);
-          logger.info(`Transcribed audio: ${textToProcess}`);
+        textToProcess = await voiceService.transcribeAudio(localFilePath);
+        logger.info(`Transcribed audio: ${textToProcess}`);
 
-          // Удаляем временный файл
-          await fs.unlink(localFilePath).catch(err => logger.warn(`Failed to delete temp file: ${err}`));
-        } catch (fileError) {
-          throw new Error(`Error processing file: ${fileError.message}`);
-        }
+        // Удаляем временный файл
+        await fs.unlink(localFilePath).catch(err => logger.warn(`Failed to delete temp file: ${err}`));
       } catch (audioError) {
         logger.error(`Error processing audio: ${audioError.message}`);
         logger.error(`Error stack: ${audioError.stack}`);
@@ -135,7 +133,7 @@ async function processIncomingMessage(
 
     if (response) {
       logger.info(`Sending response to user ${senderId}: ${response}`);
-      await sendResponse(senderId, response, phoneNumber, platform);
+      await sendResponse(senderId, response, phoneNumber, platform); // добавить сохранение инфо, что ответ отправлен
     } else {
       logger.warn(
         `No response generated for ${platform} message from ${senderId}`,

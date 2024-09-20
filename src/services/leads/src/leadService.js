@@ -3,7 +3,7 @@
 const { leadsRepo } = require('../../../db');
 const logger = require('../../../utils/logger');
 const { getUserIdByTelegramId } = require('../../user').userService;
-const { campaignMailingService } = require('../../campaign');
+const { campaignsMailingService } = require('../../campaign');
 const { formatPhoneNumber } = require('../../../utils/phoneHelpers');
 
 async function getLead(id) {
@@ -76,8 +76,7 @@ async function attachLeadsDBToCampaignByName(leadsDBName, campaignName, telegram
       `attachLeadsDBToCampaignByName: ${leadsDBName}, ${campaignName}, ${telegramId}`,
     );
     const leadsDB = await getLeadsDBByName(telegramId, leadsDBName);
-    const campaign =
-      await campaignMailingService.getCampaignByName(campaignName);
+    const campaign = await campaignsMailingService.getCampaignByName(campaignName);
     if (!campaign) {
       throw new Error(`Кампания "${campaignName}" не найдена.`);
     }
@@ -95,7 +94,7 @@ async function detachLeadsDBFromCampaignByName(leadsDBName, campaignName, telegr
     );
     const leadsDB = await getLeadsDBByName(telegramId, leadsDBName);
     const campaign =
-      await campaignMailingService.getCampaignByName(campaignName);
+      await campaignsMailingService.getCampaignByName(campaignName);
     if (!campaign) {
       throw new Error(`Кампания "${campaignName}" не найдена.`);
     }
@@ -210,7 +209,7 @@ async function getOrCreatetLeadByPhone(phone, platform, chatId, campaignId) {
     );
 
     // Получаем кампанию
-    const campaign = await campaignMailingService.getCampaignById(campaignId);
+    const campaign = await campaignsMailingService.getCampaignById(campaignId);
     if (!campaign) {
       throw new Error(`Campaign with id ${campaignId} not found`);
     }

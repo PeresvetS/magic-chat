@@ -2,8 +2,7 @@
 
 const Groq = require('groq-sdk');
 const axios = require('axios');
-const fs = require('fs');
-const fsPromises = require('fs').promises;
+const fs = require('fs').promises;
 const os = require('os');
 const path = require('path');
 const logger = require('../../utils/logger');
@@ -18,37 +17,20 @@ async function transcribeAudio(fileUrl) {
   
   logger.info(`Начало транскрипции аудио файла: ${fileUrl}`);
   try {
-    // Проверяем, является ли fileUrl локальным путем
-    if (fileUrl.startsWith('/')) {
-      // Проверяем существование и размер файла
-      const stats = await fsPromises.stat(fileUrl);
-      if (stats.size === 0) {
-        throw new Error(`File is empty: ${fileUrl}`);
-      }
-
-      const transcription = await groq.audio.transcriptions.create({
-        file: fs.createReadStream(fileUrl),
-        model: "whisper-large-v3",
-        language: "ru",
-      });
-      
-      logger.info('Аудио успешно транскрибировано');
-      return transcription.text;
-    } else {
-      // Если это URL, сначала скачиваем файл
-      const tempFilePath = await downloadFile(fileUrl);
-      
-      const transcription = await groq.audio.transcriptions.create({
-        file: fs.createReadStream(tempFilePath),
-        model: "whisper-large-v3",
-        language: "ru",
-      });
-      
-      await fsPromises.unlink(tempFilePath);
-      
-      logger.info('Аудио успешно транскрибировано');
-      return transcription.text;
+    // Проверяем существование и размер файла
+    const stats = await fs.stat(fileUrl);
+    if (stats.size === 0) {
+      throw new Error(`File is empty: ${fileUrl}`);
     }
+
+    const transcription = await groq.audio.transcriptions.create({
+      file: fs.createReadStream(fileUrl),
+      model: "whisper-large-v3",
+      language: "ru",
+    });
+    
+    logger.info('Аудио успешно транскрибировано');
+    return transcription.text;
   } catch (error) {
     logger.error('Ошибка при транскрипции аудио:', error);
     throw new Error('Не удалось транскрибировать аудио: ' + error.message);

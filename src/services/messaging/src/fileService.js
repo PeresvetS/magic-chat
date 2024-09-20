@@ -9,6 +9,7 @@ const logger = require('../../../utils/logger');
 const WABASessionService = require('../../waba/services/WABASessionService');
 const WhatsAppMainSessionService = require('../../whatsapp/services/WhatsAppMainSessionService');
 const TelegramMainSessionService = require('../../telegram/services/telegramMainSessionService');
+const TelegramSessionService = require('../../telegram/services/telegramSessionService');
 const { Api } = require('telegram');
 
 async function processFile(ctx, filePath) {
@@ -61,33 +62,11 @@ async function getTelegramFileUrl(message) {
         logger.info(`Created temp directory: ${tempDir}`);
 
         const tempFilePath = path.join(tempDir, `telegram_file_${Date.now()}.ogg`);
-        
+
         logger.info(`Attempting to download file to: ${tempFilePath}`);
 
-        // Попытка получить обновленную информацию о сообщении
-        logger.info(`Attempting to refresh message info for message ID: ${message.id}`);
-        const refreshedMessages = await client.invoke(new Api.messages.GetMessages({
-            id: [new Api.InputMessageID({id: message.id})]
-        }));
-        logger.info(`Refreshed messages: ${JSON.stringify(refreshedMessages)}`);
-
-        if (!refreshedMessages || !refreshedMessages.messages || refreshedMessages.messages.length === 0) {
-            throw new Error('Failed to get any messages');
-        }
-
-        const refreshedMessage = refreshedMessages.messages[0];
-        logger.info(`Refreshed message: ${JSON.stringify(refreshedMessage)}`);
-
-        if (!refreshedMessage || !refreshedMessage.media || !refreshedMessage.media.document) {
-            throw new Error('Refreshed message does not contain media or document');
-        }
-
-        const document = refreshedMessage.media.document;
-        logger.info(`Document info: ${JSON.stringify(document)}`);
-
-        // Попытка скачать файл целиком
-        logger.info(`Attempting to download entire file`);
-        const file = await client.downloadMedia(refreshedMessage.media, {
+        // Download the media directly from the original message
+        const file = await client.downloadMedia(message.media, {
             outputFile: tempFilePath
         });
 
@@ -95,7 +74,7 @@ async function getTelegramFileUrl(message) {
             throw new Error('Failed to download file');
         }
 
-        // Проверяем размер файла
+        // Check the size of the file
         const stats = await fs.stat(tempFilePath);
         logger.info(`File stats: ${JSON.stringify(stats)}`);
         if (stats.size === 0) {
@@ -144,9 +123,54 @@ async function saveTemporaryFile(mediaMessage) {
   return tempFilePath;
 }
 
+async function downloadTelegramVoiceMessage(message) {
+    try {
+      if (!message.media || !(message.media instanceof Api.MessageMediaDocument)) {
+        throw new Error('Message does not contain a document');
+      }
+  
+      const document = message.media.document;
+      const mimeType = document.mimeType;
+      if (!mimeType.startsWith('audio/')) {
+        throw new Error('Document is not an audio file');
+      }
+  
+      const client = await TelegramSessionService.createOrGetSession(message.peerId.userId);
+      
+      const tempDir = path.join(__dirname, '..', '..', '..', '..', 'temp', 'voice');
+      await fs.mkdir(tempDir, { recursive: true });
+      
+      const tempFilePath = path.join(tempDir, `voice_${Date.now()}.ogg`);
+  
+      // Download the media directly from the original message
+      const file = await client.downloadMedia(message.media, {
+        outputFile: tempFilePath
+      });
+  
+      if (!file) {
+        throw new Error('Failed to download file');
+      }
+  
+      // Check the size of the file
+      const stats = await fs.stat(tempFilePath);
+      if (stats.size === 0) {
+        throw new Error(`Downloaded file is empty: ${tempFilePath}`);
+      }
+  
+      logger.info(`Successfully downloaded Telegram voice message to: ${tempFilePath}, size: ${stats.size} bytes`);
+      return tempFilePath;
+    } catch (error) {
+      logger.error(`Error downloading Telegram voice message: ${error.message}`);
+      logger.error(`Error stack: ${error.stack}`);
+      throw error;
+    }
+  }
+
 module.exports = {
     processFile,
     getFileUrl,
+    getTelegramFileUrl, // Add this export
+    downloadTelegramVoiceMessage
 };
 
 

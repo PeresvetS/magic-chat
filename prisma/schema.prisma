@@ -326,7 +326,7 @@ model WhatsappSession {
 
 model Dialog {
   id           Int       @id @default(autoincrement())
-  leadId       Int       @unique // Добавьте это поле
+  leadId       Int       @unique 
   userId       Int
   contactId    String
   contactPhone String?
@@ -345,7 +345,7 @@ model Message {
   dialogId          Int
   userRequest       String
   assistantResponse String
-  createdAt         DateTime @default(now())
+  createdAt         DateTime @default(now()) // добавить статус NEW / GENERATED / DELIVERING / SENT / ERROR
 }
 
 model Prompt {

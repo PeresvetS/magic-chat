@@ -4,8 +4,7 @@ const logger = require('../../../utils/logger');
 const gptService = require('../../llm/llmService');
 const { leadService } = require('../../leads/src/leadService');
 const { saveMessageStats } = require('../../stats/statsService');
-const { saveDialogToFile } = require('../../../utils/messageUtils');
-const { campaignMailingService } = require('../../campaign');
+const { campaignsMailingService } = require('../../campaign');
 const {
   getPendingConversationStates,
 } = require('../../conversation/conversationState');
@@ -33,7 +32,7 @@ async function processMessage(lead, senderId, message, phoneNumber, campaign) {
     await saveMessageStats(senderId, phoneNumber, tokenCount);
     logger.info(`Saved message stats for ${senderId}`);
 
-    await saveDialogToFile(senderId, message, response);
+    // await saveDialogToFile(senderId, message, response);
     logger.info(`Saved dialog to file for ${senderId}`);
 
     return response;
@@ -50,7 +49,7 @@ async function processPendingMessages() {
     for (const state of pendingStates) {
       const lead = await leadService.getLeadById(state.leadId);
       if (lead) {
-        const campaign = await campaignMailingService.getCampaignById(
+        const campaign = await campaignsMailingService.getCampaignById(
           lead.campaignId,
         );
         if (campaign) {

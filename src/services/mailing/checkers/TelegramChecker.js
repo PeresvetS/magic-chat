@@ -1,9 +1,9 @@
 // src/services/mailing/checkers/telegramChecker.js
 
 const { Api } = require('telegram/tl');
-
 const logger = require('../../../utils/logger');
 const { TelegramMainSessionService } = require('../../telegram');
+const telegramSessionService = require('../../telegram/services/telegramSessionService');
 
 class TelegramChecker {
   constructor() {
@@ -24,13 +24,13 @@ class TelegramChecker {
     try {
       await this.initialize();
 
-      const result = await this.client.invoke(
-        new Api.contacts.ResolvePhone({
-          phone: phoneNumber,
-        }),
-      );
+      // Обновляем кэш сущностей
+      logger.info('Updating entity cache...');
+      await this.client.getDialogs({limit: 1});
+      logger.info('Entity cache updated');
 
-      return result.users && result.users.length > 0;
+      const user = await telegramSessionService.findUserByPhoneNumber(phoneNumber, this.client);
+      return user !== null;
     } catch (error) {
       logger.error(`Error checking Telegram for number ${phoneNumber}:`, error);
       return false;

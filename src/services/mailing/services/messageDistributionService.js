@@ -142,7 +142,7 @@ class MessageDistributionService {
           queueItems: result,
         });
 
-        // Добавляем небольшую задержку между постановками в очередь
+        // Добавляем небольшую задержку меду постановками в очередь
         await new Promise((resolve) => setTimeout(resolve, 100));
       } catch (error) {
         logger.error(
@@ -165,9 +165,22 @@ class MessageDistributionService {
     return results;
   }
 
+  isSuccessfulSend(result) {
+    return Object.values(result).some(
+      (platformResult) =>
+        platformResult &&
+        (platformResult.success ||
+          (platformResult.status && platformResult.status === 'completed'))
+    );
+  }
+
   getSuccessfulPlatform(result) {
     for (const platform of ['telegram', 'whatsapp', 'waba', 'tgwa', 'tgwaba']) {
-      if (result[platform] && result[platform].success) {
+      if (
+        result[platform] &&
+        (result[platform].success ||
+          (result[platform].status && result[platform].status === 'completed'))
+      ) {
         return platform;
       }
     }
@@ -256,20 +269,25 @@ class MessageDistributionService {
     for (const platform of Object.keys(updatedResults)) {
       if (updatedResults[platform] && updatedResults[platform].queueItemId) {
         const queueItem = await RabbitMQQueueService.getQueueItem(
-          updatedResults[platform].queueItemId,
+          updatedResults[platform].queueItemId
         );
 
         if (queueItem) {
-          if (queueItem.status === 'completed') {
-            updatedResults[platform] = JSON.parse(queueItem.result);
-          } else if (queueItem.status === 'failed') {
-            updatedResults[platform] = {
-              success: false,
-              error: queueItem.errorMessage,
-            }; // ?
-          } else {
-            // Для статусов 'pending' и 'processing'
-            updatedResults[platform] = { status: queueItem.status };
+          updatedResults[platform] = {
+            status: queueItem.status,
+            success: queueItem.status === 'completed',
+            result: queueItem.result,
+            error: queueItem.status === 'failed' ? queueItem.result : null,
+          };
+
+          // Если result - это строка, пытаемся разобрать её как JSON
+          if (typeof updatedResults[platform].result === 'string') {
+            try {
+              updatedResults[platform].result = JSON.parse(updatedResults[platform].result);
+            } catch (e) {
+              logger.warn(`Failed to parse result as JSON for queue item ${updatedResults[platform].queueItemId}: ${e.message}`);
+              // Оставляем result как есть, если не удалось разобрать JSON
+            }
           }
         } else {
           logger.warn(
@@ -277,6 +295,9 @@ class MessageDistributionService {
           );
           updatedResults[platform] = { status: 'unknown' };
         }
+      } else {
+        // Если queueItemId отсутствует, оставляем платформу как null
+        updatedResults[platform] = null;
       }
     }
 

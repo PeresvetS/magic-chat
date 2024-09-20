@@ -103,13 +103,15 @@ class RabbitMQQueueService {
 
   async markAsCompleted(queueItem, result) {
     try {
-      await rabbitMQQueueRepo.updateQueueItem(queueItem.id, {
+      const updatedItem = await rabbitMQQueueRepo.updateQueueItem(queueItem.id, {
         status: 'completed',
         result: JSON.stringify(result),
         updatedAt: new Date(),
       });
-      queueItem.ackFunction();
-      logger.info('Сообщение успешно обработано и подтверждено');
+      if (updatedItem.status !== 'completed') {
+        logger.warn(`Failed to mark queue item ${queueItem.id} as completed`);
+      }
+      logger.info(`Queue item ${queueItem.id} marked as completed`);
     } catch (error) {
       logger.error('Ошибка при подтверждении сообщения:', error);
       throw error;
@@ -172,9 +174,32 @@ class RabbitMQQueueService {
         return null;
       }
 
+      // Добавим дополнительную проверку и обработку статуса
+      if (item.status === 'completed' && item.result) {
+        try {
+          item.result = JSON.parse(item.result);
+        } catch (e) {
+          logger.warn(`Failed to parse result for queue item ${id}`, e);
+        }
+      }
+
       return item;
     } catch (error) {
       logger.error(`Error getting queue item with id ${id}:`, error);
+      throw error;
+    }
+  }
+
+  async updateQueueItemStatus(id, status, result) {
+    try {
+      await rabbitMQQueueRepo.updateQueueItem(id, {
+        status,
+        result: JSON.stringify(result),
+        updatedAt: new Date(),
+      });
+      logger.info(`Queue item ${id} status updated to ${status}`);
+    } catch (error) {
+      logger.error(`Error updating queue item ${id} status:`, error);
       throw error;
     }
   }

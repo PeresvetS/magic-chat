@@ -11,6 +11,7 @@ const {
   sendTgAndWa,
   sendTgAndWABA,
 } = require('./messageMailingService');
+const { safeStringify } = require('../../../utils/helpers');
 
 const MAX_RETRIES = 3;
 const INITIAL_RETRY_DELAY = 5000; // 5 seconds
@@ -45,6 +46,7 @@ async function processQueue(initialQueueItem = null) {
       const result = await processSingleQueueItem(queueItem);
       if (queueItem.ackFunction && typeof queueItem.ackFunction === 'function') {
         await RabbitMQQueueService.markAsCompleted(queueItem, result);
+        queueItem.ackFunction(); // Подтверждаем обработку сообщения
       } else {
         logger.warn('Invalid queue item or missing ackFunction:', queueItem);
       }
@@ -54,12 +56,13 @@ async function processQueue(initialQueueItem = null) {
         await handleFloodWait(queueItem, error);
       } else if (queueItem.nackFunction && typeof queueItem.nackFunction === 'function') {
         await RabbitMQQueueService.markAsFailed(queueItem, error.message);
+        queueItem.nackFunction(); // Возвращаем сообщение в очередь
       } else {
         logger.warn('Invalid queue item or missing nackFunction:', queueItem);
       }
     }
 
-    queueItem = null;
+    queueItem = null; // Сбрасываем queueItem после обработки
   }
 }
 
@@ -81,6 +84,13 @@ async function processSingleQueueItem(queueItem) {
     throw new Error('Invalid queue item');
   }
 
+  // Проверяем, не было ли сообщение уже отправлено
+  const existingItem = await RabbitMQQueueService.getQueueItem(queueItem.id);
+  if (existingItem && existingItem.status === 'completed') {
+    logger.info(`Queue item ${queueItem.id} already processed. Skipping.`);
+    return { success: true, status: 'already_processed' };
+  }
+
   let result;
   logger.info(
     `Processing queue item ${queueItem.recipientPhoneNumber} with campaign_id ${queueItem.campaignId}`,
@@ -93,48 +103,57 @@ async function processSingleQueueItem(queueItem) {
     platform: queueItem.platform,
   };
 
-  switch (queueItem.platform) {
-    case 'telegram':
-      result = await sendTelegramMessage(queueArgs);
-      break;
-    case 'whatsapp':
-      result = await sendWhatsAppMessage(queueArgs);
-      break;
-    case 'waba':
-      result = await sendWABAMessage(queueArgs);
-      break;
-    case 'tgwa':
-      result = await sendTgAndWa(queueArgs);
-      break;
-    case 'tgwaba':
-      result = await sendTgAndWABA(queueArgs);
-      break;
-    default:
-      throw new Error(`Unsupported platform: ${queueItem.platform}`);
-  }
-
-  if (result.success) {
-    return { [queueItem.platform]: result };
-  } else if (result.error === 'DAILY_LIMIT_REACHED') {
-    const newSenderPhoneNumber = await PhoneNumberManagerService.switchToNextPhoneNumber(
-      queueItem.campaignId,
-      queueItem.senderPhoneNumber,
-      queueItem.platform,
-    );
-    if (newSenderPhoneNumber) {
-      await RabbitMQQueueService.enqueue(
-        queueItem.campaignId,
-        queueItem.message,
-        queueItem.recipientPhoneNumber,
-        queueItem.platform,
-        newSenderPhoneNumber,
-      );
-      return { success: true, message: 'Requeued with new sender phone number' };
-    } else {
-      throw new Error('No available phone numbers');
+  try {
+    switch (queueItem.platform) {
+      case 'telegram':
+        result = await sendTelegramMessage(queueArgs);
+        break;
+      case 'whatsapp':
+        result = await sendWhatsAppMessage(queueArgs);
+        break;
+      case 'waba':
+        result = await sendWABAMessage(queueArgs);
+        break;
+      case 'tgwa':
+        result = await sendTgAndWa(queueArgs);
+        break;
+      case 'tgwaba':
+        result = await sendTgAndWABA(queueArgs);
+        break;
+      default:
+        throw new Error(`Unsupported platform: ${queueItem.platform}`);
     }
-  } else {
-    throw new Error(result.error);
+
+    logger.info(`Result of processing queue item ${queueItem.id}: ${safeStringify(result)}`);
+
+    if (result.success || result.status === 'completed') {
+      await RabbitMQQueueService.updateQueueItemStatus(queueItem.id, 'completed', result);
+      return { [queueItem.platform]: result };
+    } else if (result.error === 'DAILY_LIMIT_REACHED') {
+      const newSenderPhoneNumber = await PhoneNumberManagerService.switchToNextPhoneNumber(
+        queueItem.campaignId,
+        queueItem.senderPhoneNumber,
+        queueItem.platform,
+      );
+      if (newSenderPhoneNumber) {
+        await RabbitMQQueueService.enqueue(
+          queueItem.campaignId,
+          queueItem.message,
+          queueItem.recipientPhoneNumber,
+          queueItem.platform,
+          newSenderPhoneNumber,
+        );
+        await RabbitMQQueueService.updateQueueItemStatus(queueItem.id, 'requeued', { message: 'Requeued with new sender phone number' });
+        return { success: true, message: 'Requeued with new sender phone number' };
+      } else {
+        throw new Error('No available phone numbers');
+      }
+    } else {
+      throw new Error(result.error || 'Unknown error occurred');
+    }
+  } catch (error) {
+    await RabbitMQQueueService.updateQueueItemStatus(queueItem.id, 'failed', { error: error.message });
+    throw error;
   }
 }
 
