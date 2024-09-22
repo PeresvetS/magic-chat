@@ -15,16 +15,14 @@ const { countTokens } = require('../tokenizer/tokenizer');
 const logger = require('../../utils/logger');
 const EnhancedMemory = require('./enhancedMemory');
 const config = require('../../config');
-const knowledgeBaseService = require('./knowledgeBaseService');
 const { safeStringify } = require('../../utils/helpers');
+const promptService = require('./promptService');
 
 class AgentChain {
-  constructor(campaign, lead, googleSheetData) {
+  constructor(campaign, lead) {
     this.campaign = campaign;
     this.lead = lead;
-    this.googleSheetData = googleSheetData;
     this.tokenCount = 0;
-    this.context = {};
     this.openaiApiKey = config.OPENAI_API_KEY;
     if (campaign && campaign.openaiApiKey) {
       this.openaiApiKey = campaign.openaiApiKey;
@@ -118,42 +116,13 @@ class AgentChain {
 
   async run(userMessage) {
     try {
-      let context = '';
-      const contextString = await this.memory.getContextString(userMessage);
+      const prompt = await promptService.generatePrompt(this.lead, this.campaign, userMessage, this.memory);
 
-      if (!this.campaign.knowledgeBases) {
-        this.campaign.knowledgeBases = await knowledgeBaseService.getKnowledgeBaseByCampaignId(this.campaign.id);
-      }
-
-      logger.info(`Context string: ${this.campaign.knowledgeBases}`);
-      let relevantKnowledge = '';
-      logger.info(`Knowledge bases: ${safeStringify(this.campaign.knowledgeBases)}`);
-      if (
-        this.campaign.knowledgeBases &&
-        this.campaign.knowledgeBases.length > 0
-      ) {
-        const knowledgeBlocks = await knowledgeBaseService.getRelevantKnowledge(
-          this.campaign.id,
-          userMessage,
-          this.campaign.maxKnowledgeBlocks,
-        );
-        logger.info(`Knowledge blocks: ${safeStringify(knowledgeBlocks)}`);
-        relevantKnowledge = knowledgeBlocks
-          .map((block) => block.pageContent)
-          .join('\n\n');
-      }
-      if (relevantKnowledge) {
-        context = `Relevant Knowledge: ${relevantKnowledge}\n\n${contextString}`;
-      } else {
-        context = contextString;
-      }
-
-      logger.info(`Context: ${relevantKnowledge}`);
+      logger.info(`Context: ${safeStringify(prompt)}`);
 
       const runChain = RunnableSequence.from([
         RunnablePassthrough.assign({
-          context: () => context,
-          ...this.context,
+          context: () => prompt,
         }),
         this.primaryAgent,
         async (primaryResponse) => {
@@ -193,8 +162,6 @@ class AgentChain {
           return responseText;
         },
       ]);
-
-      logger.info(`Context: ${safeStringify(context)}`);
 
       const finalResponse = await runChain.invoke({
         input: userMessage,

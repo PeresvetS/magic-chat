@@ -190,7 +190,6 @@ model Lead {
   campaignId        Int?
   userId            Int?
   phone             String?
-  name              String?
   source            String?
   createdAt         DateTime           @default(now())
   updatedAt         DateTime           @updatedAt
@@ -204,12 +203,29 @@ model Lead {
   lastPlatform      String?
   conversationState ConversationState?
   dialogId          Int?
+  profile           LeadProfile?
 
   @@index([campaignId])
   @@index([userId])
   @@index([phone])
   @@index([telegramChatId])
   @@index([whatsappChatId])
+}
+
+model LeadProfile {
+  id                 Int      @id @default(autoincrement())
+  lead               Lead     @relation(fields: [leadId], references: [id])
+  leadId             Int      @unique
+  name               String?
+  status             String?
+  address            String?
+  businessType       String?
+  leadGenerationMethod String?
+  mainPains          String?
+  location           String?
+  interests          String?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
 }
 
 enum LeadStatus {

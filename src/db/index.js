@@ -19,6 +19,7 @@ const campaignsMailingRepo = require('./repositories/campaignsMailingRepo');
 const whatsappSessionsRepo = require('./repositories/whatsappSessionsRepo');
 const conversationStateRepo = require('./repositories/conversationStateRepo');
 const phoneNumberCampaignRepo = require('./repositories/phoneNumberCampaignRepo');
+const leadProfileRepo = require('./repositories/leadProfileRepo');
 
 module.exports = {
   crmRepo,
@@ -40,4 +41,5 @@ module.exports = {
   campaignsMailingRepo,
   conversationStateRepo,
   phoneNumberCampaignRepo,
+  leadProfileRepo,
 };
