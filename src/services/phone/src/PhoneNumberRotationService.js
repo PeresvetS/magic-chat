@@ -1,26 +1,27 @@
-// src/services/mailing/services/PhoneNumberRotationService.js
-
 const { phoneNumberService } = require('./phoneNumberService');
+const { phoneNumberRotationRepo } = require('../../../db');
+const { getUserIdByCampaignId } = require('../../user').userService;
 const logger = require('../../../utils/logger');
 
 class PhoneNumberRotationService {
-  constructor() {
+  constructor(campaignId) {
+    this.userId = '';
+    this.campaignId = campaignId;
     this.platformPhoneNumbers = {
       telegram: [],
       whatsapp: [],
       waba: []
     };
-    this.currentIndex = {
-      telegram: 0,
-      whatsapp: 0,
-      waba: 0
-    };
   }
 
-  async initialize(campaignId) {
+  async initialize() {
+    this.userId = await getUserIdByCampaignId(this.campaignId);
     for (const platform of ['telegram', 'whatsapp', 'waba']) {
-      this.platformPhoneNumbers[platform] = await phoneNumberService.getCampaignPhoneNumbers(campaignId, platform);
-      this.currentIndex[platform] = 0;
+      this.platformPhoneNumbers[platform] = await phoneNumberService.getCampaignPhoneNumbers(this.campaignId, platform);
+      const rotationState = await phoneNumberRotationRepo.getRotationState(this.userId, this.campaignId, platform);
+      if (!rotationState) {
+        await phoneNumberRotationRepo.updateRotationState(this.userId, this.campaignId, platform, 0);
+      }
     }
   }
 
@@ -28,15 +29,20 @@ class PhoneNumberRotationService {
     const phoneNumbers = this.platformPhoneNumbers[platform];
     if (phoneNumbers.length === 0) {
       logger.error(`No phone numbers available for platform ${platform}`);
+      return null;
     }
+
+    let rotationState = await phoneNumberRotationRepo.getRotationState(this.userId, this.campaignId, platform);
+    let currentIndex = rotationState ? rotationState.currentIndex : 0;
 
     let attempts = 0;
     while (attempts < phoneNumbers.length) {
-      const phoneNumber = phoneNumbers[this.currentIndex[platform]];
-      this.currentIndex[platform] = (this.currentIndex[platform] + 1) % phoneNumbers.length;
+      const phoneNumber = phoneNumbers[currentIndex];
+      currentIndex = (currentIndex + 1) % phoneNumbers.length;
 
       const isAvailable = await phoneNumberService.checkDailyPhoneNumberLimit(phoneNumber, platform);
       if (isAvailable) {
+        await phoneNumberRotationRepo.updateRotationState(this.userId, this.campaignId, platform, currentIndex);
         return phoneNumber;
       }
 
@@ -48,4 +54,4 @@ class PhoneNumberRotationService {
   }
 }
 
-module.exports = new PhoneNumberRotationService();
+module.exports = PhoneNumberRotationService;

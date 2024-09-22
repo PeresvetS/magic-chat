@@ -6,6 +6,7 @@ const {
   phoneNumberRepo,
   phoneNumberCampaignRepo,
   campaignsMailingRepo,
+  phoneNumberRotationRepo, // Добавьте этот импорт
 } = require('../../../db');
 
 class PhoneNumberManagerService {
@@ -24,12 +25,29 @@ class PhoneNumberManagerService {
       platform,
     );
 
-    for (const phoneNumber of phoneNumbers) {
-      if (await this.isPhoneNumberAvailable(phoneNumber, platform)) {
-        return phoneNumber;
-      }
+    if (phoneNumbers.length === 0) {
+      logger.error(`No phone numbers available for platform ${platform} in campaign ${campaignId}`);
+      return null;
     }
 
+    const campaign = await campaignsMailingRepo.getCampaignById(campaignId);
+    let rotationState = await phoneNumberRotationRepo.getRotationState(campaign.userId, campaignId, platform);
+    let currentIndex = rotationState ? rotationState.currentIndex : 0;
+
+    let attempts = 0;
+    while (attempts < phoneNumbers.length) {
+      const phoneNumber = phoneNumbers[currentIndex];
+      currentIndex = (currentIndex + 1) % phoneNumbers.length;
+
+      if (await this.isPhoneNumberAvailable(phoneNumber, platform)) {
+        await phoneNumberRotationRepo.updateRotationState(campaign.userId, campaignId, platform, currentIndex);
+        return phoneNumber;
+      }
+
+      attempts++;
+    }
+
+    logger.error(`No available phone numbers for platform ${platform} in campaign ${campaignId}`);
     return null;
   }
 

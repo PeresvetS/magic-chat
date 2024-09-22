@@ -403,3 +403,15 @@ model KnowledgeBase {
   createdAt   DateTime        @default(now())
   updatedAt   DateTime        @updatedAt
 }
+
+model PhoneNumberRotation {
+  id          Int      @id @default(autoincrement())
+  userId      BigInt
+  campaignId  Int
+  platform    String
+  currentIndex Int     @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([userId, campaignId, platform])
+}

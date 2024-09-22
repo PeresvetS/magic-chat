@@ -8,6 +8,7 @@ const adminsRepo = require('./repositories/adminsRepo');
 const promptRepo = require('./repositories/promptRepo');
 const userLimitsRepo = require('./repositories/userLimitsRepo');
 const phoneNumberRepo = require('./repositories/phoneNumberRepo');
+const leadProfileRepo = require('./repositories/leadProfileRepo');
 const parsedUsersRepo = require('./repositories/parsedUsersRepo');
 const messageStatsRepo = require('./repositories/messageStatsRepo');
 const wabaSessionsRepo = require('./repositories/wabaSessionsRepo');
@@ -19,7 +20,7 @@ const campaignsMailingRepo = require('./repositories/campaignsMailingRepo');
 const whatsappSessionsRepo = require('./repositories/whatsappSessionsRepo');
 const conversationStateRepo = require('./repositories/conversationStateRepo');
 const phoneNumberCampaignRepo = require('./repositories/phoneNumberCampaignRepo');
-const leadProfileRepo = require('./repositories/leadProfileRepo');
+const phoneNumberRotationRepo = require('./repositories/phoneNumberRotationRepo');
 
 module.exports = {
   crmRepo,
@@ -29,6 +30,7 @@ module.exports = {
   adminsRepo,
   promptRepo,
   userLimitsRepo,
+  leadProfileRepo,
   parsedUsersRepo,
   phoneNumberRepo,
   wabaSessionsRepo,
@@ -41,5 +43,5 @@ module.exports = {
   campaignsMailingRepo,
   conversationStateRepo,
   phoneNumberCampaignRepo,
-  leadProfileRepo,
+  phoneNumberRotationRepo,
 };

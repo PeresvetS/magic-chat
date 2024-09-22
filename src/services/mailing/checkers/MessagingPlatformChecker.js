@@ -22,7 +22,23 @@ class MessagingPlatformChecker {
     this.CLEANUP_INTERVAL = 15 * 60 * 1000; // 15 минут
   }
 
-  async initializePlatform(platform, campaignId) {
+  async initialize(campaignId) {
+    if (this.initialized) return;
+
+    await PhoneNumberRotationService.initialize(campaignId);
+    
+    const platformPriority = await getPlatformPriority(campaignId);
+    const platformsToInitialize = platformPriority.split('');
+    
+    for (const platform of platformsToInitialize) {
+      await this.initializePlatform(platform, campaignId);
+    }
+
+    this.initialized = true;
+    this.startCleanupInterval();
+  }
+
+  async initializePlatform(platform) {
     if (this.initializedPlatforms.has(platform)) return;
 
     const numbers = await PhoneNumberRotationService.getAllPhoneNumbers(platform);
@@ -43,22 +59,6 @@ class MessagingPlatformChecker {
     }
 
     this.initializedPlatforms.add(platform);
-  }
-
-  async initialize(campaignId) {
-    if (this.initialized) return;
-
-    await PhoneNumberRotationService.initialize(campaignId);
-    
-    const platformPriority = await getPlatformPriority(campaignId);
-    const platformsToInitialize = platformPriority.split('');
-    
-    for (const platform of platformsToInitialize) {
-      await this.initializePlatform(platform, campaignId);
-    }
-
-    this.initialized = true;
-    this.startCleanupInterval();
   }
 
   startCleanupInterval() {

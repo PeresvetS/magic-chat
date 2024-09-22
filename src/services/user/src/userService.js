@@ -48,6 +48,20 @@ async function getUserIdByTelegramId(telegramId) {
   }
 }
 
+async function getUserIdByCampaignId(campaignId) {
+  try {
+    const user = await userRepo.getUserIdByCampaignId(campaignId);
+    if (!user) {
+      throw new Error(`User not found for campaign ID: ${campaignId}`);
+    }
+    return user;
+  } catch (error) {
+    logger.error('Error getting user by campaign ID:', error);
+    throw error;
+  }
+}
+
+
 async function createUser(
   telegramId,
   username = null,
@@ -143,7 +157,8 @@ module.exports = {
   getUserInfo,
   getAllUsers,
   getUserByTgId,
-  getUserByIdentifier,
   setUserOpenAIKey,
+  getUserByIdentifier,
   getUserIdByTelegramId,
+  getUserIdByCampaignId,
 };
