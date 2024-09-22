@@ -7,12 +7,14 @@ const { WABASessionService } = require('../../waba');
 const { TelegramSessionService } = require('../../telegram');
 const { safeStringify } = require('../../../utils/helpers');
 const { WhatsAppSessionService } = require('../../whatsapp');
-const WABABotStateManager = require('../../waba/managers/botStateManager');
-const WhatsAppBotStateManager = require('../../whatsapp/managers/botStateManager');
-const TelegramBotStateManager = require('../../telegram/managers/botStateManager');
 const { getPhoneNumberInfo, updatePhoneNumberStats } =
   require('../../phone').phoneNumberService;
 const { retryOperation } = require('../../../utils/messageUtils');
+const botStateManagerFactory = require('./BotStateManagerFactory');
+
+function getBotStateManager(platform) {
+  return botStateManagerFactory.getManager(platform);
+}
 
 async function sendMessage(
   userId,
@@ -41,7 +43,8 @@ async function sendMessage(
         break;
       case 'telegram':
       default:
-        const { peer, session } = await TelegramBotStateManager.getCorrectPeer(
+        const telegramBotStateManager = botStateManagerFactory.getManager('telegram');
+        const { peer, session } = await telegramBotStateManager.getCorrectPeer(
           phoneNumber,
           userId,
         );
@@ -129,18 +132,6 @@ async function sendResponse(
     return sendPromise;
   } catch (error) {
     logger.error(`Error sending ${platform} response to ${userId}: ${error}`);
-  }
-}
-
-function getBotStateManager(platform) {
-  switch (platform) {
-    case 'whatsapp':
-      return WhatsAppBotStateManager;
-    case 'waba':
-      return WABABotStateManager;
-    case 'telegram':
-    default:
-      return TelegramBotStateManager;
   }
 }
 

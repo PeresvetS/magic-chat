@@ -5,7 +5,7 @@ const path = require('path');
 const axios = require('axios');
 
 const logger = require('../../../utils/logger');
-const knowledgeBaseService = require('../../../services/llm/knowledgeBaseService');
+const knowledgeBaseServiceFactory = require('../../../services/llm/knowledgeBase/knowledgeBaseServiceFactory');
 const {
   setUserState,
   getUserState,
@@ -23,10 +23,10 @@ module.exports = {
       return;
     }
     try {
+      const knowledgeBaseService = knowledgeBaseServiceFactory.getInstanceForCampaign(parseInt(campaignId));
       const knowledgeBase = await knowledgeBaseService.createKnowledgeBase(
         kbName,
         '',
-        parseInt(campaignId),
         [],
       );
       bot.sendMessage(
@@ -37,6 +37,7 @@ module.exports = {
         action: 'add_kb_document',
         kbId: knowledgeBase.id,
         kbName,
+        campaignId: parseInt(campaignId),
       });
       bot.sendMessage(
         msg.chat.id,
@@ -46,7 +47,7 @@ module.exports = {
       logger.error('Error creating knowledge base:', error);
       bot.sendMessage(
         msg.chat.id,
-        'Произошла ошибка при сздании базы знаний.',
+        'Произошла ошибка при создании базы знаний.',
       );
     }
   },
@@ -62,7 +63,7 @@ module.exports = {
     }
     try {
       const knowledgeBase =
-        await knowledgeBaseService.getKnowledgeBaseByName(kbName);
+        await knowledgeBaseServiceFactory.getInstanceForCampaign(parseInt(userState.campaignId)).getKnowledgeBaseByName(kbName);
       if (!knowledgeBase) {
         bot.sendMessage(msg.chat.id, `База знаний "${kbName}" не найдена.`);
         return;
@@ -88,7 +89,7 @@ module.exports = {
 
   '/list_kb': async (bot, msg) => {
     try {
-      const knowledgeBases = await knowledgeBaseService.listKnowledgeBases();
+      const knowledgeBases = await knowledgeBaseServiceFactory.getInstanceForCampaign(parseInt(userState.campaignId)).listKnowledgeBases();
       if (knowledgeBases.length === 0) {
         bot.sendMessage(msg.chat.id, 'У вас нет созданных баз знаний.');
         return;
@@ -117,7 +118,7 @@ module.exports = {
       return;
     }
     try {
-      await knowledgeBaseService.deleteKnowledgeBase(kbName);
+      await knowledgeBaseServiceFactory.getInstanceForCampaign(parseInt(userState.campaignId)).deleteKnowledgeBase(kbName);
       bot.sendMessage(msg.chat.id, `База знаний "${kbName}" успешно удалена.`);
     } catch (error) {
       logger.error('Error deleting knowledge base:', error);
@@ -173,6 +174,7 @@ module.exports = {
           path: filePath,
         };
 
+        const knowledgeBaseService = knowledgeBaseServiceFactory.getInstanceForCampaign(userState.campaignId);
         await knowledgeBaseService.addDocumentToKnowledgeBase(
           userState.kbId,
           file,

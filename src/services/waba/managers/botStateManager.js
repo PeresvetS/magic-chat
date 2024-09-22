@@ -218,4 +218,4 @@ class WABABotStateManager {
   }
 }
 
-module.exports = new WABABotStateManager();
+module.exports = WABABotStateManager;

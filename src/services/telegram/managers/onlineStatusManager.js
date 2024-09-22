@@ -1,7 +1,6 @@
-// src/services/telegram/onlineStatusManager.js
+// src/services/telegram/managers/onlineStatusManager.js
 
 const { Api } = require('telegram/tl');
-
 const logger = require('../../../utils/logger');
 const { safeStringify } = require('../../../utils/helpers');
 
@@ -64,4 +63,4 @@ class OnlineStatusManager {
   }
 }
 
-module.exports = new OnlineStatusManager();
+module.exports = OnlineStatusManager;

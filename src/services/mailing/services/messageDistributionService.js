@@ -2,7 +2,7 @@
 
 const MessagingPlatformChecker = require('../checkers/MessagingPlatformChecker');
 const logger = require('../../../utils/logger');
-const PhoneNumberManagerService = require('../../phone/src/phoneNumberManagerService');
+const PhoneNumberManagerFactory = require('../../phone/src/PhoneNumberManagerFactory');
 const { campaignsMailingService } = require('../../campaign');
 const RabbitMQQueueService = require('../../queue/rabbitMQQueueService');
 
@@ -10,6 +10,7 @@ class MessageDistributionService {
   constructor() {
     this.lastMessageTimes = new Map();
     this.RATE_LIMIT_SECONDS = 60; // 1 минута
+    this.phoneNumberManager = PhoneNumberManagerFactory.create();
   }
 
   async distributeMessage(
@@ -41,16 +42,17 @@ class MessageDistributionService {
         );
       }
 
+      const messagingPlatformChecker = new MessagingPlatformChecker(campaignId);
       // Инициализируем MessagingPlatformChecker перед использованием
-      await MessagingPlatformChecker.initialize(campaignId);
+      await messagingPlatformChecker.initialize();
 
-      const platforms = await MessagingPlatformChecker.choosePlatform(
+      const platforms = await messagingPlatformChecker.choosePlatform(
         campaignId,
         strPhoneNumber,
         platformPriority,
         mode,
       );
-
+      
       logger.info(
         `Distributing message to ${strPhoneNumber} with platforms ${platforms}`,
       );
@@ -66,7 +68,7 @@ class MessageDistributionService {
 
       for (const platform of platforms.split(',')) {
         const senderPhoneNumber =
-          await PhoneNumberManagerService.getNextAvailablePhoneNumber(
+          await this.phoneNumberManager.getNextAvailablePhoneNumber(
             campaignId,
             platform,
           );

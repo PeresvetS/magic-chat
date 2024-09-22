@@ -4,9 +4,6 @@ const logger = require('../../../utils/logger');
 const { sendResponse } = require('./messageSender');
 const { processMessage } = require('./messageProcessor');
 const { leadService } = require('../../leads');
-const TelegramBotStateManager = require('../../telegram/managers/botStateManager');
-const WhatsAppBotStateManager = require('../../whatsapp/managers/botStateManager');
-const WABABotStateManager = require('../../waba/managers/botStateManager');
 const { getActiveCampaignForPhoneNumber } =
   require('../../campaign').campaignsMailingService;
 const voiceService = require('../../voice/voiceService');
@@ -16,20 +13,8 @@ const { Api } = require('telegram/tl');
 const fs = require('fs').promises;
 const path = require('path');
 const os = require('os');
+const botStateManagerFactory = require('./BotStateManagerFactory');
 
-logger.info('HandleMessageService loaded');
-logger.info(
-  'TelegramBotStateManager:',
-  TelegramBotStateManager ? 'Loaded' : 'Not loaded',
-);
-logger.info(
-  'WhatsAppBotStateManager:',
-  WhatsAppBotStateManager ? 'Loaded' : 'Not loaded',
-);
-logger.info(
-  'WABABotStateManager:',
-  WABABotStateManager ? 'Loaded' : 'Not loaded',
-);
 
 async function processIncomingMessage(
   phoneNumber,
@@ -153,16 +138,7 @@ async function processIncomingMessage(
 }
 
 function getBotStateManager(platform) {
-  switch (platform) {
-    case 'telegram':
-      return TelegramBotStateManager;
-    case 'whatsapp':
-      return WhatsAppBotStateManager;
-    case 'waba':
-      return WABABotStateManager;
-    default:
-      throw new Error(`Unsupported platform: ${platform}`);
-  }
+  return botStateManagerFactory.getManager(platform);
 }
 
 async function extractMessageInfo(event, platform) {

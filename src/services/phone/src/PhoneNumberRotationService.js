@@ -1,6 +1,6 @@
 const { phoneNumberService } = require('./phoneNumberService');
 const { phoneNumberRotationRepo } = require('../../../db');
-const { getUserIdByCampaignId } = require('../../user').userService;
+const { userService } = require('../../user');
 const logger = require('../../../utils/logger');
 
 class PhoneNumberRotationService {
@@ -15,7 +15,7 @@ class PhoneNumberRotationService {
   }
 
   async initialize() {
-    this.userId = await getUserIdByCampaignId(this.campaignId);
+    this.userId = await userService.getUserIdByCampaignId(this.campaignId);
     for (const platform of ['telegram', 'whatsapp', 'waba']) {
       this.platformPhoneNumbers[platform] = await phoneNumberService.getCampaignPhoneNumbers(this.campaignId, platform);
       const rotationState = await phoneNumberRotationRepo.getRotationState(this.userId, this.campaignId, platform);

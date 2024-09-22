@@ -10,7 +10,7 @@ const { TelegramSessionService } = require('../../services/telegram');
 const { WhatsAppSessionService } = require('../../services/whatsapp');
 const { setPhoneAuthenticated } =
   require('../../services/phone').phoneNumberService;
-const PhoneNumberManagerService = require('../../services/phone/src/PhoneNumberManagerService');
+const PhoneNumberManagerFactory = require('../../services/phone/src/PhoneNumberManagerFactory');
 const wabaCommands = require('./commands/wabaCommands');
 const helpCommands = require('./commands/helpCommands');
 const phoneCommands = require('./commands/phoneCommands');
@@ -63,7 +63,9 @@ function createUserBot() {
     }
   }
 
-  PhoneNumberManagerService.setNotificationCallback((telegramId, message) => {
+  const phoneNumberManager = PhoneNumberManagerFactory.create();
+
+  phoneNumberManager.setNotificationCallback((telegramId, message) => {
     bot.sendMessage(telegramId, message);
   });
 

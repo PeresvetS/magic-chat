@@ -2,7 +2,7 @@
 
 const logger = require('../../utils/logger');
 const { leadProfileService } = require('../leads');
-const knowledgeBaseService = require('./knowledgeBaseService');
+const knowledgeBaseServiceFactory = require('./knowledgeBase/knowledgeBaseServiceFactory');
 const { getGoogleSheetData, getCurrentTime } = require('./llmFunctions');
 
 async function generatePrompt(lead, campaign, userMessage, memory) {
@@ -49,7 +49,8 @@ async function generatePrompt(lead, campaign, userMessage, memory) {
 
     // Добавляем информацию из базы знаний, если она есть
     if (campaign.knowledgeBaseId) {
-      const knowledgeBase = await knowledgeBaseService.getKnowledgeBaseByCampaignId(campaign.id);
+      const knowledgeBaseService = knowledgeBaseServiceFactory.getInstanceForCampaign(campaign.id);
+      const knowledgeBase = await knowledgeBaseService.getKnowledgeBaseByCampaignId();
       if (knowledgeBase) {
         const relevantKnowledge = await knowledgeBaseService.getRelevantKnowledge(knowledgeBase.id, userMessage);
         if (relevantKnowledge) {

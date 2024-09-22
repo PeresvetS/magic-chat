@@ -5,10 +5,10 @@ const { OpenAIEmbeddings } = require('@langchain/openai');
 const { PineconeStore } = require('@langchain/pinecone');
 const { v4: uuidv4 } = require('uuid');
 
-const { knowledgeBaseRepo, campaignsMailingRepo } = require('../../db');
-const config = require('../../config');
-const logger = require('../../utils/logger');
-const { processFile } = require('../../utils/fileProcessing');
+const { knowledgeBaseRepo, campaignsMailingRepo } = require('../../../db');
+const config = require('../../../config');
+const logger = require('../../../utils/logger');
+const { processFile } = require('../../../utils/fileProcessing');
 
 class KnowledgeBaseService {
   constructor() {
@@ -16,9 +16,18 @@ class KnowledgeBaseService {
     this.embeddings = new OpenAIEmbeddings({
       openAIApiKey: config.OPENAI_API_KEY,
     });
+    this.campaignId = null;
+  }
+
+  setCampaignId(campaignId) {
+    this.campaignId = campaignId;
   }
 
   async createKnowledgeBase(name, description, campaignId, documents) {
+    if (!this.campaignId) {
+      throw new Error('Campaign ID is not set');
+    }
+
     try {
       // Check if the campaign exists
       const campaign = await campaignsMailingRepo.getCampaignById(campaignId);
@@ -58,6 +67,10 @@ class KnowledgeBaseService {
   }
 
   async getRelevantKnowledge(campaignId, query, maxBlocks) {
+    if (!this.campaignId) {
+      throw new Error('Campaign ID is not set');
+    }
+
     try {
       const knowledgeBases =
         await knowledgeBaseRepo.findByCampaignId(campaignId);
@@ -101,9 +114,9 @@ class KnowledgeBaseService {
     }
   }
 
-  async getKnowledgeBaseByCampaignId(id) {
+  async getKnowledgeBaseByCampaignId() {
     try {
-      const knowledgeBase = await knowledgeBaseRepo.findByCampaignId(id);
+      const knowledgeBase = await knowledgeBaseRepo.findByCampaignId(this.campaignId);
       return knowledgeBase;
     } catch (error) {
       logger.error(`Error getting knowledge base by campaign id: ${error.message}`);
@@ -185,4 +198,4 @@ class KnowledgeBaseService {
   }
 }
 
-module.exports = new KnowledgeBaseService();
+module.exports = KnowledgeBaseService;

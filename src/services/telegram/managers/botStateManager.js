@@ -13,6 +13,7 @@ class BotStateManager {
   constructor() {
     this.userStates = new Map();
     this.peerCache = new Map();
+    this.onlineStatusManager = new OnlineStatusManager();
   }
 
   getUserState(userId) {
@@ -49,7 +50,7 @@ class BotStateManager {
     clearTimeout(userState.typingTimer);
     clearTimeout(userState.offlineTimer);
     const session = await this.getSession(phoneNumber);
-    await OnlineStatusManager.setOffline(userId, session);
+    await this.onlineStatusManager.setOffline(userId, session);
     logger.info(`Bot set to offline for user ${userId}`);
   }
 
@@ -60,7 +61,7 @@ class BotStateManager {
     if (userState.newMessage) {
       await delay(Math.random() * 12000 + 3000); // 3-15 seconds delay
       const session = await this.getSession(phoneNumber);
-      await OnlineStatusManager.setOnline(userId, session);
+      await this.onlineStatusManager.setOnline(userId, session);
       await delay(Math.random() * 5000 + 2000); // 2-7 seconds delay
       await this.markMessagesAsRead(phoneNumber, userId);
       userState.state = 'typing';
@@ -75,7 +76,7 @@ class BotStateManager {
     if (userState.newMessage) {
     }
     const session = await this.getSession(phoneNumber);
-    await OnlineStatusManager.setOnline(userId, session);
+    await this.onlineStatusManager.setOnline(userId, session);
     await this.markMessagesAsRead(phoneNumber, userId);
     this.resetOfflineTimer(phoneNumber, userId);
     logger.info(`Bot set to online for user ${userId}`);
@@ -253,7 +254,7 @@ class BotStateManager {
 
     logger.info(`Состояние бота: ${status}`);
 
-    if (userState.state === 'offline' && OnlineStatusManager.isOnline(userId)) {
+    if (userState.state === 'offline' && this.onlineStatusManager.isOnline(userId)) {
       status = 'pre-online';
     }
 
@@ -349,4 +350,4 @@ class BotStateManager {
   }
 }
 
-module.exports = new BotStateManager();
+module.exports = BotStateManager;

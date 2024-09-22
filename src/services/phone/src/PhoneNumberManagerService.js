@@ -10,7 +10,18 @@ const {
 } = require('../../../db');
 
 class PhoneNumberManagerService {
-  constructor() {
+  constructor(
+    phoneNumberRepo,
+    phoneNumberCampaignRepo,
+    campaignsMailingRepo,
+    phoneNumberRotationRepo,
+    wabaAccountService
+  ) {
+    this.phoneNumberRepo = phoneNumberRepo;
+    this.phoneNumberCampaignRepo = phoneNumberCampaignRepo;
+    this.campaignsMailingRepo = campaignsMailingRepo;
+    this.phoneNumberRotationRepo = phoneNumberRotationRepo;
+    this.wabaAccountService = wabaAccountService;
     this.activePhoneNumbers = new Map();
     this.notificationCallback = null;
   }
@@ -52,7 +63,7 @@ class PhoneNumberManagerService {
   }
 
   async isPhoneNumberAvailable(phoneNumber, platform) {
-    const phoneInfo = await phoneNumberRepo.getPhoneNumberInfo(phoneNumber);
+    const phoneInfo = await this.phoneNumberRepo.getPhoneNumberInfo(phoneNumber);
 
     if (!phoneInfo) {
       return false;
@@ -70,7 +81,7 @@ class PhoneNumberManagerService {
         account = phoneInfo.whatsappAccount;
         break;
       case 'waba':
-        account = await WABAAccountService.getAccount(phoneNumber);
+        account = await this.wabaAccountService.getAccount(phoneNumber);
         break;
       default:
         throw new Error(`Unsupported platform: ${platform}`);
@@ -88,7 +99,7 @@ class PhoneNumberManagerService {
 
   async getCampaignPhoneNumbers(campaignId, platform) {
     const attachments =
-      await phoneNumberCampaignRepo.findAttachmentsByCampaignAndPlatform(
+      await this.phoneNumberCampaignRepo.findAttachmentsByCampaignAndPlatform(
         campaignId,
         platform,
       );
@@ -152,4 +163,4 @@ class PhoneNumberManagerService {
   }
 }
 
-module.exports = new PhoneNumberManagerService();
+module.exports = PhoneNumberManagerService;
