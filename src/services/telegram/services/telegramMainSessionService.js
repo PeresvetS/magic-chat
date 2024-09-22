@@ -21,6 +21,13 @@ class TelegramMainSessionService {
     return this.mainClient;
   }
 
+  async disconnectMainClient() {
+    if (this.mainClient) {
+      await this.mainClient.disconnect();
+      this.mainClient = null;
+    }
+  }
+
   async initializeMainClient() {
     logger.info('Initializing main Telegram client');
     logger.info(`API_ID: ${config.API_ID}, API_HASH: ${config.API_HASH}`);
@@ -83,30 +90,6 @@ class TelegramMainSessionService {
     );
   }
 
-  async checkTelegram(phoneNumber) {
-    logger.info(`Checking Telegram for number ${phoneNumber}`);
-    try {
-      const client = await this.getMainClient();
-      const result = await client.invoke(
-        new Api.contacts.ImportContacts({
-          contacts: [
-            new Api.InputPhoneContact({
-              clientId: BigInt(Math.floor(Math.random() * 1000000000)),
-              phone: phoneNumber,
-              firstName: "Search",
-              lastName: "User",
-            }),
-          ],
-        })
-      );
-
-      return result.users && result.users.length > 0;
-    } catch (error) {
-      logger.error(`Error checking Telegram for number ${phoneNumber}:`, error);
-      return false;
-    }
-  }
-
   async findUserByPhoneNumber(phoneNumber) {
     logger.info(`Searching for user with phone number: ${phoneNumber}`);
     try {
@@ -133,6 +116,8 @@ class TelegramMainSessionService {
         const fullUser = await client.invoke(new Api.users.GetFullUser({
           id: user.id
         }));
+
+        this.disconnectMainClient();
         
         return fullUser.user;
       } else {

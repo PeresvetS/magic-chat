@@ -41,15 +41,20 @@ class MessageDistributionService {
         );
       }
 
+      // Инициализируем MessagingPlatformChecker перед использованием
+      await MessagingPlatformChecker.initialize(campaignId);
+
       const platforms = await MessagingPlatformChecker.choosePlatform(
         campaignId,
         strPhoneNumber,
         platformPriority,
         mode,
       );
+
       logger.info(
         `Distributing message to ${strPhoneNumber} with platforms ${platforms}`,
       );
+      
       const results = {
         strPhoneNumber,
         telegram: null,

@@ -2,11 +2,12 @@
 
 const { Api } = require('telegram/tl');
 const qrcode = require('qrcode');
-const { TelegramClient } = require('telegram');
-const { StringSession } = require('telegram/sessions');
-
 const logger = require('../../../utils/logger');
 const config = require('../../../config');
+const { getUserByTgId } = require('../../user').userService;
+const { setPhoneAuthenticated, addPhoneNumber, getPhoneNumberInfo } =
+  require('../../phone').phoneNumberService;
+const { telegramSessionsRepo } = require('../../../db');
 
 async function connectWithRetry(
   telegramClient,
@@ -28,6 +29,17 @@ async function connectWithRetry(
       logger.error('Failed to connect to Telegram after multiple attempts');
       throw error;
     }
+  }
+}
+
+async function saveSession(phoneNumber, client, sessionString) {
+  try {
+    await telegramSessionsRepo.saveSession(phoneNumber, sessionString);
+    client.session.setString(sessionString);
+    logger.info(`Session saved for ${phoneNumber}`);
+  } catch (error) {
+    logger.error(`Error saving session for ${phoneNumber}:`, error);
+    throw error;
   }
 }
 
@@ -99,19 +111,43 @@ async function get2FAPasswordFromUser(phoneNumber, bot, chatId) {
   });
 }
 
-async function generateQRCode(phoneNumber, bot, chatId, userId) {
+async function handleSuccessfulAuthentication(phoneNumber, bot, chatId) {
+  try {
+    // Проверяем, существует ли номер телефона в базе данных
+    const phoneNumberRecord = await getPhoneNumberInfo(phoneNumber);
+
+    // Если номер не существуе��, создаем его
+    if (!phoneNumberRecord) {
+      const user = await getUserByTgId(chatId);
+      logger.info(
+        `Phone number ${phoneNumber} not found. Creating new record.`,
+      );
+      await addPhoneNumber(user.id, phoneNumber, 'telegram');
+    }
+
+    // Устанавливаем статус аутентификации
+    await setPhoneAuthenticated(phoneNumber, 'telegram', true);
+    logger.info(
+      `Authentication successful for ${phoneNumber}. Updated database.`,
+    );
+
+  } catch (error) {
+    logger.error(
+      `Error updating authentication status for ${phoneNumber}:`,
+      error,
+    );
+    await bot.sendMessage(
+      chatId,
+      `Произошла ошибка при обновлении статуса аутентификации: ${error.message}`,
+    );
+  }
+}
+
+async function generateQRCode(phoneNumber, bot, chatId, client) {
   try {
     logger.warn(
       `Client for ${phoneNumber} is null, attempting to create a new session`,
     );
-    const stringSession = new StringSession(''); // Start with empty session
-    client = new TelegramClient(
-      stringSession,
-      parseInt(config.API_ID),
-      config.API_HASH,
-      { connectionRetries: 5 },
-    );
-    await client.connect();
 
     if (!client.connected) {
       logger.info(`Connecting client for ${phoneNumber}`);
@@ -151,17 +187,13 @@ async function generateQRCode(phoneNumber, bot, chatId, userId) {
           if (update instanceof Api.UpdateLoginToken) {
             clearTimeout(timeoutId);
             client.removeEventHandler(updateHandler);
-            await this.handleSuccessfulAuthentication(
-              phoneNumber,
-              bot,
-              chatId,
-              userId,
-            );
+            await handleSuccessfulAuthentication(phoneNumber, bot, chatId, userId);
             resolve(update);
           }
         };
 
         client.addEventHandler(updateHandler);
+        return client;
       });
     }
     throw new Error('Failed to generate login token');
@@ -182,9 +214,69 @@ async function checkAuthorization(client) {
       );
       return false;
     }
+    logger.error('Error checking authorization:', error);
+    return false;
+  }
+}
+
+async function reauthorizeSession(phoneNumber, maxRetries, retryDelay, session) {
+  try {
+    logger.info(`Attempting to reauthorize session for ${phoneNumber}`);
+    await connectWithRetry(session, 0, maxRetries, retryDelay);
+
+    if (!(await checkAuthorization(session))) {
+      logger.warn(`Manual reauthorization required for ${phoneNumber}`);
+      throw new Error('MANUAL_REAUTH_REQUIRED');
+    }
+    logger.info(`Successfully reauthorized session for ${phoneNumber}`);
+    return session;
+  } catch (error) {
+    logger.error(`Error reauthorizing session for ${phoneNumber}:`, error);
     throw error;
   }
 }
+
+async function authenticateSession(phoneNumber, bot, chatId, client) {
+  try {
+    await client.start({
+      phoneNumber: async () => phoneNumber,
+      password: async () =>
+        await authTelegramService.get2FAPasswordFromUser(phoneNumber, bot, chatId),
+      phoneCode: async () =>
+        await authTelegramService.getAuthCodeFromUser(phoneNumber, bot, chatId),
+      onError: (err) => {
+        logger.error(`Error during authentication for ${phoneNumber}:`, err);
+        if (err.message === 'PHONE_NUMBER_INVALID') {
+          bot.sendMessage(
+            chatId,
+            'Неверный формат номера телефона. Пожалуйста, проверьте номер и попробуйте снова.',
+          );
+        } else {
+          bot.sendMessage(
+            chatId,
+            `Ошибка при аутентификации: ${err.message}`,
+          );
+        }
+        throw err;
+      },
+    });
+
+    logger.info(`Session authenticated for ${phoneNumber}`);
+
+    const sessionString = client.session.save();
+    await telegramSessionsRepo.saveSession(phoneNumber, sessionString);
+
+    return client;
+  } catch (error) {
+    logger.error(`Error authenticating session for ${phoneNumber}:`, error);
+    if (error.message !== 'AUTH_USER_CANCEL') {
+      bot.sendMessage(chatId, `Ошибка при аутентикации: ${error.message}`);
+    }
+    throw error;
+  }
+}
+
+
 
 module.exports = {
   getAuthCodeFromUser,
@@ -192,4 +284,6 @@ module.exports = {
   generateQRCode,
   checkAuthorization,
   connectWithRetry,
+  reauthorizeSession,
+  authenticateSession,
 };

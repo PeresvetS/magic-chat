@@ -6,28 +6,116 @@ const TelegramChecker = require('./TelegramChecker');
 const WhatsAppChecker = require('./WhatsAppChecker');
 const { leadService } = require('../../leads/src/leadService');
 const { getPlatformPriority } = require('../../../db').campaignsMailingRepo;
+const { PhoneNumberRotationService }  = require('../../phone');
 
 class MessagingPlatformChecker {
   constructor() {
     this.telegramChecker = TelegramChecker;
     this.whatsappChecker = WhatsAppChecker;
     this.wabaChecker = WABAChecker;
+    this.initialized = false;
+    this.initializedPlatforms = new Set();
+    this.sessionCache = new Map();
+    this.lastUsedTimestamp = new Map();
+    this.cleanupInterval = null;
+    this.SESSION_TIMEOUT = 30 * 60 * 1000; // 30 минут
+    this.CLEANUP_INTERVAL = 15 * 60 * 1000; // 15 минут
   }
 
-  async initialize() {
-    try {
-      await this.telegramChecker.initialize();
-      await this.whatsappChecker.initialize();
-      await this.wabaChecker.initialize();
-    } catch (error) {
-      logger.error('Error initializing checkers:', error);
-      throw new Error('Failed to initialize checkers.');
+  async initializePlatform(platform, campaignId) {
+    if (this.initializedPlatforms.has(platform)) return;
+
+    const numbers = await PhoneNumberRotationService.getAllPhoneNumbers(platform);
+    
+    switch(platform) {
+      case 'telegram':
+        // Не инициализируем все сессии сразу, а только создаем заглушки
+        for (const number of numbers) {
+          this.telegramChecker.createSessionStub(number);
+        }
+        break;
+      case 'whatsapp':
+        await this.whatsappChecker.initializeSessions(numbers);
+        break;
+      case 'waba':
+        await this.wabaChecker.initializeSessions(numbers);
+        break;
+    }
+
+    this.initializedPlatforms.add(platform);
+  }
+
+  async initialize(campaignId) {
+    if (this.initialized) return;
+
+    await PhoneNumberRotationService.initialize(campaignId);
+    
+    const platformPriority = await getPlatformPriority(campaignId);
+    const platformsToInitialize = platformPriority.split('');
+    
+    for (const platform of platformsToInitialize) {
+      await this.initializePlatform(platform, campaignId);
+    }
+
+    this.initialized = true;
+    this.startCleanupInterval();
+  }
+
+  startCleanupInterval() {
+    this.cleanupInterval = setInterval(() => {
+      this.cleanupSessions();
+    }, this.CLEANUP_INTERVAL);
+  }
+
+  async cleanupSessions() {
+    const now = Date.now();
+    for (const [phoneNumber, lastUsed] of this.lastUsedTimestamp.entries()) {
+      if (now - lastUsed > this.SESSION_TIMEOUT) {
+        await this.removeSession(phoneNumber);
+      }
     }
   }
 
-  async checkTelegram(phoneNumber) {
-    logger.info(`Checking Telegram for number ${phoneNumber}`);
-    return await this.telegramChecker.checkTelegram(phoneNumber);
+  async removeSession(phoneNumber) {
+    const session = this.sessionCache.get(phoneNumber);
+    if (session) {
+      try {
+        await session.disconnect();
+      } catch (error) {
+        logger.warn(`Error disconnecting session for ${phoneNumber}:`, error);
+      }
+    }
+    this.sessionCache.delete(phoneNumber);
+    this.lastUsedTimestamp.delete(phoneNumber);
+    logger.info(`Removed inactive session for ${phoneNumber}`);
+  }
+
+  async getOrCreateSession(phoneNumber) {
+    if (this.sessionCache.has(phoneNumber)) {
+      this.lastUsedTimestamp.set(phoneNumber, Date.now());
+      return this.sessionCache.get(phoneNumber);
+    }
+    const session = await this.telegramChecker.getOrCreateClient(phoneNumber);
+    this.sessionCache.set(phoneNumber, session);
+    this.lastUsedTimestamp.set(phoneNumber, Date.now());
+    return session;
+  }
+
+  async checkTelegram(phoneNumberToCheck) {
+    if (!this.initialized) {
+      throw new Error('MessagingPlatformChecker not initialized');
+    }
+
+    const senderPhoneNumber = await PhoneNumberRotationService.getNextAvailablePhoneNumber('telegram');
+    if (!senderPhoneNumber) {
+      logger.error(`No available Telegram phone numbers for checking ${phoneNumberToCheck}`);
+      throw new Error('No available Telegram phone numbers');
+    }
+
+    logger.info(`Checking Telegram for number ${phoneNumberToCheck} using sender ${senderPhoneNumber}`);
+    
+    const session = await this.getOrCreateSession(senderPhoneNumber);
+    return await this.telegramChecker.checkTelegram(phoneNumberToCheck, senderPhoneNumber, session);
   }
 
   async checkWhatsApp(phoneNumber) {
@@ -138,15 +226,19 @@ class MessagingPlatformChecker {
 
   async choosePlatform(
     campaignId,
-    phoneNumber,
+    phoneNumberToCheck,
     platformPriority = null,
-    mode = 'one',
+    mode = 'one'
   ) {
+    if (!this.initialized) {
+      await this.initialize(campaignId);
+    }
+
     logger.info(
-      `Choosing messaging platform for ${phoneNumber} with priority ${platformPriority}`,
+      `Choosing messaging platform for ${phoneNumberToCheck} with priority ${platformPriority}`,
     );
 
-    if (!phoneNumber || typeof phoneNumber !== 'string') {
+    if (!phoneNumberToCheck || typeof phoneNumberToCheck !== 'string') {
       throw new Error('Invalid phone number');
     }
 
@@ -159,10 +251,16 @@ class MessagingPlatformChecker {
       platformPriority = await getPlatformPriority(campaignId);
     }
 
-    return await this.checkPlatforms(phoneNumber, platformPriority, mode);
+    return await this.checkPlatforms(phoneNumberToCheck, platformPriority, mode);
   }
 
   async disconnect() {
+    if (this.cleanupInterval) {
+      clearInterval(this.cleanupInterval);
+    }
+    for (const [phoneNumber, session] of this.sessionCache.entries()) {
+      await this.removeSession(phoneNumber);
+    }
     await this.telegramChecker.disconnect();
     await this.whatsappChecker.disconnect();
     await this.wabaChecker.disconnect();

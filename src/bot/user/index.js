@@ -226,29 +226,40 @@ function createUserBot() {
 
   async function handleTelegramAuth(bot, query, phoneNumber, authType) {
     try {
+      let client;
       if (authType === 'code') {
-        await TelegramSessionService.authenticateSession(
+        client = await TelegramSessionService.authenticateSession(
           phoneNumber,
           bot,
           query.message.chat.id,
         );
       } else if (authType === 'qr') {
-        await TelegramSessionService.generateQRCode(
+        client = await TelegramSessionService.generateQRCode(
           phoneNumber,
           bot,
           query.message.chat.id,
         );
       }
-      await setPhoneAuthenticated(phoneNumber, 'telegram', true);
-      bot.sendMessage(
-        query.message.chat.id,
-        `Номер телефона ${phoneNumber} успешно аутентифицирован в Telegram.`,
-      );
+      
+      if (client) {
+        await setPhoneAuthenticated(phoneNumber, 'telegram', true);
+        bot.sendMessage(
+          query.message.chat.id,
+          `Номер телефона ${phoneNumber} успешно аутентифицирован в Telegram.`,
+        );
+      }
     } catch (error) {
-      bot.sendMessage(
-        query.message.chat.id,
-        `Ошибка аутентификации: ${error.message}`,
-      );
+      if (error.message === 'PHONE_NUMBER_INVALID') {
+        bot.sendMessage(
+          query.message.chat.id,
+          'Неверный формат номера телефона. Пожалуйста, проверьте номер и попробуйте снова.',
+        );
+      } else {
+        bot.sendMessage(
+          query.message.chat.id,
+          `Ошибка аутентификации: ${error.message}`,
+        );
+      }
     }
   }
 
@@ -276,6 +287,13 @@ function createUserBot() {
     }
   }
 
+  async function checkAndReauthorize(phoneNumber) {
+    const client = await TelegramSessionService.getSession(phoneNumber);
+    if (!(await TelegramSessionService.checkAuthorization(client))) {
+      await TelegramSessionService.reauthorizeSession(phoneNumber, 3, 5000, client);
+    }
+  }
+
   return {
     bot,
     launch,
@@ -285,6 +303,7 @@ function createUserBot() {
     getPollingError: () => pollingError,
     handleTelegramAuth,
     handleWhatsAppAuth,
+    checkAndReauthorize,
   };
 }
 

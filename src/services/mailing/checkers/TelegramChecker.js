@@ -1,45 +1,71 @@
 // src/services/mailing/checkers/telegramChecker.js
 
-const { Api } = require('telegram/tl');
 const logger = require('../../../utils/logger');
-const { TelegramMainSessionService } = require('../../telegram');
 const telegramSessionService = require('../../telegram/services/telegramSessionService');
 
 class TelegramChecker {
   constructor() {
-    this.client = null;
+    this.clients = new Map();
+    this.sessionStubs = new Map();
   }
 
-  async initialize() {
-    if (!this.client) {
-      this.client = await TelegramMainSessionService.getMainClient();
-      if (!this.client) {
-        throw new Error('Failed to get main Telegram client');
-      }
+  createSessionStub(phoneNumber) {
+    this.sessionStubs.set(phoneNumber, true);
+  }
+
+  async getOrCreateClient(phoneNumber) {
+    if (this.clients.has(phoneNumber)) {
+      return this.clients.get(phoneNumber);
     }
+
+    if (this.sessionStubs.has(phoneNumber)) {
+      const client = await telegramSessionService.getOrCreateSession(phoneNumber);
+      if (!client) {
+        throw new Error(`Failed to get Telegram client for phone number ${phoneNumber}`);
+      }
+      this.clients.set(phoneNumber, client);
+      this.sessionStubs.delete(phoneNumber);
+      return client;
+    }
+
+    throw new Error(`No session stub found for phone number ${phoneNumber}`);
   }
 
-  async checkTelegram(phoneNumber) {
-    logger.info(`Checking Telegram for number ${phoneNumber}`);
+  async checkTelegram(phoneNumberToCheck, senderPhoneNumber) {
+    logger.info(`Checking Telegram for number ${phoneNumberToCheck} using sender ${senderPhoneNumber}`);
     try {
-      await this.initialize();
+      const client = await this.getOrCreateClient(senderPhoneNumber);
 
       // Обновляем кэш сущностей
       logger.info('Updating entity cache...');
-      await this.client.getDialogs({limit: 1});
+      await client.getDialogs({limit: 1});
       logger.info('Entity cache updated');
 
-      const user = await telegramSessionService.findUserByPhoneNumber(phoneNumber, this.client);
+      const user = await telegramSessionService.findUserByPhoneNumber(phoneNumberToCheck, client);
+      
+      // // Обновляем статистику использования номера отправителя
+      // await phoneNumberService.updatePhoneNumberStats(senderPhoneNumber, user !== null, 'telegram');
+
       return user !== null;
     } catch (error) {
-      logger.error(`Error checking Telegram for number ${phoneNumber}:`, error);
+      logger.error(`Error checking Telegram for number ${phoneNumberToCheck}:`, error);
       return false;
     }
   }
 
-  async disconnect() {
-    // Мы не отключаем клиент здесь, так как он управляется TelegramSessionService
-    this.client = null;
+  async disconnect(phoneNumber) {
+    if (this.clients.has(phoneNumber)) {
+      const client = this.clients.get(phoneNumber);
+      await client.disconnect();
+      this.clients.delete(phoneNumber);
+    }
+  }
+
+  async disconnectAll() {
+    for (const [phoneNumber, client] of this.clients) {
+      await client.disconnect();
+    }
+    this.clients.clear();
   }
 }
 
