@@ -1,8 +1,9 @@
-const { phoneNumberService } = require('./phoneNumberService');
+// src/services/phone/src/PhoneNumberRotationService.js
+
+const { getActivePlatformPhoneNumbers, checkDailyPhoneNumberLimit, updatePhoneNumberBanStatus } = require('./phoneNumberService');
 const { phoneNumberRotationRepo } = require('../../../db');
-const { userService } = require('../../user');
+const { getUserIdByCampaignId } = require('../../user/src/userService');
 const logger = require('../../../utils/logger');
-const telegramSessionService = require('../../telegram/services/telegramSessionService');
 
 class PhoneNumberRotationService {
   constructor(campaignId) {
@@ -16,9 +17,9 @@ class PhoneNumberRotationService {
   }
 
   async initialize() {
-    this.userId = await userService.getUserIdByCampaignId(this.campaignId);
+    this.userId = await getUserIdByCampaignId(this.campaignId);
     for (const platform of ['telegram', 'whatsapp', 'waba']) {
-      this.platformPhoneNumbers[platform] = await phoneNumberService.getActivePlatformPhoneNumbers(this.userId, platform);
+      this.platformPhoneNumbers[platform] = await getActivePlatformPhoneNumbers(this.userId, platform);
       const rotationState = await phoneNumberRotationRepo.getRotationState(this.userId, this.campaignId, platform);
       if (!rotationState) {
         await phoneNumberRotationRepo.updateRotationState(this.userId, this.campaignId, platform, 0);
@@ -44,7 +45,7 @@ class PhoneNumberRotationService {
 
       logger.debug(`Checking phone number ${phoneNumber.phoneNumber} for availability`);
       if (this.isPhoneNumberAvailable(phoneNumber)) {
-        const isAvailable = await phoneNumberService.checkDailyPhoneNumberLimit(phoneNumber.phoneNumber, platform);
+        const isAvailable = await checkDailyPhoneNumberLimit(phoneNumber.phoneNumber, platform);
         if (isAvailable) {
           await phoneNumberRotationRepo.updateRotationState(this.userId, this.campaignId, platform, currentIndex);
           logger.info(`Selected phone number ${phoneNumber.phoneNumber} for ${platform}`);
@@ -70,12 +71,11 @@ class PhoneNumberRotationService {
     );
   }
 
-  async handleBanStatus(phoneNumber, banStatus, platform) {
+  async handleBanStatus(phoneNumber, banStatus, platform, client) {
     let banExpiresAt = null;
     
     if (platform === 'telegram') {
       try {
-        const client = await telegramSessionService.getOrCreateSession(phoneNumber);
         const banInfo = await client.invoke(new Api.account.GetBanInfo());
         
         if (banInfo.expires) {
@@ -103,7 +103,7 @@ class PhoneNumberRotationService {
       }
     }
 
-    await phoneNumberService.updatePhoneNumberBanStatus(phoneNumber, banStatus, banExpiresAt);
+    await updatePhoneNumberBanStatus(phoneNumber, banStatus, banExpiresAt);
     await this.initialize(); // Reinitialize to update available phone numbers
   }
 }

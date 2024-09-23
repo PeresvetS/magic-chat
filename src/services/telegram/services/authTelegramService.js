@@ -4,9 +4,9 @@ const { Api } = require('telegram/tl');
 const qrcode = require('qrcode');
 const logger = require('../../../utils/logger');
 const config = require('../../../config');
-const { getUserByTgId } = require('../../user').userService;
-const { setPhoneAuthenticated, addPhoneNumber, getPhoneNumberInfo } =
-  require('../../phone').phoneNumberService;
+const { getUserByTgId } = require('../../user/src/userService');
+const { phoneNumberService } =
+  require('../../phone/src/phoneNumberService');
 const { telegramSessionsRepo } = require('../../../db');
 
 async function connectWithRetry(
@@ -114,7 +114,7 @@ async function get2FAPasswordFromUser(phoneNumber, bot, chatId) {
 async function handleSuccessfulAuthentication(phoneNumber, bot, chatId) {
   try {
     // Проверяем, существует ли номер телефона в базе данных
-    const phoneNumberRecord = await getPhoneNumberInfo(phoneNumber);
+    const phoneNumberRecord = await phoneNumberService.getPhoneNumberInfo(phoneNumber);
 
     // Если номер не существуе��, создаем его
     if (!phoneNumberRecord) {
@@ -122,11 +122,11 @@ async function handleSuccessfulAuthentication(phoneNumber, bot, chatId) {
       logger.info(
         `Phone number ${phoneNumber} not found. Creating new record.`,
       );
-      await addPhoneNumber(user.id, phoneNumber, 'telegram');
+      await phoneNumberService.addPhoneNumber(user.id, phoneNumber, 'telegram');
     }
 
     // Устанавливаем статус аутентификации
-    await setPhoneAuthenticated(phoneNumber, 'telegram', true);
+    await phoneNumberService.setPhoneAuthenticated(phoneNumber, 'telegram', true);
     logger.info(
       `Authentication successful for ${phoneNumber}. Updated database.`,
     );

@@ -8,7 +8,7 @@ const { TelegramSessionService } = require('../../telegram');
 const { safeStringify } = require('../../../utils/helpers');
 const { WhatsAppSessionService } = require('../../whatsapp');
 const { getPhoneNumberInfo, updatePhoneNumberStats } =
-  require('../../phone').phoneNumberService;
+  require('../../phone/src/phoneNumberService');
 const { retryOperation } = require('../../../utils/messageUtils');
 const botStateManagerFactory = require('./BotStateManagerFactory');
 
@@ -95,7 +95,7 @@ async function sendResponse(
     }
 
     await validatePhoneNumber(phoneNumber);
-    const sentences = response.split(/(?<=[.!?])\s+/);
+    const sentences = response.split(/\n+/);
 
     const BotStateManager = getBotStateManager(platform);
 

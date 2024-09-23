@@ -9,10 +9,10 @@ const { ChatPromptTemplate } = require('@langchain/core/prompts');
 const { StringOutputParser } = require('@langchain/core/output_parsers');
 const { HumanMessage, AIMessage } = require('@langchain/core/messages');
 
-const { countTokens } = require('../tokenizer/tokenizer');
-const messageService = require('../dialog/messageService');
-const { safeStringify } = require('../../utils/helpers');
-const logger = require('../../utils/logger');
+const { countTokens } = require('../../tokenizer/tokenizer');
+const messageService = require('../../dialog/messageService');
+const { safeStringify } = require('../../../utils/helpers');
+const logger = require('../../../utils/logger');
 
 class EnhancedMemory {
   constructor(args) {

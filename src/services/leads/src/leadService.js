@@ -2,7 +2,10 @@
 
 const { leadsRepo } = require('../../../db');
 const logger = require('../../../utils/logger');
-const { getUserIdByTelegramId } = require('../../user').userService;
+const { getUserIdByTelegramId } = require('../../user/src/userService');
+
+logger.info('leadService loaded'); // Добавьте это
+
 const { campaignsMailingService } = require('../../campaign');
 const { formatPhoneNumber } = require('../../../utils/phoneHelpers');
 

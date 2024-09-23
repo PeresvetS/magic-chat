@@ -149,4 +149,5 @@ module.exports = {
   getAllUsers,
   updateUserBanStatus,
   getUserIdByCampaignId,
+  setUserOpenAIKey,
 };

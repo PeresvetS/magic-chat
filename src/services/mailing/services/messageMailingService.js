@@ -5,7 +5,6 @@ const { WABASessionService } = require('../../waba');
 const { leadService } = require('../../leads/src/leadService');
 const { TelegramSessionService } = require('../../telegram');
 const { WhatsAppSessionService } = require('../../whatsapp');
-const { Api } = require('telegram/tl');
 const {
   getCampaigUserId,
 } = require('../../campaign/src/campaignsMailingService');

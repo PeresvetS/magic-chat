@@ -8,7 +8,7 @@ const os = require('os');
 const logger = require('../../../utils/logger');
 const WABASessionService = require('../../waba/services/WABASessionService');
 const WhatsAppMainSessionService = require('../../whatsapp/services/WhatsAppMainSessionService');
-const TelegramSessionService = require('../../telegram/services/telegramSessionService');
+const { TelegramSessionService } = require('../../telegram');
 const { Api } = require('telegram');
 
 async function processFile(ctx, filePath) {

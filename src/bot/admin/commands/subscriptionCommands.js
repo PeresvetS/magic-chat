@@ -2,7 +2,12 @@
 
 const logger = require('../../../utils/logger');
 const { safeStringify } = require('../../../utils/helpers');
-const { subscriptionService, userService } = require('../../../services/user');
+const {
+  getUserSubscriptionInfo,
+  addUserSubscription,
+  updateUserSubscription,
+} = require('../../../services/user/src/subscriptionService');
+const { getUserByIdentifier } = require('../../../services/user/src/userService');
 
 module.exports = {
   '/add_subscription ([\\w\\.@]+) (\\d+) (days|months) (repeat|once)': async (
@@ -20,7 +25,7 @@ module.exports = {
         unit === 'months' ? parseInt(duration) * 30 : parseInt(duration);
       const isRepeating = repeatType === 'repeat';
 
-      const subscriptionId = await subscriptionService.addUserSubscription(
+      const subscriptionId = await addUserSubscription(
         userIdentifier,
         durationDays,
         isRepeating,
@@ -44,7 +49,7 @@ module.exports = {
       const [, userIdentifier] = match;
       logger.info(`Checking subscription for user: ${userIdentifier}`);
 
-      const user = await userService.getUserByIdentifier(userIdentifier);
+      const user = await getUserByIdentifier(userIdentifier);
       if (!user) {
         throw new Error('Пользователь не найден');
       }
@@ -52,7 +57,7 @@ module.exports = {
       logger.info(`User found: ${safeStringify(user)}`);
 
       const subscriptionInfo =
-        await subscriptionService.getUserSubscriptionInfo(user.id);
+        await getUserSubscriptionInfo(user.id);
       logger.info(`Subscription info: ${JSON.stringify(subscriptionInfo)}`);
 
       if (subscriptionInfo) {
@@ -92,12 +97,12 @@ module.exports = {
       const durationDays =
         unit === 'months' ? parseInt(duration) * 30 : parseInt(duration);
 
-      const user = await userService.getUserByIdentifier(userIdentifier);
+      const user = await getUserByIdentifier(userIdentifier);
       if (!user) {
         throw new Error('Пользователь не найден');
       }
 
-      await subscriptionService.updateUserSubscription(user.id, durationDays);
+      await updateUserSubscription(user.id, durationDays);
 
       if (durationDays > 0) {
         bot.sendMessage(

@@ -4,13 +4,13 @@ const TelegramBot = require('node-telegram-bot-api');
 
 const config = require('../../config');
 const logger = require('../../utils/logger');
-const { userService } = require('../../services/user');
+const { getUserInfo } = require('../../services/user/src/userService');
 const { getUserState } = require('./utils/userState');
 const { TelegramSessionService } = require('../../services/telegram');
 const { WhatsAppSessionService } = require('../../services/whatsapp');
 const { setPhoneAuthenticated } =
   require('../../services/phone').phoneNumberService;
-const PhoneNumberManagerFactory = require('../../services/phone/src/PhoneNumberManagerFactory');
+const PhoneNumberManagerService = require('../../services/phone/src/PhoneNumberManagerService');
 const wabaCommands = require('./commands/wabaCommands');
 const helpCommands = require('./commands/helpCommands');
 const phoneCommands = require('./commands/phoneCommands');
@@ -63,7 +63,7 @@ function createUserBot() {
     }
   }
 
-  const phoneNumberManager = PhoneNumberManagerFactory.create();
+  const phoneNumberManager = new PhoneNumberManagerService();
 
   phoneNumberManager.setNotificationCallback((telegramId, message) => {
     bot.sendMessage(telegramId, message);
@@ -74,7 +74,7 @@ function createUserBot() {
       if (command !== 'messageHandler') {
         bot.onText(new RegExp(`^${command}`), async (msg, match) => {
           try {
-            const userInfo = await userService.getUserInfo(msg.from.id);
+            const userInfo = await getUserInfo(msg.from.id);
             if (!userInfo || !userInfo.isSubscribed) {
               bot.sendMessage(
                 msg.chat.id,
@@ -118,7 +118,7 @@ function createUserBot() {
     } // Игнорируем команды
 
     try {
-      const userInfo = await userService.getUserInfo(msg.from.id);
+      const userInfo = await getUserInfo(msg.from.id);
 
       if (!userInfo || !userInfo.isSubscribed) {
         bot.sendMessage(

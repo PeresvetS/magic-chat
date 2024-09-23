@@ -6,8 +6,8 @@ const {
   setPhoneNumberLimit,
   getPhoneNumberInfo,
   getUserPhoneNumbers,
-} = require('../../../services/phone').phoneNumberService;
-const { userService } = require('../../../services/user');
+} = require('../../../services/phone/src/phoneNumberService');
+const { getUserByTgId } = require('../../../services/user/src/userService');
 const { WABASessionService } = require('../../../services/waba');
 const { TelegramSessionService } = require('../../../services/telegram');
 const { WhatsAppSessionService } = require('../../../services/whatsapp');
@@ -25,7 +25,7 @@ module.exports = {
       `Extracted platform: ${platform}, phone number: ${phoneNumber}`,
     );
 
-    const user = await userService.getUserByTgId(msg.from.id);
+    const user = await getUserByTgId(msg.from.id);
     const userId = user.id;
 
     logger.info(`Add phone command called by user ${userId}`);
@@ -138,7 +138,7 @@ module.exports = {
       `Extracted platform: ${platform}, phone number: ${phoneNumber}`,
     );
 
-    const user = await userService.getUserByTgId(msg.from.id);
+    const user = await getUserByTgId(msg.from.id);
     const userId = user.id;
     logger.info(`Remove phone command called by user ${userId}`);
 
@@ -195,7 +195,7 @@ module.exports = {
   ) => {
     const [, platform, phoneNumber, dailyLimit, totalLimit] = match;
 
-    const user = await userService.getUserByTgId(msg.from.id);
+    const user = await getUserByTgId(msg.from.id);
     const userId = user.id;
     logger.info(`Set phone limit command called by user ${userId}`);
 
@@ -237,7 +237,7 @@ module.exports = {
 
   '/list_phones': async (bot, msg) => {
     try {
-      const user = await userService.getUserByTgId(msg.from.id);
+      const user = await getUserByTgId(msg.from.id);
       if (!user) {
         bot.sendMessage(msg.chat.id, 'Пользователь не найден.');
         return;
@@ -278,7 +278,7 @@ module.exports = {
 
     logger.info(`Extracted phone number: ${phoneNumber}`);
 
-    const user = await userService.getUserByTgId(msg.from.id);
+    const user = await getUserByTgId(msg.from.id);
     const userId = user.id;
     logger.info(`Phone stats command called by user ${userId}`);
 

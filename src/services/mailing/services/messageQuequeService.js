@@ -2,7 +2,7 @@
 
 const logger = require('../../../utils/logger');
 const RabbitMQQueueService = require('../../queue/rabbitMQQueueService');
-const PhoneNumberManagerFactory = require('../../phone/src/PhoneNumberManagerFactory');
+const PhoneNumberManagerService = require('../../phone/src/PhoneNumberManagerService');
 const { delay, retryOperation } = require('../../../utils/helpers');
 const {
   sendTelegramMessage,
@@ -130,7 +130,7 @@ async function processSingleQueueItem(queueItem) {
       await RabbitMQQueueService.updateQueueItemStatus(queueItem.id, 'completed', result);
       return { [queueItem.platform]: result };
     } else if (result.error === 'DAILY_LIMIT_REACHED' || result.error.includes('FLOOD_WAIT')) {
-      const phoneNumberManager = PhoneNumberManagerFactory.create();
+      const phoneNumberManager = new PhoneNumberManagerService();
       const newSenderPhoneNumber = await phoneNumberManager.switchToNextPhoneNumber(
         queueItem.campaignId,
         queueItem.senderPhoneNumber,

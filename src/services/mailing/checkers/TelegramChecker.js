@@ -1,7 +1,7 @@
 // src/services/mailing/checkers/TelegramChecker.js
 
 const logger = require('../../../utils/logger');
-const telegramSessionService = require('../../telegram/services/telegramSessionService');
+const { TelegramSessionService } = require('../../telegram');
 const { PhoneNumberRotationService } = require('../../phone');
 
 class TelegramChecker {
@@ -29,7 +29,7 @@ class TelegramChecker {
     }
 
     if (this.sessionStubs.has(phoneNumber)) {
-      const client = await telegramSessionService.getOrCreateSession(phoneNumber);
+      const client = await TelegramSessionService.getOrCreateSession(phoneNumber);
       if (!client) {
         throw new Error(`Failed to get Telegram client for phone number ${phoneNumber}`);
       }
@@ -57,12 +57,13 @@ class TelegramChecker {
       await client.getDialogs({limit: 1});
       logger.info('Entity cache updated');
 
-      const user = await telegramSessionService.findUserByPhoneNumber(phoneNumberToCheck, client);
+      const user = await TelegramSessionService.findUserByPhoneNumber(phoneNumberToCheck, client);
       
       return user !== null;
     } catch (error) {
       if (this.isBanError(error)) {
-        await this.handleBanError(senderPhoneNumber, error);
+        const client = await this.getOrCreateClient(senderPhoneNumber);
+        await this.handleBanError(senderPhoneNumber, error, client);
         throw error; // Re-throw to allow MessagingPlatformChecker to handle it
       }
       logger.error(`Error checking Telegram for number ${phoneNumberToCheck}:`, error);
@@ -75,8 +76,8 @@ class TelegramChecker {
     return banErrors.some(banError => error.message.includes(banError));
   }
 
-  async handleBanError(phoneNumber, error) {
-    await this.phoneNumberRotationService.handleBanStatus(phoneNumber, error.message, 'telegram');
+  async handleBanError(phoneNumber, error, client) {
+    await this.phoneNumberRotationService.handleBanStatus(phoneNumber, error.message, 'telegram', client);
     this.clients.delete(phoneNumber);
     this.lastUsedTime.delete(phoneNumber);
   }

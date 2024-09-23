@@ -2,7 +2,7 @@
 
 const logger = require('../../../utils/logger');
 const { banUser, unbanUser, getUserInfo, getAllUsers } =
-  require('../../../services/user').userService;
+  require('../../../services/user/src/userService');
 
 module.exports = {
   '/ban_user ([\\w\\.]+)': async (bot, msg, match) => {

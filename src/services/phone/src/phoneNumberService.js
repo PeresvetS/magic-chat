@@ -1,7 +1,8 @@
 // src/services/phone/phoneNumberService.js
 
 const logger = require('../../../utils/logger');
-const { phoneNumberRepo, userRepo } = require('../../../db');
+const { phoneNumberRepo } = require('../../../db');
+const { getUserById } = require('../../../db').userRepo;
 const { validatePhoneNumber } = require('../../../utils/phoneHelpers');
 
 async function addPhoneNumber(
@@ -17,7 +18,7 @@ async function addPhoneNumber(
     );
 
     if (userId) {
-      const user = await userRepo.getUserById(userId);
+      const user = await getUserById(userId);
       if (!user) {
         logger.warn(
           `User with ID ${userId} not found. Proceeding without user association.`,
@@ -69,7 +70,7 @@ async function removePhoneNumber(userId, phoneNumber, platform) {
       throw new Error('Номер телефона не может быть пустым');
     }
 
-    const user = await userRepo.getUserById(userId);
+    const user = await getUserById(userId);
     if (!user) {
       throw new Error(`User with ID ${userId} not found`);
     }

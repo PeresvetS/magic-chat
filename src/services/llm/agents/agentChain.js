@@ -1,25 +1,20 @@
-// src/services/langchain/agentChain.js
+// src/services/llm/agentChain.js
 
 const { ChatOpenAI } = require('@langchain/openai');
-const {
-  ChatPromptTemplate,
-  SystemMessagePromptTemplate,
-  HumanMessagePromptTemplate,
-} = require('@langchain/core/prompts');
 const {
   RunnableSequence,
   RunnablePassthrough,
 } = require('@langchain/core/runnables');
 
-const { countTokens } = require('../tokenizer/tokenizer');
-const logger = require('../../utils/logger');
-const EnhancedMemory = require('./enhancedMemory');
-const config = require('../../config');
-const { safeStringify } = require('../../utils/helpers');
-const promptService = require('./promptService');
+const { countTokens } = require('../../tokenizer/tokenizer');
+const logger = require('../../../utils/logger');
+const EnhancedMemory = require('../memory/enhancedMemory');
+const config = require('../../../config');
+const { safeStringify } = require('../../../utils/helpers');
+const promptService = require('../prompts/promptService');
 
 class AgentChain {
-  constructor(campaign, lead) {
+  constructor(campaign, lead, tools) {
     this.campaign = campaign;
     this.lead = lead;
     this.tokenCount = 0;
@@ -41,11 +36,12 @@ class AgentChain {
       userId: campaign.userId,
     });
 
-    this.primaryAgent = this.createPrimaryAgent();
+    this.primaryAgent = this.createPrimaryAgent(tools);
     this.secondaryAgent = this.createSecondaryAgent();
+    this.tools = tools;
   }
 
-  createPrimaryAgent() {
+  createPrimaryAgent(tools) {
     try {
       const llm = new ChatOpenAI({
         modelName: this.campaign.modelName || 'gpt-4o-mini',
@@ -53,24 +49,11 @@ class AgentChain {
         openAIApiKey: this.openaiApiKey,
       });
 
-      const systemPrompt = SystemMessagePromptTemplate.fromTemplate(
-        this.campaign.prompt.content,
-      );
-      const googleSheetPrompt = SystemMessagePromptTemplate.fromTemplate(
-        this.googleSheetData || '',
-      );
-      const humanTemplate = '{input}';
-      const humanMessagePrompt =
-        HumanMessagePromptTemplate.fromTemplate(humanTemplate);
+      const composePromptTemplate = composePromptTemplate(this.campaign.prompt.content);
 
-      const chatPrompt = ChatPromptTemplate.fromMessages([
-        systemPrompt,
-        googleSheetPrompt,
-        { role: 'system', content: '{context}' },
-        humanMessagePrompt,
-      ]);
+      const llmWithTools = llm.bindTools(tools);
 
-      const chain = RunnableSequence.from([chatPrompt, llm]);
+      const chain = RunnableSequence.from([composePromptTemplate, llmWithTools]);
 
       logger.info(`Created primary agent for campaign: ${this.campaign.id}`);
       return chain;
@@ -88,25 +71,25 @@ class AgentChain {
       return null;
     }
 
-    try {
-      const llm = new ChatOpenAI({
-        modelName: 'gpt-4o-mini',
-        temperature: 0,
-        openAIApiKey: this.openaiApiKey,
-      });
+    // try {
+    //   const llm = new ChatOpenAI({
+    //     modelName: 'gpt-4o-mini',
+    //     temperature: 0,
+    //     openAIApiKey: this.openaiApiKey,
+    //   });
 
-      const prompt = ChatPromptTemplate.fromTemplate(
-        this.campaign.secondaryPrompt.content,
-      );
+    //   const prompt = ChatPromptTemplate.fromTemplate(
+    //     this.campaign.secondaryPrompt.content,
+    //   ); // здесь не хватат , обновить потом
 
-      const chain = RunnableSequence.from([chatPrompt, llm]);
+    //   const chain = RunnableSequence.from([prompt, llm]);
 
-      logger.info(`Created secondary agent for campaign: ${this.campaign.id}`);
-      return chain;
-    } catch (error) {
-      logger.error(`Error creating secondary agent: ${error.message}`);
-      throw error;
-    }
+    //   logger.info(`Created secondary agent for campaign: ${this.campaign.id}`);
+    //   return chain;
+    // } catch (error) {
+    //   logger.error(`Error creating secondary agent: ${error.message}`);
+    //   throw error;
+    // }
   }
 
   addContext(key, value) {
@@ -116,7 +99,7 @@ class AgentChain {
 
   async run(userMessage) {
     try {
-      const prompt = await promptService.generatePrompt(this.lead, this.campaign, userMessage, this.memory);
+      const prompt = await promptService.generateUserPrompt(this.lead, this.campaign, userMessage, this.memory);
 
       logger.info(`Context: ${safeStringify(prompt)}`);
 
@@ -131,21 +114,18 @@ class AgentChain {
             return 'No response generated';
           }
 
-          let responseText = primaryResponse;
+          let responseText = primaryResponse.content || primaryResponse;
           logger.info(`Primary response: ${safeStringify(primaryResponse)}`);
-          if (typeof primaryResponse === 'object') {
-            logger.warn(
-              `Unexpected primary response type: ${typeof primaryResponse}`,
-            );
-            responseText =
-              primaryResponse.output ||
-              primaryResponse.text ||
-              JSON.stringify(primaryResponse);
-          }
 
-          if (responseText.includes('FUNCTION_CALL:')) {
-            // ?
-            return responseText;
+          if (primaryResponse.tool_calls && primaryResponse.tool_calls.length > 0) {
+            // Обработка вызовов инструментов
+            for (const toolCall of primaryResponse.tool_calls) {
+              const tool = this.tools.find(t => t.name === toolCall.name);
+              if (tool) {
+                const result = await tool.invoke(JSON.parse(toolCall.args));
+                responseText += `\nTool ${toolCall.name} result: ${result}`;
+              }
+            }
           }
 
           if (this.campaign.isSecondaryAgentActive && this.secondaryAgent) {

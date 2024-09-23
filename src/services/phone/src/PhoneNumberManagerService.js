@@ -1,6 +1,7 @@
 // src/services/phone/src/PhoneNumberManagerService.js
 
 const logger = require('../../../utils/logger');
+
 const WABAAccountService = require('../../waba/services/WABAAccountService');
 const {
   phoneNumberRepo,
@@ -10,18 +11,7 @@ const {
 } = require('../../../db');
 
 class PhoneNumberManagerService {
-  constructor(
-    phoneNumberRepo,
-    phoneNumberCampaignRepo,
-    campaignsMailingRepo,
-    phoneNumberRotationRepo,
-    wabaAccountService
-  ) {
-    this.phoneNumberRepo = phoneNumberRepo;
-    this.phoneNumberCampaignRepo = phoneNumberCampaignRepo;
-    this.campaignsMailingRepo = campaignsMailingRepo;
-    this.phoneNumberRotationRepo = phoneNumberRotationRepo;
-    this.wabaAccountService = wabaAccountService;
+  constructor() {
     this.activePhoneNumbers = new Map();
     this.notificationCallback = null;
   }
@@ -66,7 +56,7 @@ class PhoneNumberManagerService {
   }
 
   async isPhoneNumberAvailable(phoneNumber, platform) {
-    const phoneInfo = await this.phoneNumberRepo.getPhoneNumberInfo(phoneNumber);
+    const phoneInfo = await phoneNumberRepo.getPhoneNumberInfo(phoneNumber);
 
     if (!phoneInfo) {
       return false;
@@ -84,7 +74,7 @@ class PhoneNumberManagerService {
         account = phoneInfo.whatsappAccount;
         break;
       case 'waba':
-        account = await this.wabaAccountService.getAccount(phoneNumber);
+        account = await WABAAccountService.getAccount(phoneNumber);
         break;
       default:
         throw new Error(`Unsupported platform: ${platform}`);
@@ -102,7 +92,7 @@ class PhoneNumberManagerService {
 
   async getCampaignPhoneNumbers(campaignId, platform) {
     const attachments =
-      await this.phoneNumberCampaignRepo.findAttachmentsByCampaignAndPlatform(
+      await phoneNumberCampaignRepo.findAttachmentsByCampaignAndPlatform(
         campaignId,
         platform,
       );

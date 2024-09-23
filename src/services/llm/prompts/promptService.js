@@ -1,11 +1,16 @@
 // src/services/llm/promptService.js
 
-const logger = require('../../utils/logger');
-const { leadProfileService } = require('../leads');
-const knowledgeBaseServiceFactory = require('./knowledgeBase/knowledgeBaseServiceFactory');
-const { getGoogleSheetData, getCurrentTime } = require('./llmFunctions');
+const logger = require('../../../utils/logger');
+const { leadProfileService } = require('../../leads');
+const knowledgeBaseServiceFactory = require('../knowledgeBase/knowledgeBaseServiceFactory');
+const { getGoogleSheetData, getCurrentTime } = require('../tools/llmTools');
+const {
+  ChatPromptTemplate,
+  SystemMessagePromptTemplate,
+  HumanMessagePromptTemplate,
+} = require('@langchain/core/prompts');
 
-async function generatePrompt(lead, campaign, userMessage, memory) {
+async function generateUserPrompt(lead, campaign, userMessage, memory) {
   try {
     const time = getCurrentTime();
     const googleSheetData = await getGoogleSheetData(campaign.googleSheetUrl);
@@ -37,15 +42,12 @@ async function generatePrompt(lead, campaign, userMessage, memory) {
     }
 
     // Добавляем данные из Google Sheets
-    if (googleSheetData) {
+    if (googleSheetData && googleSheetData !== '') {
       prompt += `Relevant Q&A data:\n${googleSheetData}\n\n`;
     }
 
     // Добавляем текущее время
     prompt += `Current time: ${time}\n\n`;
-
-    // Добавляем текущее сообщение пользователя
-    prompt += `Human: ${userMessage}\nAI:`;
 
     // Добавляем информацию из базы знаний, если она есть
     if (campaign.knowledgeBaseId) {
@@ -57,6 +59,10 @@ async function generatePrompt(lead, campaign, userMessage, memory) {
           prompt += `\n\nRelevant knowledge:\n${relevantKnowledge}\n`;
         }
       }
+
+          // Добавляем текущее сообщение пользователя
+    prompt += `Human's question: ${userMessage}\nAI:`;
+
     }
 
     return prompt;
@@ -66,7 +72,36 @@ async function generatePrompt(lead, campaign, userMessage, memory) {
   }
 }
 
+async function generateSystemPrompt(campaignPrompt) {
+    const divideMessageInstruction = 'Дели свой ответ на части по абзацам, как обычно делят люди текст, когда пишут в мессенджерах.  Делай это по-умному, смысловыми недлинными блоками. Отвечай всегда на русском языке.';
+    const systempPromptContent = `${campaignPrompt}\n\n${divideMessageInstruction}`;
+
+    const systemPrompt = SystemMessagePromptTemplate.fromTemplate(
+        systempPromptContent,
+      );
+      
+      return systemPrompt;
+}
+
+async function composePromptTemplate(campaignPrompt) {
+
+    const systemPrompt = generateSystemPrompt(campaignPrompt);
+    const humanTemplate = '{input}';
+    const humanMessagePrompt =
+    HumanMessagePromptTemplate.fromTemplate(humanTemplate);
+
+    const commonPromptTemplate = ChatPromptTemplate.fromMessages([
+        systemPrompt,
+        { role: 'system', content: '{context}' },
+        humanMessagePrompt,
+    ]);
+    return commonPromptTemplate;
+}
+
+
+
 module.exports = {
-  generatePrompt,
+    generateUserPrompt,
+    composePromptTemplate,
 };
 

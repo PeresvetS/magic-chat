@@ -2,7 +2,7 @@
 
 const MessagingPlatformChecker = require('../checkers/MessagingPlatformChecker');
 const logger = require('../../../utils/logger');
-const PhoneNumberManagerFactory = require('../../phone/src/PhoneNumberManagerFactory');
+const PhoneNumberManagerService = require('../../phone/src/PhoneNumberManagerService');
 const { campaignsMailingService } = require('../../campaign');
 const RabbitMQQueueService = require('../../queue/rabbitMQQueueService');
 
@@ -10,7 +10,7 @@ class MessageDistributionService {
   constructor() {
     this.lastMessageTimes = new Map();
     this.RATE_LIMIT_SECONDS = 60; // 1 минута
-    this.phoneNumberManager = PhoneNumberManagerFactory.create();
+    this.phoneNumberManager = new PhoneNumberManagerService();
   }
 
   async distributeMessage(
@@ -67,7 +67,7 @@ class MessageDistributionService {
       };
 
       for (const platform of platforms.split(',')) {
-        const phoneNumberManager = PhoneNumberManagerFactory.create();
+        const phoneNumberManager = new PhoneNumberManagerService();
         let senderPhoneNumber = await phoneNumberManager.getNextAvailablePhoneNumber(
           campaignId,
           platform,
