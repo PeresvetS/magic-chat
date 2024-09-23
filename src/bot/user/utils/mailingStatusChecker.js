@@ -87,7 +87,7 @@ async function checkBulkDistributionStatus(bot, chatId, details, campaignId) {
     }
 
     // Увеличьте задержку, чтобы не перегружать систему
-    await new Promise((resolve) => setTimeout(resolve, 1000));
+    await new Promise((resolve) => setTimeout(resolve, 10000));
   }
 
   const finalMessage =
@@ -100,7 +100,7 @@ async function checkBulkDistributionStatus(bot, chatId, details, campaignId) {
 
   // Добавьте проверку на завершение всех отправок
   if (pending > 0) {
-    await new Promise((resolve) => setTimeout(resolve, 5000));
+    await new Promise((resolve) => setTimeout(resolve, 10000));
     await checkBulkDistributionStatus(bot, chatId, details, campaignId);
   }
 }

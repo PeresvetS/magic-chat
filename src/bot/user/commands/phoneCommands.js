@@ -33,7 +33,7 @@ module.exports = {
     if (!phoneNumber) {
       bot.sendMessage(
         msg.chat.id,
-        'Пожалуйста, укажите платформу и номер телефона после к��манды. Например: /add_phone telegram +79123456789',
+        'Пожалуйста, укажите платформу и номер телефона после команды. Например: /add_phone telegram +79123456789',
       );
       return;
     }

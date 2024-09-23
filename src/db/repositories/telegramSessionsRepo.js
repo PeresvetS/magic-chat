@@ -31,7 +31,19 @@ async function saveSession(phoneNumber, sessionString) {
 
 async function deleteSession(phoneNumber) {
   try {
-    await prisma.telegramSession.delete({ where: { phoneNumber } });
+    const session = await prisma.telegramSession.findUnique({
+      where: { phoneNumber },
+    });
+
+    if (!session) {
+      logger.warn(`Telegram session for phone number ${phoneNumber} does not exist`);
+      return;
+    }
+
+    await prisma.telegramSession.delete({
+      where: { phoneNumber },
+    });
+
     logger.info(`Telegram session deleted for: ${phoneNumber}`);
   } catch (error) {
     logger.error('Error deleting Telegram session from database', error);

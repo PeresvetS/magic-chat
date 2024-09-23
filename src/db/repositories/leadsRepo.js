@@ -116,18 +116,26 @@ async function getLeadsDBs(userId) {
 
 async function addLeadsToLeadsDB(leadsDBId, leads) {
   try {
-    const createdLeads = await prisma.lead.createMany({
-      data: leads.map((lead) => ({
-        leadsDBId,
-        phone: lead.phone,
-        name: lead.name,
-        source: lead.source,
-        status: 'NEW',
-      })),
-      skipDuplicates: true,
-    });
-    logger.info(`Добавлено ${createdLeads.count} лидов в LeadsDB ${leadsDBId}`);
-    return createdLeads.count;
+    const createdLeads = await prisma.$transaction(
+      leads.map((lead) =>
+        prisma.lead.create({
+          data: {
+            leadsDBId,
+            phone: lead.phone,
+            status: 'NEW',
+            profile: {
+              create: {
+                name: lead.name,
+                status: 'NEW',
+                source: lead.source,
+              },
+            },
+          },
+        })
+      )
+    );
+    logger.info(`Добавлено ${createdLeads.length} лидов в LeadsDB ${leadsDBId}`);
+    return createdLeads.length;
   } catch (error) {
     logger.error(`Ошибка при добавлении лидов в LeadsDB ${leadsDBId}:`, error);
     throw error;

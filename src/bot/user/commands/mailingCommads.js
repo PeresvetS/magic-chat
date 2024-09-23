@@ -13,6 +13,7 @@ const { leadService } = require('../../../services/leads');
 const { campaignsMailingService } = require('../../../services/campaign');
 const { distributionService } = require('../../../services/mailing');
 const logger = require('../../../utils/logger');
+const { delay } = require('../../../utils/helpers');
 
 async function getCampaignByName(name, bot, chatId) {
   try {
@@ -211,7 +212,6 @@ module.exports = {
           msg.chat.id,
           'Сообщение поставлено в очередь на отправку. Ожидайте результатов...',
         );
-
         await checkMailingStatus(bot, msg, initialResult, phoneNumber);
       } catch (error) {
         logger.error('Error in mailing test:', error);
@@ -264,8 +264,8 @@ module.exports = {
           msg.chat.id,
           'Сообщение поставлено в очередь на отправку. Ожидайте результатов...',
         );
-
-        await checkMailingStatus(bot, msg, initialResult, phoneNumber);
+        await delay(30000);
+        await checkMailingStatus(bot, msg, initialResult, phoneNumber);  // поменять логику проверки статуса
       } catch (error) {
         logger.error('Error in manual send:', error);
         bot.sendMessage(

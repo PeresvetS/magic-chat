@@ -60,9 +60,6 @@ async function sendMessage(
         break;
     }
 
-    logger.info(
-      `${platform} message sent successfully from ${phoneNumber} to ${userId}: ${safeStringify(result)}`,
-    );
     await updatePhoneNumberStats(phoneNumber, platform);
 
     return result;

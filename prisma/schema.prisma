@@ -64,7 +64,6 @@ model PhoneNumber {
   phoneNumber       String           @unique
   user              User?            @relation(fields: [userId], references: [id])
   userId            Int?
-  isBanned          Boolean          @default(false)
   banType           String?
   maxInactivityTime Int              @default(3600)
   createdAt         DateTime         @default(now())
@@ -82,6 +81,7 @@ model TelegramAccount {
   phoneNumberId        Int         @unique
   isPremium            Boolean     @default(false)
   isAuthenticated      Boolean     @default(false)
+  isBanned             Boolean     @default(false)
   contactsReachedToday Int         @default(0)
   contactsReachedTotal Int         @default(0)
   dailyLimit           Int         @default(40)
@@ -192,7 +192,6 @@ model Lead {
   campaignId        Int?
   userId            Int?
   phone             String?
-  source            String?
   createdAt         DateTime           @default(now())
   updatedAt         DateTime           @updatedAt
   campaign          CampaignMailing?   @relation(fields: [campaignId], references: [id])
@@ -221,6 +220,7 @@ model LeadProfile {
   name               String?
   status             String?
   address            String?
+  source             String?
   businessType       String?
   leadGenerationMethod String?
   mainPains          String?
@@ -232,6 +232,8 @@ model LeadProfile {
 
 enum LeadStatus {
   NEW
+  SENT_MESSAGE
+  STARTED_CONVERSATION
   UNAVAILABLE
   PROCESSED_NEGATIVE
   PROCESSED_POSITIVE

@@ -1,7 +1,8 @@
 // src/bot/user/commands/leadsCommands.js
 
 const logger = require('../../../utils/logger');
-const { leadService, xlsProcessor } = require('../../../services/leads');
+const leadService = require('../../../services/leads/src/leadService');
+const { processExcelFile } = require('../../../services/leads/src/xlsProcessor');
 const {
   setUserState,
   getUserState,
@@ -258,7 +259,7 @@ module.exports = {
       ) {
         try {
           const file = await bot.getFileLink(msg.document.file_id);
-          const leads = await xlsProcessor.processExcelFile(file);
+          const leads = await processExcelFile(file);
           const addedLeadsCount = await leadService.addLeadsToLeadsDB(
             parseInt(userState.leadsDBId),
             leads,

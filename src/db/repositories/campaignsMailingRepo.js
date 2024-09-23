@@ -3,6 +3,7 @@
   const prisma = require('../utils/prisma');
   const logger = require('../../utils/logger');
   const { getUserByTgId } = require('./userRepo');
+  const { safeStringify } = require('../../utils/helpers');
 
   async function createCampaignMailing(telegramId, name) {
     try {
@@ -227,6 +228,8 @@
         include: { telegramAccount: true, whatsappAccount: true }
       });
 
+      logger.info(`Phone number record: ${safeStringify(phoneNumberRecord)}`);
+
       if (!phoneNumberRecord) {
         throw new Error('Phone number does not exist');
       }
@@ -243,14 +246,18 @@
       const existingAttachment = await prisma.phoneNumberCampaign.findFirst({
         where: {
           phoneNumber,
+          campaignId,
           campaign: { isActive: true }
         }
       });
+
+      logger.info(`Existing attachment: ${safeStringify(existingAttachment)}`);
 
       if (existingAttachment) {
         throw new Error('Phone number is already attached to an active campaign');
       }
 
+      logger.info(`Attaching phone number ${phoneNumber} to campaign ${campaignId} on platform ${platform}`);
       return await prisma.phoneNumberCampaign.create({
         data: {
           campaignId,
@@ -268,16 +275,19 @@
     try {
       const existingAttachment = await prisma.phoneNumberCampaign.findFirst({
         where: {
-          campaignId: campaignId,
-          phoneNumber: phoneNumber
+          campaignId,
+          phoneNumber
         }
       });
+
+      logger.info(`Existing attachment: ${safeStringify(existingAttachment)}`);
   
       if (!existingAttachment) {
         logger.warn(`No attachment found for campaignId: ${campaignId} and phoneNumber: ${phoneNumber}`);
         return null;
       }
   
+      logger.info(`Detaching phone number ${phoneNumber} from campaign ${campaignId}`);
       return await prisma.phoneNumberCampaign.delete({
         where: {
           id: existingAttachment.id
@@ -311,7 +321,6 @@
       });
       
       logger.info(`Retrieved ${result.length} phone numbers for campaign ${campaignId}`);
-      logger.info(`Result: ${JSON.stringify(result)}`);
       
       // Ensure result is always an array
       return result || [];
@@ -415,7 +424,14 @@
 
   async function getCampaignByName(name) {
     try {
-      return await prisma.campaignMailing.findUnique({ where: { name } });
+      return await prisma.campaignMailing.findUnique({
+        where: { name },
+        include: {
+          phoneNumbers: true,
+          prompt: true,
+          knowledgeBases: true,
+        }
+      });
     } catch (error) {
       logger.error(`Error getting campaign by name ${name}:`, error.message);
       throw error;

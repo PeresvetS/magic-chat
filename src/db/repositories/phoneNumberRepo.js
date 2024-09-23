@@ -141,25 +141,25 @@ async function removePhoneNumber(phoneNumber, platform) {
     }
 
     if (platform === 'whatsapp' || platform === 'all') {
-      if (phoneNumberRecord.whatsappAccount) {
-        await prisma.whatsappAccount.delete({
-          where: { id: phoneNumberRecord.whatsappAccount.id },
-        });
-      }
-      await prisma.whatsappSession.deleteMany({
-        where: { phoneNumber },
-      });
+      // if (phoneNumberRecord.whatsappAccount) {
+      //   await prisma.whatsappAccount.delete({
+      //     where: { id: phoneNumberRecord.whatsappAccount.id },
+      //   });
+      // }
+      // await prisma.whatsappSession.deleteMany({
+      //   where: { phoneNumber },
+      // });
     }
 
     if (platform === 'waba' || platform === 'all') {
-      if (phoneNumberRecord.WABAAccount) {
-        await prisma.wABAAccount.delete({
-          where: { id: phoneNumberRecord.WABAAccount.id },
-        });
-      }
-      await prisma.wabaSession.deleteMany({
-        where: { phoneNumber },
-      });
+      // if (phoneNumberRecord.WABAAccount) {
+      //   await prisma.wABAAccount.delete({
+      //     where: { id: phoneNumberRecord.WABAAccount.id },
+      //   });
+      // }
+      // await prisma.wabaSession.deleteMany({
+      //   where: { phoneNumber },
+      // });
     }
 
     // Если платформа 'all', удаляем сам номер телефона
@@ -197,6 +197,7 @@ async function addPhoneNumber(
   phoneNumber,
   platform,
   isPremium = false,
+  isBanned = false,
 ) {
   try {
     const phoneNumberRecord = await prisma.phoneNumber.upsert({
@@ -209,10 +210,11 @@ async function addPhoneNumber(
       case 'telegram':
         await prisma.telegramAccount.upsert({
           where: { phoneNumberId: phoneNumberRecord.id },
-          update: { isPremium },
+          update: { isPremium, isBanned },
           create: {
             phoneNumberId: phoneNumberRecord.id,
             isPremium,
+            isBanned,
             isAuthenticated: false,
           },
         });
@@ -220,11 +222,12 @@ async function addPhoneNumber(
       case 'whatsapp':
         await prisma.whatsappAccount.upsert({
           where: { phoneNumberId: phoneNumberRecord.id },
-          update: {},
+          update: { isBanned },
           create: {
             phoneNumberId: phoneNumberRecord.id,
             isAuthenticated: false,
             accountType: 'regular',
+            isBanned,
           },
         });
         break;

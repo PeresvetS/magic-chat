@@ -10,6 +10,7 @@ async function addPhoneNumber(
   phoneNumber,
   platform,
   isPremium = false,
+  isBanned = false,
 ) {
   try {
     validatePhoneNumber(phoneNumber);
@@ -31,6 +32,7 @@ async function addPhoneNumber(
       phoneNumber,
       platform,
       isPremium,
+      isBanned,
     );
     logger.info(
       `${platform} number ${phoneNumber} added/updated successfully for user with ID ${userId}`,
@@ -193,8 +195,9 @@ async function setPhoneAuthenticated(phoneNumber, platform, isAuthenticated) {
       logger.warn(
         `AUTH_KEY_DUPLICATED for ${phoneNumber}. Attempting to handle gracefully.`,
       );
-      // Здесь можно добавить логику для обработки дублирования ключа
-      // Например, попытаться использовать существующую сессию или очистить старую
+        // Здесь можно добавить логику для обработки дублирования ключа
+        // Например, попытаться использовать существующую сессию или очистить старую
+       
     } else {
       logger.error(
         `Error setting ${platform} authentication status for phone number ${phoneNumber}:`,

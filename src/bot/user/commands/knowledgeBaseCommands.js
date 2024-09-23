@@ -11,22 +11,27 @@ const {
   getUserState,
   clearUserState,
 } = require('../utils/userState');
+const { getCampaignByName } = require('../../../services/campaign/src/campaignsMailingService');
 
 module.exports = {
   '/create_kb ([^\\s]+) ([^\\s]+)': async (bot, msg, match) => {
-    const [, kbName, campaignId] = match;
-    if (!kbName || !campaignId) {
+    const [, kbName, campaignName] = match;
+    if (!kbName || !campaignName) {
       bot.sendMessage(
         msg.chat.id,
-        'Пожалуйста, укажите название базы знаний и ID кампании. Например: /create_kb МояБазаЗнаний 123',
+        'Пожалуйста, укажите название базы знаний и name кампании. Например: /create_kb МояБазаЗнаний 123',
       );
       return;
     }
+    const campaign = await getCampaignByName(campaignName);
+    const campaignId = campaign.id;
+
     try {
       const knowledgeBaseService = knowledgeBaseServiceFactory.getInstanceForCampaign(parseInt(campaignId));
       const knowledgeBase = await knowledgeBaseService.createKnowledgeBase(
         kbName,
         '',
+        campaignId,
         [],
       );
       bot.sendMessage(
@@ -62,6 +67,7 @@ module.exports = {
       return;
     }
     try {
+      const userState = getUserState(userId);
       const knowledgeBase =
         await knowledgeBaseServiceFactory.getInstanceForCampaign(parseInt(userState.campaignId)).getKnowledgeBaseByName(kbName);
       if (!knowledgeBase) {

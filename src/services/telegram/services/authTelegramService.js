@@ -5,9 +5,7 @@ const qrcode = require('qrcode');
 const logger = require('../../../utils/logger');
 const config = require('../../../config');
 const { getUserByTgId } = require('../../user/src/userService');
-const { phoneNumberService } =
-  require('../../phone/src/phoneNumberService');
-const { telegramSessionsRepo } = require('../../../db');
+const { setPhoneAuthenticated } = require('../../phone/src/phoneNumberService');
 
 async function connectWithRetry(
   telegramClient,
@@ -32,16 +30,40 @@ async function connectWithRetry(
   }
 }
 
-async function saveSession(phoneNumber, client, sessionString) {
-  try {
-    await telegramSessionsRepo.saveSession(phoneNumber, sessionString);
-    client.session.setString(sessionString);
-    logger.info(`Session saved for ${phoneNumber}`);
-  } catch (error) {
-    logger.error(`Error saving session for ${phoneNumber}:`, error);
-    throw error;
-  }
-}
+async function get2FAPasswordFromUser(phoneNumber, bot, chatId) {
+  return new Promise((resolve, reject) => {
+    bot.sendMessage(
+      chatId,
+      `Пожалуйста, введите пароль 2FA для номера ${phoneNumber}:`,
+    );
+
+    const listener = (msg) => {
+      if (msg.chat.id === chatId) {
+        const password = msg.text.trim();
+        if (password) {
+          bot.removeListener('text', listener);
+          resolve(password);
+        } else {
+          bot.sendMessage(
+            chatId,
+            'Пароль не может быть пустым. Пожалуйста, введите пароль еще раз:',
+          );
+        }
+      }
+    };
+
+    bot.on('text', listener);
+
+    setTimeout(
+      () => {
+        bot.removeListener('text', listener);
+        reject(new Error('Timeout: 2FA password was not entered'));
+      },
+      5 * 60 * 1000,
+    ); // 5 минут таймаут
+  });
+} 
+
 
 async function getAuthCodeFromUser(phoneNumber, bot, chatId) {
   return new Promise((resolve, reject) => {
@@ -77,56 +99,10 @@ async function getAuthCodeFromUser(phoneNumber, bot, chatId) {
   });
 }
 
-async function get2FAPasswordFromUser(phoneNumber, bot, chatId) {
-  return new Promise((resolve, reject) => {
-    bot.sendMessage(
-      chatId,
-      `Пожалуйста, введите пароль 2FA для номера ${phoneNumber}:`,
-    );
-
-    const listener = (msg) => {
-      if (msg.chat.id === chatId) {
-        const password = msg.text.trim();
-        if (password) {
-          bot.removeListener('text', listener);
-          resolve(password);
-        } else {
-          bot.sendMessage(
-            chatId,
-            'Пароль не может быть пустым. Пожалуйста, введите пароль еще раз:',
-          );
-        }
-      }
-    };
-
-    bot.on('text', listener);
-
-    setTimeout(
-      () => {
-        bot.removeListener('text', listener);
-        reject(new Error('Timeout: 2FA password was not entered'));
-      },
-      5 * 60 * 1000,
-    ); // 5 минут таймаут
-  });
-}
 
 async function handleSuccessfulAuthentication(phoneNumber, bot, chatId) {
   try {
-    // Проверяем, существует ли номер телефона в базе данных
-    const phoneNumberRecord = await phoneNumberService.getPhoneNumberInfo(phoneNumber);
-
-    // Если номер не существуе��, создаем его
-    if (!phoneNumberRecord) {
-      const user = await getUserByTgId(chatId);
-      logger.info(
-        `Phone number ${phoneNumber} not found. Creating new record.`,
-      );
-      await phoneNumberService.addPhoneNumber(user.id, phoneNumber, 'telegram');
-    }
-
-    // Устанавливаем статус аутентификации
-    await phoneNumberService.setPhoneAuthenticated(phoneNumber, 'telegram', true);
+    await setPhoneAuthenticated(phoneNumber, 'telegram', true);
     logger.info(
       `Authentication successful for ${phoneNumber}. Updated database.`,
     );
@@ -148,6 +124,8 @@ async function generateQRCode(phoneNumber, bot, chatId, client) {
     logger.warn(
       `Client for ${phoneNumber} is null, attempting to create a new session`,
     );
+
+    const user = await getUserByTgId(chatId);
 
     if (!client.connected) {
       logger.info(`Connecting client for ${phoneNumber}`);
@@ -187,7 +165,7 @@ async function generateQRCode(phoneNumber, bot, chatId, client) {
           if (update instanceof Api.UpdateLoginToken) {
             clearTimeout(timeoutId);
             client.removeEventHandler(updateHandler);
-            await handleSuccessfulAuthentication(phoneNumber, bot, chatId, userId);
+            await handleSuccessfulAuthentication(phoneNumber, bot, chatId, user.id);
             resolve(update);
           }
         };
@@ -240,10 +218,16 @@ async function authenticateSession(phoneNumber, bot, chatId, client) {
   try {
     await client.start({
       phoneNumber: async () => phoneNumber,
-      password: async () =>
-        await authTelegramService.get2FAPasswordFromUser(phoneNumber, bot, chatId),
-      phoneCode: async () =>
-        await authTelegramService.getAuthCodeFromUser(phoneNumber, bot, chatId),
+      password: async () => {
+        const password = await get2FAPasswordFromUser(phoneNumber, bot, chatId);
+        logger.info(`Received 2FA password for ${phoneNumber}`);
+        return password;
+      },
+      phoneCode: async () => {
+        const code = await getAuthCodeFromUser(phoneNumber, bot, chatId);
+        logger.info(`Received auth code for ${phoneNumber}`);
+        return code;
+      },
       onError: (err) => {
         logger.error(`Error during authentication for ${phoneNumber}:`, err);
         if (err.message === 'PHONE_NUMBER_INVALID') {
@@ -262,9 +246,7 @@ async function authenticateSession(phoneNumber, bot, chatId, client) {
     });
 
     logger.info(`Session authenticated for ${phoneNumber}`);
-
-    const sessionString = client.session.save();
-    await telegramSessionsRepo.saveSession(phoneNumber, sessionString);
+    await setPhoneAuthenticated(phoneNumber, 'telegram', true);
 
     return client;
   } catch (error) {

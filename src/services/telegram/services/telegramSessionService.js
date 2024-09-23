@@ -101,7 +101,7 @@ class TelegramSessionService {
       await telegramSessionsRepo.saveSession(phoneNumber, sessionString);
       const client = this.sessions.get(phoneNumber);
       if (client) {
-        client.session.setString(sessionString);
+        client.session.load(sessionString);
       }
       logger.info(`Session saved for ${phoneNumber}`);
     } catch (error) {
@@ -223,6 +223,9 @@ class TelegramSessionService {
   async authenticateSession(phoneNumber, bot, chatId) {
     const client = await this.getOrCreateSession(phoneNumber);
     const newClient = await authTelegramService.authenticateSession(phoneNumber, bot, chatId, client);
+    const sessionString = newClient.session.save();
+    await telegramSessionsRepo.saveSession(phoneNumber, sessionString);
+    await bot.sendMessage(chatId, 'Успешная авторизация');
     this.addEventHandlers(newClient, phoneNumber); // Добавляем обработчики событий
     return newClient;
   }
@@ -240,18 +243,7 @@ class TelegramSessionService {
           `No client found for ${phoneNumber}. Unable to save session.`,
         );
       }
-      await bot.sendMessage(chatId, 'QR-код для аутентификации:', {
-        reply_markup: {
-          inline_keyboard: [
-            [
-              {
-                text: 'Отправить QR-код',
-                callback_data: `qr_code_${phoneNumber}`,
-              },
-            ],
-          ],
-        },
-      });
+      await bot.sendMessage(chatId, 'Успешная авторизация');
     } catch (error) {
       logger.error(`Error generating QR code for ${phoneNumber}:`, error);
       throw error;

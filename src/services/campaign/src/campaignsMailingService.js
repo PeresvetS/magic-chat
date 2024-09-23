@@ -1,7 +1,7 @@
 // src/services/campaign/src/campaignsMailingService.js
 
 const logger = require('../../../utils/logger');
-const { phoneNumberService } = require('../../phone');
+const { getPhoneNumberInfo } = require('../../phone/src/phoneNumberService');
 const WABAAccountService = require('../../waba/services/WABAAccountService');
 const {
   campaignsMailingRepo,
@@ -69,7 +69,7 @@ async function createCampaign(telegramId, name) {
   async function setDefaultPhoneNumber(campaignId, phoneNumber) {
     try {
       const phoneInfo =
-        await phoneNumberService.getPhoneNumberInfo(phoneNumber);
+        await getPhoneNumberInfo(phoneNumber);
       if (!phoneInfo) {
         throw new Error('Phone number does not exist');
       }
@@ -147,11 +147,8 @@ async function createCampaign(telegramId, name) {
         }
       }
 
-      return await phoneNumberCampaignRepo.createAttachment(
-        campaignId,
-        phoneNumber,
-        platform,
-      );
+      logger.info(`Attaching phone number ${phoneNumber} to campaign ${campaignId} on platform ${platform}`);
+      return await phoneNumberCampaignRepo.createAttachment(campaignId, phoneNumber, platform);
     } catch (error) {
       logger.error('Error attaching phone number to campaign:', error);
       throw error;
@@ -160,10 +157,8 @@ async function createCampaign(telegramId, name) {
 
   async function detachPhoneNumber(campaignId, phoneNumber) {
     try {
-      return await phoneNumberCampaignRepo.deleteAttachment(
-        campaignId,
-        phoneNumber,
-      );
+      logger.info(`Detaching phone number ${phoneNumber} from campaign ${campaignId}`);
+      return await phoneNumberCampaignRepo.deleteAttachment(campaignId, phoneNumber);
     } catch (error) {
       logger.error('Error detaching phone number from campaign:', error);
       throw error;
@@ -290,7 +285,7 @@ async function createCampaign(telegramId, name) {
     try {
       // Проверяем, существует ли и аутентифицирован ли номер
       const phoneInfo =
-        await phoneNumberService.getPhoneNumberInfo(phoneNumber);
+        await getPhoneNumberInfo(phoneNumber);
       if (!phoneInfo) {
         throw new Error('Phone number does not exist');
       }
@@ -344,7 +339,7 @@ async function createCampaign(telegramId, name) {
   async function setDefaultPhoneNumber(campaignId, phoneNumber, platform) {
     try {
       const phoneInfo =
-        await phoneNumberService.getPhoneNumberInfo(phoneNumber);
+        await getPhoneNumberInfo(phoneNumber);
       if (!phoneInfo) {
         throw new Error('Phone number does not exist');
       }
