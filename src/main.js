@@ -7,6 +7,7 @@ const bodyParser = require('body-parser');
 const config = require('./config');
 const userBot = require('./bot/user');
 const adminBot = require('./bot/admin');
+const { Worker } = require('worker_threads');
 const logger = require('./utils/logger');
 const { retryOperation } = require('./utils/helpers');
 const webhookRouter = require('./api/routes/webhooks');
@@ -111,6 +112,26 @@ async function startMessageQueueProcessing() {
       await new Promise((resolve) => setTimeout(resolve, 10000)); // 10 секунд
     }
   }
+}
+
+async function startMessageQueueWorker() {
+  const worker = new Worker('./src/workers/messageQueueWorker.js');
+  
+  worker.on('message', (message) => {
+    logger.info('Message from worker:', message);
+  });
+
+  worker.on('error', (error) => {
+    logger.error('Worker error:', error);
+    startMessageQueueWorker(); // Перезапуск воркера в случае ошибки
+  });
+
+  worker.on('exit', (code) => {
+    if (code !== 0) {
+      logger.error(`Worker stopped with exit code ${code}`);
+      startMessageQueueWorker(); // Перезапуск воркера при неожиданном завершении
+    }
+  });
 }
 
 async function main() {
@@ -246,10 +267,18 @@ async function main() {
 
     // Process unfinished tasks before starting the server
     // await processUnfinishedTasks();
+
+    // Запуск воркера очереди сообщений
+    await startMessageQueueWorker();
   } catch (error) {
     logger.error('Error in main function:', error);
     throw error;
   }
 }
+
+main().catch((error) => {
+  logger.error('Unhandled error in main function:', error);
+  process.exit(1);
+});
 
 module.exports = { main, app };

@@ -13,6 +13,8 @@ const TelegramBotStateManager = require('../../telegram/managers/botStateManager
 const { getPhoneNumberInfo, updatePhoneNumberStats } =
   require('../../phone').phoneNumberService;
 const { retryOperation } = require('../../../utils/messageUtils');
+const RabbitMQQueueService = require('../../queue/rabbitMQQueueService');
+const { messageRepo } = require('../../../db');
 
 async function sendMessage(
   userId,
@@ -217,4 +219,43 @@ async function handleSendMessageError(
   throw error;
 }
 
-module.exports = { sendMessage, sendResponse };
+async function sendQueuedMessages() {
+  while (true) {
+    const queueItem = await RabbitMQQueueService.dequeue('outgoing');
+    if (!queueItem) {
+      // Если очередь пуста, ждем немного и проверяем снова
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      continue;
+    }
+
+    try {
+      const { recipientPhoneNumber, message, senderPhoneNumber, platform } = queueItem;
+
+      const result = await sendMessage(
+        recipientPhoneNumber,
+        message,
+        senderPhoneNumber,
+        platform,
+      );
+
+      await RabbitMQQueueService.markAsCompleted(queueItem, result);
+
+      // Обновляем статус сообщения в БД
+      const dbMessage = await messageRepo.findMessageByCampaignAndRecipient(
+        queueItem.campaignId,
+        recipientPhoneNumber
+      );
+      if (dbMessage) {
+        await messageRepo.updateMessage(dbMessage.id, {
+          status: 'sent',
+        });
+      }
+
+    } catch (error) {
+      logger.error('Error sending queued message:', error);
+      await RabbitMQQueueService.markAsFailed(queueItem, error.message);
+    }
+  }
+}
+
+module.exports = { sendMessage, sendResponse, sendQueuedMessages };

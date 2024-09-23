@@ -9,32 +9,62 @@ const { campaignMailingService } = require('../../campaign');
 const {
   getPendingConversationStates,
 } = require('../../conversation/conversationState');
+const RabbitMQQueueService = require('../../queue/rabbitMQQueueService');
+const { messageRepo } = require('../../../db');
 
 async function processMessage(lead, senderId, message, phoneNumber, campaign) {
-  logger.info(`Processing message for phone number ${phoneNumber}: ${message}`);
-  logger.debug(`Lead info: ${JSON.stringify(lead)}`);
-  logger.debug(`Campaign info: ${JSON.stringify(campaign)}`);
-
   try {
+    // Сохраняем входящее сообщение в БД
+    const incomingMessage = await messageRepo.createMessage({
+      leadId: lead.id,
+      userRequest: message,
+      status: 'new',
+    });
+
+    logger.info(`Processing message for phone number ${phoneNumber}: ${message}`);
+    logger.debug(`Lead info: ${JSON.stringify(lead)}`);
+    logger.debug(`Campaign info: ${JSON.stringify(campaign)}`);
+
     if (!campaign.prompt) {
       logger.warn(`No prompt provided for processing message from ${senderId}`);
       return null;
     }
-    // Use gptService to generate response
+
+    // Генерируем ответ с помощью GPT
     const { response, tokenCount } = await gptService.generateResponse(
       lead,
       [{ role: 'human', content: message }],
       campaign,
     );
-    logger.info(`Response generated for ${senderId}: ${response}`);
 
+    // Обновляем сообщение в БД
+    await messageRepo.updateMessage(incomingMessage.id, {
+      assistantResponse: response,
+      status: 'response_generated',
+    });
+
+    logger.info(`Response generated for ${senderId}: ${response}`);
     logger.debug(`Token count for ${senderId}: ${tokenCount}`);
 
     await saveMessageStats(senderId, phoneNumber, tokenCount);
-    logger.info(`Saved message stats for ${senderId}`);
-
     await saveDialogToFile(senderId, message, response);
-    logger.info(`Saved dialog to file for ${senderId}`);
+
+    // Разбиваем ответ на предложения и отправляем в очередь
+    const sentences = response.split(/(?<=[.!?])\s+/);
+    for (const sentence of sentences) {
+      await RabbitMQQueueService.enqueue('outgoing', {
+        campaignId: campaign.id,
+        message: sentence,
+        recipientPhoneNumber: senderId,
+        platform: lead.platform,
+        senderPhoneNumber: phoneNumber,
+      });
+    }
+
+    // Обновляем статус сообщения
+    await messageRepo.updateMessage(incomingMessage.id, {
+      status: 'queued_for_sending',
+    });
 
     return response;
   } catch (error) {

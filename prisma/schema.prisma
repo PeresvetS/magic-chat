@@ -345,6 +345,7 @@ model Message {
   dialogId          Int
   userRequest       String
   assistantResponse String
+  status            String
   createdAt         DateTime @default(now())
 }
 
