@@ -33,7 +33,7 @@ module.exports = {
     if (!phoneNumber) {
       bot.sendMessage(
         msg.chat.id,
-        'Пожалуйста, укажите платформу и номер телефона после команды. Например: /add_phone telegram +79123456789',
+        'Пожалуйста, укажите платформу и номер телефона после к��манды. Например: /add_phone telegram +79123456789',
       );
       return;
     }
@@ -127,7 +127,7 @@ module.exports = {
     }
   },
 
-  '/remove_phone (telegram|whatsapp|waba) ([+]?[0-9]+)': async (
+  '/remove_phone (telegram|whatsapp|waba|all) ([+]?[0-9]+)': async (
     bot,
     msg,
     match,
@@ -160,11 +160,13 @@ module.exports = {
         `${platform} number ${phoneNumber} removed successfully for user ${userId}`,
       );
 
-      if (platform === 'telegram') {
+      if (platform === 'telegram' || platform === 'all') {
         await TelegramSessionService.disconnectSession(phoneNumber);
-      } else if (platform === 'whatsapp') {
+      }
+      if (platform === 'whatsapp' || platform === 'all') {
         await WhatsAppSessionService.disconnectSession(phoneNumber);
-      } else if (platform === 'waba') {
+      }
+      if (platform === 'waba' || platform === 'all') {
         await WABASessionService.disconnectSession(phoneNumber);
       }
 

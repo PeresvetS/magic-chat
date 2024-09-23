@@ -122,35 +122,64 @@ async function removePhoneNumber(phoneNumber, platform) {
   try {
     const phoneNumberRecord = await prisma.phoneNumber.findUnique({
       where: { phoneNumber },
-      include: { telegramAccount: true, whatsappAccount: true },
+      include: { telegramAccount: true, whatsappAccount: true, WABAAccount: true },
     });
 
     if (!phoneNumberRecord) {
       throw new Error(`Номер телефона ${phoneNumber} не найден`);
     }
 
-    if (platform === 'telegram' && phoneNumberRecord.telegramAccount) {
-      await prisma.telegramAccount.delete({
-        where: { id: phoneNumberRecord.telegramAccount.id },
-      });
-    } else if (platform === 'whatsapp' && phoneNumberRecord.whatsappAccount) {
-      await prisma.whatsappAccount.delete({
-        where: { id: phoneNumberRecord.whatsappAccount.id },
+    if (platform === 'telegram' || platform === 'all') {
+      if (phoneNumberRecord.telegramAccount) {
+        await prisma.telegramAccount.delete({
+          where: { id: phoneNumberRecord.telegramAccount.id },
+        });
+      }
+      await prisma.telegramSession.deleteMany({
+        where: { phoneNumber },
       });
     }
 
-    // Проверяем, остались ли связанные аккаунты после удаления
-    const updatedPhoneNumberRecord = await prisma.phoneNumber.findUnique({
-      where: { phoneNumber },
-      include: { telegramAccount: true, whatsappAccount: true },
-    });
+    if (platform === 'whatsapp' || platform === 'all') {
+      if (phoneNumberRecord.whatsappAccount) {
+        await prisma.whatsappAccount.delete({
+          where: { id: phoneNumberRecord.whatsappAccount.id },
+        });
+      }
+      await prisma.whatsappSession.deleteMany({
+        where: { phoneNumber },
+      });
+    }
 
-    // Если не осталось связанных аккаунтов, удаляем сам номер телефона
-    if (
-      !updatedPhoneNumberRecord.telegramAccount &&
-      !updatedPhoneNumberRecord.whatsappAccount
-    ) {
+    if (platform === 'waba' || platform === 'all') {
+      if (phoneNumberRecord.WABAAccount) {
+        await prisma.wABAAccount.delete({
+          where: { id: phoneNumberRecord.WABAAccount.id },
+        });
+      }
+      await prisma.wabaSession.deleteMany({
+        where: { phoneNumber },
+      });
+    }
+
+    // Если платформа 'all', удаляем сам номер телефона
+    if (platform === 'all') {
       await prisma.phoneNumber.delete({ where: { phoneNumber } });
+    } else {
+      // Проверяем, остались ли связанные аккаунты после удаления
+      const updatedPhoneNumberRecord = await prisma.phoneNumber.findUnique({
+        where: { phoneNumber },
+        include: { telegramAccount: true, whatsappAccount: true, WABAAccount: true },
+      });
+
+      // Если не осталось связанных аккаунтов, удаляем сам номер телефона
+      if (
+        !updatedPhoneNumberRecord.telegramAccount &&
+        !updatedPhoneNumberRecord.whatsappAccount &&
+        !updatedPhoneNumberRecord.WABAAccount
+      ) {
+        await prisma.phoneNumber.delete({ where: { phoneNumber } });
+      }
     }
 
     logger.info(`Удален ${platform} аккаунт для номера ${phoneNumber}`);

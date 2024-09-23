@@ -267,7 +267,7 @@ async function updateMessagePhoneNumberCount(
     );
   } catch (error) {
     logger.error(
-      `Ошибка обновления счетчика сообщений ��ля ${platform}:`,
+      `Ошибка обновления счетчика сообщений для ${platform}:`,
       error,
     );
     throw error;
