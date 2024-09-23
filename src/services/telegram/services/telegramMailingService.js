@@ -1,7 +1,7 @@
 // src/services/telegram/services/telegramMailingService.js
 
 const logger = require('../../../utils/logger');
-const leadService = require('../../leads');
+const { leadService } = require('../../leads');
 const { Api } = require('telegram/tl');
 
 async function findUserByPhoneNumber(phoneNumber, client) {

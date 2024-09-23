@@ -1,8 +1,8 @@
 // src/services/mailing/checkers/messagingPlatformChecker.js
 
 const logger = require('../../../utils/logger');
+const { safeStringify } = require('../../../utils/helpers');
 const { getPlatformPriority } = require('../../../db').campaignsMailingRepo;
-const { PhoneNumberRotationService } = require('../../phone');
 const CheckerFactory = require('./CheckerFactory');
 const { leadService } = require('../../leads/src/leadService');
 const { phoneNumberService } = require('../../phone');
@@ -18,15 +18,9 @@ class MessagingPlatformChecker {
 
   async initialize() {
     if (this.initialized) return;
-
-    await PhoneNumberRotationService.initialize(this.campaignId);
     
     const platformPriority = await getPlatformPriority(this.campaignId);
-    const platformsToInitialize = platformPriority.split('');
-    
-    for (const platform of platformsToInitialize) {
-      await this.initializePlatform(platform);
-    }
+    await this.initializePlatform(platformPriority);
 
     this.initialized = true;
     this.startCleanupInterval();
@@ -53,16 +47,18 @@ class MessagingPlatformChecker {
   async initializePlatform(platform) {
     if (this.initializedPlatforms.has(platform)) return;
 
-    const numbers = await PhoneNumberRotationService.getAllPhoneNumbers(platform);
+    logger.info(`Initializing ${platform}`);
     const checker = this.checkerFactory.getChecker(platform);
-    await checker.initialize(numbers);
+    await checker.initialize(this.campaignId);
 
     this.initializedPlatforms.add(platform);
   }
 
   async checkPlatforms(phoneNumber, platformPriority, mode = 'one') {
-    const platforms = platformPriority.split('');
-    for (const platform of platforms) {
+    const platform = platformPriority;
+    // const platforms = platformPriority.split('');
+    // for (const platform of platforms) {
+      logger.info(`Checking ${platform} for ${phoneNumber}`);
       const checker = this.checkerFactory.getChecker(platform);
       let result = false;
       let attempts = 0;
@@ -84,8 +80,8 @@ class MessagingPlatformChecker {
         attempts++;
       }
 
-      if (mode === 'one') break;
-    }
+      // if (mode === 'one') break;
+    // }
     await leadService.setLeadUnavailable(phoneNumber);
     return 'none';
   }
@@ -102,16 +98,16 @@ class MessagingPlatformChecker {
     }
   }
 
-  async choosePlatform(phoneNumberToCheck, platformPriority = null, mode = 'one') {
+  async choosePlatform(campaignId, phoneNumberToCheck, platformPriority = null, mode = 'one') {
     if (!this.initialized) {
       await this.initialize();
     }
 
-    logger.info(`Choosing messaging platform for ${phoneNumberToCheck} with priority ${platformPriority}`);
-
     if (!phoneNumberToCheck || typeof phoneNumberToCheck !== 'string') {
       throw new Error('Invalid phone number');
     }
+
+    logger.info(`Choosing messaging platform for ${phoneNumberToCheck} with priority ${platformPriority}`);
 
     if (!platformPriority || !/^[twa]+$/.test(platformPriority)) {
       logger.warn('Invalid priority platform, getting from DB');

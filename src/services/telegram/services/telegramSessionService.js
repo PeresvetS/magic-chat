@@ -29,7 +29,7 @@ class TelegramSessionService {
     this.RETRY_DELAY = 5000;
   }
 
-  async maintainConnection(client) {
+  async maintainConnection(client, phoneNumber) {
     let reconnectAttempts = 0;
 
     const reconnect = async () => {
@@ -39,6 +39,8 @@ class TelegramSessionService {
           await client.connect();
           logger.info('Successfully reconnected to Telegram');
           reconnectAttempts = 0; // Сбрасываем счетчик после успешного подключения
+
+          this.addEventHandlers(client, phoneNumber); // Добавляем обработчики событий
         }
       } catch (error) {
         reconnectAttempts++;
@@ -154,6 +156,7 @@ class TelegramSessionService {
             );
             await client.connect();
             logger.info(`Successfully reconnected client for ${phoneNumber}`);
+            this.addEventHandlers(client, phoneNumber); // Добавляем обработчики событий
           }
         } catch (error) {
           logger.error(`Error reconnecting client for ${phoneNumber}:`, error);
@@ -207,14 +210,12 @@ class TelegramSessionService {
     await client.connect();
     logger.info(`Connected client for ${phoneNumber}`);
 
+    this.addEventHandlers(client, phoneNumber); // Добавляем обработчики событий
+
     const sessionString = client.session.save();
     await this.saveSession(phoneNumber, sessionString);
 
-    this.maintainConnection(client);
-
-    client.addEventHandler(async (event) => {
-      await processIncomingMessage(phoneNumber, event, 'telegram');
-    }, new NewMessage({}));
+    this.maintainConnection(client, phoneNumber);
 
     return client;
   }
@@ -222,9 +223,7 @@ class TelegramSessionService {
   async authenticateSession(phoneNumber, bot, chatId) {
     const client = await this.getOrCreateSession(phoneNumber);
     const newClient = await authTelegramService.authenticateSession(phoneNumber, bot, chatId, client);
-    newClient.addEventHandler(async (event) => {
-      await processIncomingMessage(phoneNumber, event, 'telegram');
-    }, new NewMessage({}));
+    this.addEventHandlers(newClient, phoneNumber); // Добавляем обработчики событий
     return newClient;
   }
 
@@ -324,6 +323,19 @@ class TelegramSessionService {
   async sendTelegramMessage(recipientPhoneNumber, senderPhoneNumber, campaignId, message) {
     const client = await this.getOrCreateSession(senderPhoneNumber);
     return telegramMailingService.sendTelegramMessage(recipientPhoneNumber, senderPhoneNumber, campaignId, message, client);
+  }
+
+  addEventHandlers(client, phoneNumber) {
+    client.addEventHandler(async (event) => {
+      logger.info(`Received new message event from ${phoneNumber}: ${JSON.stringify({
+        message: event.message,
+        date: event.date,
+        senderId: event.senderId,
+      })}`);
+      await processIncomingMessage(phoneNumber, event, 'telegram');
+    }, new NewMessage({}));
+
+    logger.info(`Event handlers added for client with phone number ${phoneNumber}`);
   }
 
 }

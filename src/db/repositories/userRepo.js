@@ -39,6 +39,10 @@ async function getUserByUsername(username) {
 
 async function getUserIdByCampaignId(campaignId) {
   try {
+    if (!campaignId) {
+      throw new Error('Campaign ID is required');
+    }
+
     const campaign = await prisma.campaignMailing.findUnique({
       where: { id: campaignId },
       select: { userId: true },

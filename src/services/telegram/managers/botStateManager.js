@@ -13,7 +13,8 @@ class BotStateManager {
   constructor() {
     this.userStates = new Map();
     this.peerCache = new Map();
-    this.onlineStatusManager = new OnlineStatusManager();
+    this.onlineStatusManager = OnlineStatusManager;
+    logger.info('BotStateManager initialized');
   }
 
   getUserState(userId) {
@@ -241,6 +242,8 @@ class BotStateManager {
     );
 
     const userState = this.getUserState(userId);
+    logger.debug(`Current userState for ${userId}: ${safeStringify(userState)}`);
+
     userState.messageBuffer.push(message);
     userState.lastMessageTimestamp = Date.now();
 
@@ -302,6 +305,7 @@ class BotStateManager {
       return '';
     } finally {
       userState.processingMessage = false;
+      logger.info(`Сброс состояния processingMessage для пользователя ${userId}`);
     }
   }
 
@@ -350,4 +354,4 @@ class BotStateManager {
   }
 }
 
-module.exports = BotStateManager;
+module.exports = new BotStateManager();

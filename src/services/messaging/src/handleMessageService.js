@@ -13,8 +13,9 @@ const { Api } = require('telegram/tl');
 const fs = require('fs').promises;
 const path = require('path');
 const os = require('os');
-const botStateManagerFactory = require('./BotStateManagerFactory');
-
+const TelegramBotStateManager = require('../../telegram/managers/botStateManager');
+const WhatsAppBotStateManager = require('../../whatsapp/managers/botStateManager');
+const WABABotStateManager = require('../../waba/managers/botStateManager');
 
 async function processIncomingMessage(
   phoneNumber,
@@ -86,9 +87,12 @@ async function processIncomingMessage(
         `No active campaign or prompt for ${phoneNumber}. Message ignored.`,
       );
       return;
-    }
+    } 
 
-    const BotStateManager = getBotStateManager(platform);
+    const BotStateManager = platform === 'telegram' ? TelegramBotStateManager :
+    platform === 'whatsapp' ? WhatsAppBotStateManager :
+    platform === 'waba' ? WABABotStateManager : null; 
+
     logger.info(
       `BotStateManager for ${platform}: ${BotStateManager ? 'Loaded' : 'Not loaded'}`,
     );
@@ -96,7 +100,7 @@ async function processIncomingMessage(
     const combinedMessage = await BotStateManager.handleIncomingMessage(
       phoneNumber,
       senderId,
-      messageText,
+      textToProcess,
     );
     logger.info(`Combined message: ${combinedMessage}`);
 
@@ -110,7 +114,7 @@ async function processIncomingMessage(
     const response = await processMessage(
       lead,
       senderId,
-      textToProcess,
+      combinedMessage,
       phoneNumber,
       activeCampaign,
     );
@@ -118,7 +122,7 @@ async function processIncomingMessage(
 
     if (response) {
       logger.info(`Sending response to user ${senderId}: ${response}`);
-      await sendResponse(senderId, response, phoneNumber, platform); // добавить сохранение инфо, что ответ отправлен
+      await sendResponse(senderId, response, phoneNumber, platform, BotStateManager); // добавить сохранение инфо, что ответ отправлен
     } else {
       logger.warn(
         `No response generated for ${platform} message from ${senderId}`,
@@ -135,10 +139,6 @@ async function processIncomingMessage(
     );
     await sendResponse(senderId, 'Извините, произошла ошибка при обработке вашего сообщения. Пожалуйста, попробуйте еще раз позже.', phoneNumber, platform);
   }
-}
-
-function getBotStateManager(platform) {
-  return botStateManagerFactory.getManager(platform);
 }
 
 async function extractMessageInfo(event, platform) {

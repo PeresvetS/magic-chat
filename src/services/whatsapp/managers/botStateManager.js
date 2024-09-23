@@ -238,4 +238,4 @@ class BotStateManager {
   }
 }
 
-module.exports = BotStateManager;
+module.exports = new BotStateManager();

@@ -4,6 +4,7 @@ const { getActivePlatformPhoneNumbers, checkDailyPhoneNumberLimit, updatePhoneNu
 const { phoneNumberRotationRepo } = require('../../../db');
 const { getUserIdByCampaignId } = require('../../user/src/userService');
 const logger = require('../../../utils/logger');
+const { safeStringify } = require('../../../utils/helpers');
 
 class PhoneNumberRotationService {
   constructor(campaignId) {
@@ -105,6 +106,10 @@ class PhoneNumberRotationService {
 
     await updatePhoneNumberBanStatus(phoneNumber, banStatus, banExpiresAt);
     await this.initialize(); // Reinitialize to update available phone numbers
+  }
+
+  async getAllPhoneNumbers(platform) {
+    return this.platformPhoneNumbers[platform];
   }
 }
 

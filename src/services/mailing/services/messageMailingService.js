@@ -16,6 +16,8 @@ const {
   applyDelay,
 } = require('../../../utils/phoneHelpers');
 
+
+
 async function sendTelegramMessage({
   campaignId,
   senderPhoneNumber,
@@ -23,6 +25,7 @@ async function sendTelegramMessage({
   message,
 }) {
   try {
+    await applyDelay('telegram');
     const result = await TelegramSessionService.sendTelegramMessage(recipientPhoneNumber, senderPhoneNumber, campaignId, message);
     return { success: true, messageId: result.id, status: 'completed' };
   } catch (error) {

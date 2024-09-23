@@ -19,6 +19,10 @@ class AgentChain {
     this.lead = lead;
     this.tokenCount = 0;
     this.openaiApiKey = config.OPENAI_API_KEY;
+    this.messageQueue = [];
+    this.isProcessing = false;
+    this.debounceTimer = null;
+    this.debounceDelay = 1000; // 1 second delay
     if (campaign && campaign.openaiApiKey) {
       this.openaiApiKey = campaign.openaiApiKey;
     } else if (campaign && campaign.user && campaign.user.openaiApiKey) {
@@ -100,14 +104,50 @@ class AgentChain {
   }
 
   async run(userMessage) {
+    return new Promise((resolve, reject) => {
+      // Add the message and its resolve function to the queue
+      this.messageQueue.push({ userMessage, resolve, reject });
+
+      // Reset the debounce timer
+      if (this.debounceTimer) {
+        clearTimeout(this.debounceTimer);
+      }
+
+      // Start a new debounce timer
+      this.debounceTimer = setTimeout(async () => {
+        await this.processMessages();
+      }, this.debounceDelay);
+    });
+  }
+
+  async processMessages() {
+    if (this.isProcessing) {
+      return;
+    }
+    this.isProcessing = true;
+
+    // Get all messages and their resolve/reject functions
+    const messagesInfo = [];
+    while (this.messageQueue.length > 0) {
+      messagesInfo.push(this.messageQueue.shift());
+    }
+
+    const messagesToProcess = messagesInfo.map(info => info.userMessage);
+    const concatenatedMessage = messagesToProcess.join(' ');
+
     try {
-      const prompt = await promptService.generateUserPrompt(this.lead, this.campaign, userMessage, this.memory);
+      const prompt = await promptService.generateUserPrompt(
+        this.lead,
+        this.campaign,
+        concatenatedMessage,
+        this.memory
+      );
 
       logger.info(`Context: ${safeStringify(prompt)}`);
 
       const runChain = RunnableSequence.from([
         RunnablePassthrough.assign({
-          context: () => prompt,
+          context: () => ({ prompt }), // Обновлено: передаем объект с ключом prompt
         }),
         this.primaryAgent,
         async (primaryResponse) => {
@@ -145,7 +185,7 @@ class AgentChain {
       ]);
 
       const finalResponse = await runChain.invoke({
-        input: userMessage,
+        input: concatenatedMessage,
       });
 
       const responseString =
@@ -155,17 +195,28 @@ class AgentChain {
 
       // Сохраняем контекст
       await this.memory.saveContext(
-        { input: userMessage },
+        { input: concatenatedMessage },
         { output: responseString },
       );
 
-      this.updateTokenCount(userMessage, responseString);
+      this.updateTokenCount(concatenatedMessage, responseString);
 
-      return responseString;
+      // After processing, resolve all pending promises with the response
+      for (const { resolve } of messagesInfo) {
+        resolve(responseString);
+      }
+
+      this.isProcessing = false;
+
+      // Check if new messages arrived during processing
+      if (this.messageQueue.length > 0) {
+        await this.processMessages();
+      }
     } catch (error) {
-      logger.error(`Error in AgentChain: ${error.message}`);
-      logger.error(`Stack trace: ${error.stack}`);
-      return `An error occurred: ${error.message}`;
+      this.isProcessing = false;
+      for (const { reject } of messagesInfo) {
+        reject(error);
+      }
     }
   }
 

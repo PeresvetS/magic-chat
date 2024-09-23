@@ -2,19 +2,23 @@
 
 const logger = require('../../../utils/logger');
 const { TelegramSessionService } = require('../../telegram');
-const { PhoneNumberRotationService } = require('../../phone');
+const PhoneNumberRotationService = require('../../phone/src/PhoneNumberRotationService');
+const { safeStringify } = require('../../../utils/helpers');
 
 class TelegramChecker {
   constructor() {
     this.clients = new Map();
     this.sessionStubs = new Map();
     this.lastUsedTime = new Map();
-    this.phoneNumberRotationService = new PhoneNumberRotationService();
+    this.phoneNumberRotationService = null;
   }
 
-  async initialize(numbers) {
+  async initialize(campaignId) {
+    this.phoneNumberRotationService = new PhoneNumberRotationService(campaignId);
+    await this.phoneNumberRotationService.initialize();
+    const numbers = await this.phoneNumberRotationService.getAllPhoneNumbers('telegram');
     for (const number of numbers) {
-      this.createSessionStub(number);
+      this.createSessionStub(number.phoneNumber);
     }
   }
 

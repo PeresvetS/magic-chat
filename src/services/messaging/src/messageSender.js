@@ -10,17 +10,16 @@ const { WhatsAppSessionService } = require('../../whatsapp');
 const { getPhoneNumberInfo, updatePhoneNumberStats } =
   require('../../phone/src/phoneNumberService');
 const { retryOperation } = require('../../../utils/messageUtils');
-const botStateManagerFactory = require('./BotStateManagerFactory');
-
-function getBotStateManager(platform) {
-  return botStateManagerFactory.getManager(platform);
-}
+const TelegramBotStateManager = require('../../telegram/managers/botStateManager');
+const WhatsAppBotStateManager = require('../../whatsapp/managers/botStateManager');
+const WABABotStateManager = require('../../waba/managers/botStateManager');
 
 async function sendMessage(
   userId,
   message,
   phoneNumber,
   platform = 'telegram',
+  BotStateManager,
 ) {
   try {
     logger.info(
@@ -43,8 +42,7 @@ async function sendMessage(
         break;
       case 'telegram':
       default:
-        const telegramBotStateManager = botStateManagerFactory.getManager('telegram');
-        const { peer, session } = await telegramBotStateManager.getCorrectPeer(
+        const { peer, session } = await BotStateManager.getCorrectPeer(
           phoneNumber,
           userId,
         );
@@ -93,11 +91,12 @@ async function sendResponse(
       logger.warn(`Attempted to send empty ${platform} response to ${userId}`);
       return;
     }
+    const BotStateManager = platform === 'telegram' ? TelegramBotStateManager :
+    platform === 'whatsapp' ? WhatsAppBotStateManager :
+    platform === 'waba' ? WABABotStateManager : null; 
 
     await validatePhoneNumber(phoneNumber);
     const sentences = response.split(/\n+/);
-
-    const BotStateManager = getBotStateManager(platform);
 
     const sendPromise = new Promise(async (resolve, reject) => {
       const startTime = Date.now();
@@ -116,6 +115,7 @@ async function sendResponse(
           sentence,
           phoneNumber,
           platform,
+          BotStateManager,
         );
         logger.info(`Message sent to ${userId},   : ${JSON.stringify(result)}`);
         BotStateManager.resetOfflineTimer(phoneNumber, userId);

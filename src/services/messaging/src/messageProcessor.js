@@ -10,16 +10,16 @@ const {
 } = require('../../conversation/conversationState');
 
 async function processMessage(lead, senderId, message, phoneNumber, campaign) {
-  logger.info(`Processing message for phone number ${phoneNumber}: ${message}`);
-  logger.debug(`Lead info: ${JSON.stringify(lead)}`);
-  logger.debug(`Campaign info: ${JSON.stringify(campaign)}`);
+  // logger.info(`Processing message for phone number ${phoneNumber}: ${message}`);
+  // logger.debug(`Lead info: ${JSON.stringify(lead)}`);
+  // logger.debug(`Campaign info: ${JSON.stringify(campaign)}`);
 
   try {
     if (!campaign.prompt) {
       logger.warn(`No prompt provided for processing message from ${senderId}`);
       return null;
     }
-    // Use gptService to generate response
+
     const { response, tokenCount } = await llmService.generateResponse(
       lead,
       [{ role: 'human', content: message }],

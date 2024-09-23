@@ -63,4 +63,4 @@ class OnlineStatusManager {
   }
 }
 
-module.exports = OnlineStatusManager;
+module.exports = new OnlineStatusManager();
