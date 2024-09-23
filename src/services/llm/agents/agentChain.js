@@ -1,4 +1,4 @@
-// src/services/llm/agentChain.js
+// src/services/llm/agents/agentChain.js
 
 const { ChatOpenAI } = require('@langchain/openai');
 const {
@@ -36,12 +36,14 @@ class AgentChain {
       userId: campaign.userId,
     });
 
-    this.primaryAgent = this.createPrimaryAgent(tools);
-    this.secondaryAgent = this.createSecondaryAgent();
     this.tools = tools;
   }
 
-  createPrimaryAgent(tools) {
+  async preparePromptTemplate(promptContent) {
+    return await promptService.composePromptTemplate(promptContent);
+  }
+
+  async createPrimaryAgent() {
     try {
       const llm = new ChatOpenAI({
         modelName: this.campaign.modelName || 'gpt-4o-mini',
@@ -49,9 +51,9 @@ class AgentChain {
         openAIApiKey: this.openaiApiKey,
       });
 
-      const composePromptTemplate = composePromptTemplate(this.campaign.prompt.content);
+      const composePromptTemplate = await this.preparePromptTemplate(this.campaign.prompt.content);
 
-      const llmWithTools = llm.bindTools(tools);
+      const llmWithTools = llm.bindTools(this.tools);
 
       const chain = RunnableSequence.from([composePromptTemplate, llmWithTools]);
 
@@ -115,7 +117,6 @@ class AgentChain {
           }
 
           let responseText = primaryResponse.content || primaryResponse;
-          logger.info(`Primary response: ${safeStringify(primaryResponse)}`);
 
           if (primaryResponse.tool_calls && primaryResponse.tool_calls.length > 0) {
             // Обработка вызовов инструментов

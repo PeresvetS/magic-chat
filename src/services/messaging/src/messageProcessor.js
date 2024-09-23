@@ -1,7 +1,7 @@
 // services/messaging/src/messageProcessor.js
 
 const logger = require('../../../utils/logger');
-const gptService = require('../../llm/llmService');
+const llmService = require('../../llm/llmService');
 const { leadService } = require('../../leads/src/leadService');
 const { saveMessageStats } = require('../../stats/statsService');
 const { campaignsMailingService } = require('../../campaign');
@@ -20,7 +20,7 @@ async function processMessage(lead, senderId, message, phoneNumber, campaign) {
       return null;
     }
     // Use gptService to generate response
-    const { response, tokenCount } = await gptService.generateResponse(
+    const { response, tokenCount } = await llmService.generateResponse(
       lead,
       [{ role: 'human', content: message }],
       campaign,

@@ -28,6 +28,7 @@ async function generateResponse(lead, messages, campaign) {
 
     if (!agentChain) {
       agentChain = new AgentChain(campaign, lead, tools);
+      agentChain.primaryAgent = await agentChain.createPrimaryAgent();
       agentChains.set(lead.id, agentChain);
       logger.info(`Created new AgentChain for ${lead.id}`);
     }

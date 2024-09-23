@@ -8,7 +8,7 @@ const { getUserPhoneNumbers } = require('../../phone/src/phoneNumberService');
 
 async function getUserInfo(telegramId) {
   try {
-    const user = await this.getUserByTgId(telegramId);
+    const user = await userRepo.getUserByTgId(telegramId);
     if (!user) {
       throw new Error(`User with ID ${telegramId} not found`);
     }

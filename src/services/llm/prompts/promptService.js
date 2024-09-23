@@ -3,7 +3,8 @@
 const logger = require('../../../utils/logger');
 const { leadProfileService } = require('../../leads');
 const knowledgeBaseServiceFactory = require('../knowledgeBase/knowledgeBaseServiceFactory');
-const { getGoogleSheetData, getCurrentTime } = require('../tools/llmTools');
+const { getGoogleSheetData } = require('../utils/getDocsData');
+const { getCurrentTime } = require('../utils/getTime');
 const {
   ChatPromptTemplate,
   SystemMessagePromptTemplate,
@@ -73,35 +74,28 @@ async function generateUserPrompt(lead, campaign, userMessage, memory) {
 }
 
 async function generateSystemPrompt(campaignPrompt) {
-    const divideMessageInstruction = 'Дели свой ответ на части по абзацам, как обычно делят люди текст, когда пишут в мессенджерах.  Делай это по-умному, смысловыми недлинными блоками. Отвечай всегда на русском языке.';
-    const systempPromptContent = `${campaignPrompt}\n\n${divideMessageInstruction}`;
+  const divideMessageInstruction = 'Дели свой ответ на части по абзацам, как обычно делят люди текст, когда пишут в мессенджерах. Делай это по-умному, смысловыми недлинными блоками. Отвечай всегда на русском языке.';
+  const systemPromptContent = `${campaignPrompt}\n\n${divideMessageInstruction}`;
 
-    const systemPrompt = SystemMessagePromptTemplate.fromTemplate(
-        systempPromptContent,
-      );
-      
-      return systemPrompt;
+  const systemPrompt = SystemMessagePromptTemplate.fromTemplate(systemPromptContent);
+  return systemPrompt;
 }
 
 async function composePromptTemplate(campaignPrompt) {
+  const systemPrompt = await generateSystemPrompt(campaignPrompt); // Ensure this is awaited
+  const humanTemplate = '{input}';
+  const humanMessagePrompt = HumanMessagePromptTemplate.fromTemplate(humanTemplate);
 
-    const systemPrompt = generateSystemPrompt(campaignPrompt);
-    const humanTemplate = '{input}';
-    const humanMessagePrompt =
-    HumanMessagePromptTemplate.fromTemplate(humanTemplate);
-
-    const commonPromptTemplate = ChatPromptTemplate.fromMessages([
-        systemPrompt,
-        { role: 'system', content: '{context}' },
-        humanMessagePrompt,
-    ]);
-    return commonPromptTemplate;
+  const commonPromptTemplate = ChatPromptTemplate.fromMessages([
+    systemPrompt,
+    { role: 'system', content: '{context}' }, // Ensure this is correctly formatted
+    humanMessagePrompt,
+  ]);
+  return commonPromptTemplate;
 }
 
-
-
 module.exports = {
-    generateUserPrompt,
-    composePromptTemplate,
+  generateUserPrompt,
+  composePromptTemplate,
 };
 

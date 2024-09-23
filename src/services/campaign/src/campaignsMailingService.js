@@ -332,7 +332,9 @@ async function createCampaign(telegramId, name) {
 
   async function getCampaignPhoneNumbers(campaignId) {
     try {
-      return await campaignsMailingRepo.getCampaignPhoneNumbers(campaignId);
+      const phoneNumbers = await campaignsMailingRepo.getCampaignPhoneNumbers(campaignId);
+    
+      return phoneNumbers;
     } catch (error) {
       logger.error('Error in getCampaignPhoneNumbers service:', error);
       throw error;

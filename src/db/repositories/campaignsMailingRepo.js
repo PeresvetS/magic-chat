@@ -3,7 +3,6 @@
   const prisma = require('../utils/prisma');
   const logger = require('../../utils/logger');
   const { getUserByTgId } = require('./userRepo');
-const { log } = require('winston');
 
   async function createCampaignMailing(telegramId, name) {
     try {
@@ -313,7 +312,9 @@ const { log } = require('winston');
       
       logger.info(`Retrieved ${result.length} phone numbers for campaign ${campaignId}`);
       logger.info(`Result: ${JSON.stringify(result)}`);
-      return result;
+      
+      // Ensure result is always an array
+      return result || [];
     } catch (error) {
       logger.error(`Error getting campaign phone numbers for campaign ${campaignId}:`, error.message);
       throw error;

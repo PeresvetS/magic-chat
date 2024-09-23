@@ -457,10 +457,13 @@ module.exports = {
         return;
       }
 
-      const { phoneNumbers, defaultTelegramNumber, defaultWhatsappNumber } =
-        await campaignsMailingService.getCampaignPhoneNumbers(campaign.id);
+      const phoneNumbers = await campaignsMailingService.getCampaignPhoneNumbers(campaign.id);
 
-      if (phoneNumbers.length === 0) {
+      // Log the phone numbers for debugging
+      logger.info(`Phone numbers for campaign ${campaignName}: ${JSON.stringify(phoneNumbers)}`);
+
+      // Ensure phoneNumbers is always an array
+      if (!phoneNumbers || phoneNumbers.length === 0) {
         bot.sendMessage(
           msg.chat.id,
           `У кампании "${campaignName}" нет прикрепленных номеров.`,
@@ -472,12 +475,12 @@ module.exports = {
       phoneNumbers.forEach((p) => {
         let status = '';
         if (
-          p.phoneNumber === defaultTelegramNumber &&
+          p.phoneNumber === campaign.defaultTelegramNumber &&
           p.platform === 'telegram'
         ) {
           status = ' (дефолтный для Telegram)';
         } else if (
-          p.phoneNumber === defaultWhatsappNumber &&
+          p.phoneNumber === campaign.defaultWhatsappNumber &&
           p.platform === 'whatsapp'
         ) {
           status = ' (дефолтный для WhatsApp)';
@@ -485,10 +488,10 @@ module.exports = {
         message += `${p.phoneNumber} (${p.platform})${status}\n`;
       });
 
-      if (!defaultTelegramNumber) {
+      if (!campaign.defaultTelegramNumber) {
         message += '\nДля Telegram не установлен дефолтный номер.';
       }
-      if (!defaultWhatsappNumber) {
+      if (!campaign.defaultWhatsappNumber) {
         message += '\nДля WhatsApp не установлен дефолтный номер.';
       }
 
@@ -603,7 +606,7 @@ module.exports = {
       if (!campaignName || !status) {
         bot.sendMessage(
           msg.chat.id,
-          'Пожалуйста, укажите название кампании и статус лидов. Например: /send_mc_to_leads МояКампания NEW',
+          'Пожалуйста, укажите название кампании и с��атус лидов. Например: /send_mc_to_leads МояКампания NEW',
         );
         return;
       }
@@ -688,7 +691,7 @@ module.exports = {
           );
         }
 
-        // Запуск процесса проверки статуса отправки
+        // Запуск процесса прверки статуса отправки
         bot.sendMessage(
           msg.chat.id,
           'Начинаем процесс отправки сообщений. Вы будете получать обновления о ходе отправки.',

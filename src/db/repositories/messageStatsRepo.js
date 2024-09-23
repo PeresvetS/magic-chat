@@ -3,17 +3,17 @@
 const prisma = require('../utils/prisma');
 const logger = require('../../utils/logger');
 
-async function saveMessageStats(userId, phoneNumber, tokenCount) {
+async function saveMessageStats(userId, phoneNumber, tokensUsed) {
   try {
     return await prisma.messageStat.create({
       data: {
-        userId,
+        userId: BigInt(userId),
         phoneNumber,
-        tokensUsed: tokenCount,
+        tokensUsed,
       },
     });
   } catch (error) {
-    logger.error('Error saving message stats:', error);
+    logger.error(`Error saving message stats: ${error.message}`);
     throw error;
   }
 }

@@ -7,58 +7,6 @@ const logger = require('../../../utils/logger');
 const { leadProfileService } = require('../../leads');
 const bitrixService = require('../../crm/src/bitrixService');
 const { sendNotification } = require('../../notification/notificationService');
-const { safeStringify } = require('../../../utils/helpers');
-
-const getGoogleSheetDataTool = tool(
-  async ({ googleSheetUrl }) => {
-    if (!googleSheetUrl || googleSheetUrl === '') {
-      return '';
-    }
-    let sheetId;
-    if (googleSheetUrl.includes('spreadsheets/d/')) {
-      sheetId = googleSheetUrl.split('spreadsheets/d/')[1].split('/')[0];
-    } else {
-      sheetId = googleSheetUrl;
-    }
-
-    const url = `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:csv&sheet=Sheet1`;
-
-    try {
-      const response = await axios.get(url);
-      const rows = response.data.split('\n').map((row) => row.split(','));
-      const headers = rows[0];
-      const data = rows.slice(1).map((row) => {
-        const obj = {};
-        headers.forEach((header, index) => {
-          obj[header.trim()] = row[index].trim();
-        });
-        return obj;
-      });
-      return `Here's the current Q&A data: ${safeStringify(data)}. Use this information to provide more accurate answers when possible. If a user's question closely matches a question in this data, prioritize using the corresponding answer, but feel free to expand or adapt it as necessary to fully address the user's query.`;
-    } catch (error) {
-      logger.error('Error fetching Google Sheet:', error);
-      throw new Error('Failed to fetch Google Sheet data');
-    }
-  },
-  {
-    name: "get_google_sheet_data",
-    description: "Fetch and process data from a Google Sheet",
-    schema: z.object({
-      googleSheetUrl: z.string().describe("The URL of the Google Sheet to fetch data from"),
-    }),
-  }
-);
-
-const getCurrentTimeTool = tool(
-  () => {
-    return new Date().toLocaleString();
-  },
-  {
-    name: "get_current_time",
-    description: "Get the current time",
-    schema: z.object({}),
-  }
-);
 
 const changeLeadStatusPositiveTool = tool(
   async ({ lead, campaign, messages }) => {
@@ -99,7 +47,10 @@ const changeLeadStatusPositiveTool = tool(
         userId: z.string(),
         notificationTelegramIds: z.array(z.string()).optional(),
       }),
-      messages: z.array(z.any()),
+      messages: z.array(z.object({
+        content: z.string(),
+        role: z.enum(['user', 'assistant', 'system']),
+      })).describe("Array of messages related to the lead"),
     }),
   }
 );
@@ -226,8 +177,6 @@ const updateLeadFieldTool = tool(
 );
 
 module.exports = {
-  getGoogleSheetDataTool,
-  getCurrentTimeTool,
   changeLeadStatusPositiveTool,
   changeLeadStatusNegativeTool,
   updateLeadAddressTool,
