@@ -67,11 +67,11 @@ class MessageDistributionService {
       };
 
       for (const platform of platforms.split(',')) {
-        const senderPhoneNumber =
-          await this.phoneNumberManager.getNextAvailablePhoneNumber(
-            campaignId,
-            platform,
-          );
+        const phoneNumberManager = PhoneNumberManagerFactory.create();
+        let senderPhoneNumber = await phoneNumberManager.getNextAvailablePhoneNumber(
+          campaignId,
+          platform,
+        );
         if (!senderPhoneNumber) {
           logger.warn(
             `No available phone numbers for ${platform} in campaign ${campaignId}`,
@@ -80,9 +80,8 @@ class MessageDistributionService {
         }
 
         try {
-          // Добавляем сообщение в очередь RabbitMQ
           logger.info(
-            `Enqueuing message for ${platform} with campaignId ${campaignId}`,
+            `Enqueuing message for ${platform} with campaignId ${campaignId}, sender ${senderPhoneNumber}`,
           );
           const queueItem = await RabbitMQQueueService.enqueue(
             campaignId,
@@ -96,6 +95,29 @@ class MessageDistributionService {
         } catch (error) {
           logger.error(`Error enqueueing message for ${platform}:`, error);
           results[platform] = { error: error.message, status: 'failed' };
+          
+          // Попробуем сменить номер и повторить попытку
+          senderPhoneNumber = await phoneNumberManager.switchToNextPhoneNumber(
+            campaignId,
+            senderPhoneNumber,
+            platform,
+          );
+          if (senderPhoneNumber) {
+            try {
+              const queueItem = await RabbitMQQueueService.enqueue(
+                campaignId,
+                message,
+                strPhoneNumber,
+                platform,
+                senderPhoneNumber,
+              );
+              results[platform] = { queueItemId: queueItem.id, status: 'queued' };
+              logger.info(`Message queued for ${platform} with new sender number: ${queueItem.id}`);
+            } catch (retryError) {
+              logger.error(`Error enqueueing message for ${platform} with new sender number:`, retryError);
+              results[platform] = { error: retryError.message, status: 'failed' };
+            }
+          }
         }
       }
 

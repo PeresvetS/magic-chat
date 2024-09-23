@@ -72,6 +72,8 @@ model PhoneNumber {
   telegramAccount   TelegramAccount?
   whatsappAccount   WhatsappAccount?
   WABAAccount       WABAAccount?
+  banStatus         String?
+  banExpiresAt      DateTime?
 }
 
 model TelegramAccount {

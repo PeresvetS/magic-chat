@@ -21,6 +21,14 @@ class CheckerFactory {
         case 'waba':
           this.checkers.set(platform, new WABAChecker());
           break;
+        case 'tgwa':
+            this.checkers.set(platform, new TelegramChecker());
+            this.checkers.set(platform, new WhatsAppChecker());
+            break;
+        case 'tgwaba':
+            this.checkers.set(platform, new TelegramChecker());
+            this.checkers.set(platform, new WABAChecker());
+            break;
         default:
           throw new Error(`Unsupported platform: ${platform}`);
       }

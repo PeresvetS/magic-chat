@@ -5,6 +5,7 @@ const { getPlatformPriority } = require('../../../db').campaignsMailingRepo;
 const { PhoneNumberRotationService } = require('../../phone');
 const CheckerFactory = require('./CheckerFactory');
 const { leadService } = require('../../leads/src/leadService');
+const { phoneNumberService } = require('../../phone');
 
 class MessagingPlatformChecker {
   constructor(campaignId) {
@@ -63,14 +64,42 @@ class MessagingPlatformChecker {
     const platforms = platformPriority.split('');
     for (const platform of platforms) {
       const checker = this.checkerFactory.getChecker(platform);
-      const result = await checker.check(phoneNumber);
-      if (result) {
-        return platform;
+      let result = false;
+      let attempts = 0;
+      const maxAttempts = 3; // Максимальное количество попыток
+
+      while (!result && attempts < maxAttempts) {
+        try {
+          result = await checker.check(phoneNumber);
+          if (result) {
+            return platform;
+          }
+        } catch (error) {
+          if (this.isBanError(error)) {
+            await this.handleBanError(platform, error);
+          } else {
+            logger.error(`Error checking ${platform} for ${phoneNumber}:`, error);
+          }
+        }
+        attempts++;
       }
+
       if (mode === 'one') break;
     }
     await leadService.setLeadUnavailable(phoneNumber);
     return 'none';
+  }
+
+  isBanError(error) {
+    const banErrors = ['USER_DEACTIVATED', 'USER_BANNED', 'PRIVACY_RESTRICTED', 'FLOOD_WAIT', 'RESTRICTED'];
+    return banErrors.some(banError => error.message.includes(banError));
+  }
+
+  async handleBanError(platform, error) {
+    const phoneNumber = this.extractPhoneNumberFromError(error);
+    if (phoneNumber) {
+      await phoneNumberService.updatePhoneNumberBanStatus(phoneNumber, error.message);
+    }
   }
 
   async choosePlatform(phoneNumberToCheck, platformPriority = null, mode = 'one') {
@@ -84,7 +113,7 @@ class MessagingPlatformChecker {
       throw new Error('Invalid phone number');
     }
 
-    if (!['telegram', 'whatsapp', 'waba', 'tgwa', 'tgwaba'].includes(platformPriority)) {
+    if (!platformPriority || !/^[twa]+$/.test(platformPriority)) {
       logger.warn('Invalid priority platform, getting from DB');
       platformPriority = await getPlatformPriority(this.campaignId);
     }

@@ -266,9 +266,28 @@ async function updateMessagePhoneNumberCount(
     );
   } catch (error) {
     logger.error(
-      `Ошибка обновления счетчика сообщений для ${platform}:`,
+      `Ошибка обновления счетчика сообщений ��ля ${platform}:`,
       error,
     );
+    throw error;
+  }
+}
+
+async function updatePhoneNumberBanStatus(phoneNumber, banStatus, banExpiresAt = null) {
+  try {
+    await phoneNumberRepo.updatePhoneNumberBanStatus(phoneNumber, banStatus, banExpiresAt);
+    logger.info(`Updated ban status for ${phoneNumber}: ${banStatus}, expires: ${banExpiresAt}`);
+  } catch (error) {
+    logger.error('Error updating phone number ban status:', error);
+    throw error;
+  }
+}
+
+async function getActivePlatformPhoneNumbers(userId, platform) {
+  try {
+    return await phoneNumberRepo.getActivePlatformPhoneNumbers(userId, platform);
+  } catch (error) {
+    logger.error(`Error getting active ${platform} phone numbers for user ${userId}:`, error);
     throw error;
   }
 }
@@ -285,4 +304,6 @@ module.exports = {
   setPhoneAuthenticated,
   checkDailyPhoneNumberLimit,
   updateMessagePhoneNumberCount,
+  updatePhoneNumberBanStatus,
+  getActivePlatformPhoneNumbers,
 };

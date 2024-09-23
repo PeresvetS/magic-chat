@@ -466,6 +466,50 @@ async function updateWhatsAppAccountStatus(phoneNumberRecord, isAuthenticated) {
   }
 }
 
+async function updatePhoneNumberBanStatus(phoneNumber, banStatus, banExpiresAt = null) {
+  try {
+    return await prisma.phoneNumber.update({
+      where: { phoneNumber },
+      data: {
+        banStatus,
+        banExpiresAt,
+        updatedAt: new Date(),
+      },
+    });
+  } catch (error) {
+    logger.error('Error updating phone number ban status:', error);
+    throw error;
+  }
+}
+
+async function getActivePlatformPhoneNumbers(userId, platform) {
+  try {
+    const now = new Date();
+    return await prisma.phoneNumber.findMany({
+      where: {
+        userId,
+        OR: [
+          { banStatus: null },
+          { banStatus: { notIn: ['USER_DEACTIVATED', 'USER_BANNED', 'PRIVACY_RESTRICTED'] } },
+          { banExpiresAt: { lt: now } },
+        ],
+        [platform === 'telegram' ? 'telegramAccount' : 'whatsappAccount']: {
+          isAuthenticated: true,
+        },
+      },
+      select: {
+        phoneNumber: true,
+        banStatus: true,
+        banExpiresAt: true,
+      },
+    });
+  } catch (error) {
+    logger.error(`Error getting active ${platform} phone numbers for user ${userId}:`, error);
+    throw error;
+  }
+}
+
+
 module.exports = {
   getPhoneNumber,
   setPhoneNumber,
@@ -482,4 +526,6 @@ module.exports = {
   resetDailyStats,
   setPhoneAuthenticated,
   removePhoneNumber,
+  updatePhoneNumberBanStatus,
+  getActivePlatformPhoneNumbers,
 };

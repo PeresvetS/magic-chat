@@ -8,6 +8,8 @@ class TelegramChecker {
   constructor() {
     this.clients = new Map();
     this.sessionStubs = new Map();
+    this.lastUsedTime = new Map();
+    this.phoneNumberRotationService = new PhoneNumberRotationService();
   }
 
   async initialize(numbers) {
@@ -22,6 +24,7 @@ class TelegramChecker {
 
   async getOrCreateClient(phoneNumber) {
     if (this.clients.has(phoneNumber)) {
+      this.lastUsedTime.set(phoneNumber, Date.now());
       return this.clients.get(phoneNumber);
     }
 
@@ -32,6 +35,7 @@ class TelegramChecker {
       }
       this.clients.set(phoneNumber, client);
       this.sessionStubs.delete(phoneNumber);
+      this.lastUsedTime.set(phoneNumber, Date.now());
       return client;
     }
 
@@ -39,7 +43,7 @@ class TelegramChecker {
   }
 
   async check(phoneNumberToCheck) {
-    const senderPhoneNumber = await PhoneNumberRotationService.getNextAvailablePhoneNumber('telegram');
+    const senderPhoneNumber = await this.phoneNumberRotationService.getNextAvailablePhoneNumber('telegram');
     if (!senderPhoneNumber) {
       logger.error(`No available Telegram phone numbers for checking ${phoneNumberToCheck}`);
       return false;
@@ -57,9 +61,24 @@ class TelegramChecker {
       
       return user !== null;
     } catch (error) {
+      if (this.isBanError(error)) {
+        await this.handleBanError(senderPhoneNumber, error);
+        throw error; // Re-throw to allow MessagingPlatformChecker to handle it
+      }
       logger.error(`Error checking Telegram for number ${phoneNumberToCheck}:`, error);
       return false;
     }
+  }
+
+  isBanError(error) {
+    const banErrors = ['USER_DEACTIVATED', 'USER_BANNED', 'PRIVACY_RESTRICTED', 'FLOOD_WAIT', 'RESTRICTED'];
+    return banErrors.some(banError => error.message.includes(banError));
+  }
+
+  async handleBanError(phoneNumber, error) {
+    await this.phoneNumberRotationService.handleBanStatus(phoneNumber, error.message, 'telegram');
+    this.clients.delete(phoneNumber);
+    this.lastUsedTime.delete(phoneNumber);
   }
 
   async disconnect() {
@@ -72,9 +91,11 @@ class TelegramChecker {
   cleanupCache() {
     const now = Date.now();
     for (const [phoneNumber, client] of this.clients.entries()) {
-      if (now - client.lastUsed > 30 * 60 * 1000) { // 30 минут неактивности
+      const lastUsed = this.lastUsedTime.get(phoneNumber) || 0;
+      if (now - lastUsed > 30 * 60 * 1000) { // 30 минут неактивности
         client.disconnect();
         this.clients.delete(phoneNumber);
+        this.lastUsedTime.delete(phoneNumber);
       }
     }
   }

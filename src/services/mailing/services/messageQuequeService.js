@@ -129,7 +129,7 @@ async function processSingleQueueItem(queueItem) {
     if (result.success || result.status === 'completed') {
       await RabbitMQQueueService.updateQueueItemStatus(queueItem.id, 'completed', result);
       return { [queueItem.platform]: result };
-    } else if (result.error === 'DAILY_LIMIT_REACHED') {
+    } else if (result.error === 'DAILY_LIMIT_REACHED' || result.error.includes('FLOOD_WAIT')) {
       const phoneNumberManager = PhoneNumberManagerFactory.create();
       const newSenderPhoneNumber = await phoneNumberManager.switchToNextPhoneNumber(
         queueItem.campaignId,
@@ -137,6 +137,7 @@ async function processSingleQueueItem(queueItem) {
         queueItem.platform,
       );
       if (newSenderPhoneNumber) {
+        logger.info(`Switching to new phone number ${newSenderPhoneNumber} for campaign ${queueItem.campaignId}, platform ${queueItem.platform}`);
         await RabbitMQQueueService.enqueue(
           queueItem.campaignId,
           queueItem.message,
@@ -153,8 +154,13 @@ async function processSingleQueueItem(queueItem) {
       throw new Error(result.error || 'Unknown error occurred');
     }
   } catch (error) {
-    await RabbitMQQueueService.updateQueueItemStatus(queueItem.id, 'failed', { error: error.message });
-    throw error;
+    logger.error(`Error processing queue item ${queueItem.id}:`, error);
+    if (error.message.includes('FLOOD_WAIT')) {
+      await handleFloodWait(queueItem, error);
+    } else {
+      await RabbitMQQueueService.updateQueueItemStatus(queueItem.id, 'failed', { error: error.message });
+      throw error;
+    }
   }
 }
 
