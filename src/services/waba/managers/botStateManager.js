@@ -169,6 +169,8 @@ class WABABotStateManager {
       logger.info(
         `Завершена обработка WABA сообщения для пользователя ${userId}`,
       );
+
+      this.resetOfflineTimer(phoneNumber, userId);
       return combinedMessage || '';
     } catch (error) {
       logger.error(

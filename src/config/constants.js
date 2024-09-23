@@ -7,9 +7,9 @@ const SECONDS_IN_A_MINUTE = 60;
 const MILLISECONDS_IN_A_SECOND = 1000;
 
 const RETRY_OPTIONS = {
-  MAX_WAITING_TIME: 100000,
+  MAX_WAITING_TIME: 4000,
   MAX_RETRIES: 3,
-  DELAY: 1000, // ms
+  DELAY: 2000, // ms
   TIMEOUT: 30000,
   SHOULD_RETRY: (error) => error.message !== 'FATAL_ERROR',
 };

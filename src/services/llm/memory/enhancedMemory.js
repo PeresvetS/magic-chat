@@ -155,8 +155,9 @@ class EnhancedMemory {
       }
 
       if (this.vectorStoreMemory) {
-        const vectorStoreResult = await this.vectorStoreMemory.loadMemoryVariables(inputForMemory);
-        vectorHistory = vectorStoreResult.history || [];
+        // const vectorStoreResult = await this.vectorStoreMemory.loadMemoryVariables(inputForMemory);
+        // vectorHistory = vectorStoreResult.history || [];
+        const vectorHistory = [];
       }
 
       // Get all messages beyond the recent 10

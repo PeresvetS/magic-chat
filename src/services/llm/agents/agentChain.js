@@ -115,6 +115,7 @@ class AgentChain {
 
       // Start a new debounce timer
       this.debounceTimer = setTimeout(async () => {
+        logger.info(`AgentChain 4444`);
         await this.processMessages();
       }, this.debounceDelay);
     });
@@ -135,6 +136,8 @@ class AgentChain {
     const messagesToProcess = messagesInfo.map(info => info.userMessage);
     const concatenatedMessage = messagesToProcess.join(' ');
 
+    logger.info(`AgentChain 55555`);
+
     try {
       const prompt = await promptService.generateUserPrompt(
         this.lead,
@@ -143,11 +146,13 @@ class AgentChain {
         this.memory
       );
 
+      logger.info(`AgentChain 666666`);
+
       logger.info(`Context: ${safeStringify(prompt)}`);
 
       const runChain = RunnableSequence.from([
         RunnablePassthrough.assign({
-          context: () => ({ prompt }), // Обновлено: передаем объект с ключом prompt
+          context: () => (prompt), // Обновлено: передаем объект с ключом prompt
         }),
         this.primaryAgent,
         async (primaryResponse) => {

@@ -19,10 +19,10 @@ const agentChains = new Map();
 
 async function generateResponse(lead, messages, campaign) {
   try {
-    // logger.info(
-    //   `Generating response for lead ${safeStringify(lead)} with messages: ${safeStringify(messages)} and campaign: ${safeStringify(campaign)}`,
-    // );
-    // logger.info(`AgentChain: ${safeStringify(campaign)}`);
+
+    logger.info(
+      `Generating response for lead ${safeStringify(lead)} with messages: ${safeStringify(messages)} and campaign: ${safeStringify(campaign)}`,
+    );
 
     let agentChain = agentChains.get(lead.id);
 
@@ -38,6 +38,7 @@ async function generateResponse(lead, messages, campaign) {
     const tokenCount = agentChain.getTokenCount();
 
     return { response, tokenCount };
+
   } catch (error) {
     logger.error('Error generating response:', error);
     return `An error occurred while generating a response: ${error.message}`;

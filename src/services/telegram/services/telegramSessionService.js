@@ -21,6 +21,7 @@ class TelegramSessionService {
       max: 1000, // Максимальное количество сессий в памяти
       ttl: 1000 * 60 * 60 * 24, // Время жизни сессии в кэше (24 часа)
     });
+    this.eventHandlers = new Map(); // Добавляем новую Map для хранения обработчиков событий
     this.startConnectionCheck();
     this.startAuthorizationCheck();
     this.connectionCheckInterval = null;
@@ -133,6 +134,7 @@ class TelegramSessionService {
         );
         await client.connect();
         this.sessions.set(phoneNumber, client);
+        this.addEventHandlers(client, phoneNumber); // Добавляем обработчики событий здесь
         return client;
       }
 
@@ -318,14 +320,26 @@ class TelegramSessionService {
   }
 
   addEventHandlers(client, phoneNumber) {
-    client.addEventHandler(async (event) => {
-      logger.info(`Received new message event from ${phoneNumber}: ${JSON.stringify({
+    // Удаляем предыдущий обработчик, если он существует
+    if (this.eventHandlers.has(phoneNumber)) {
+      client.removeEventHandler(this.eventHandlers.get(phoneNumber));
+    }
+
+    // Создаем новый обработчик
+    const handler = async (event) => {
+      logger.info(`Received new message event for ${phoneNumber}: ${JSON.stringify({
         message: event.message,
         date: event.date,
         senderId: event.senderId,
       })}`);
       await processIncomingMessage(phoneNumber, event, 'telegram');
-    }, new NewMessage({}));
+    };
+
+    // Добавляем новый обработчик к клиенту
+    client.addEventHandler(handler, new NewMessage({}));
+
+    // Сохраняем обработчик в Map
+    this.eventHandlers.set(phoneNumber, handler);
 
     logger.info(`Event handlers added for client with phone number ${phoneNumber}`);
   }

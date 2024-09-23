@@ -14,7 +14,7 @@ const {
 async function generateUserPrompt(lead, campaign, userMessage, memory) {
   try {
     const time = getCurrentTime();
-    const googleSheetData = await getGoogleSheetData(campaign.googleSheetUrl);
+    // const googleSheetData = await getGoogleSheetData(campaign.googleSheetUrl);
     const leadProfileInfo = await leadProfileService.getLeadProfileInfo(lead.id);
     const { history, summary, vectorHistory } = await memory.loadMemoryVariables({
       input: userMessage,
@@ -42,10 +42,10 @@ async function generateUserPrompt(lead, campaign, userMessage, memory) {
       prompt += `Relevant information from previous conversations:\n${vectorHistory}\n\n`;
     }
 
-    // Добавляем данные из Google Sheets
-    if (googleSheetData && googleSheetData !== '') {
-      prompt += `Relevant Q&A data:\n${googleSheetData}\n\n`;
-    }
+    // // Добавляем данные из Google Sheets
+    // if (googleSheetData && googleSheetData !== '') {
+    //   prompt += `Relevant Q&A data:\n${googleSheetData}\n\n`;
+    // }
 
     // Добавляем текущее время
     prompt += `Current time: ${time}\n\n`;

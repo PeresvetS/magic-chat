@@ -23,9 +23,6 @@ async function processIncomingMessage(
   platform = 'telegram',
 ) {
   try {
-    logger.info(
-      `Starting processIncomingMessage for ${platform}, phone: ${phoneNumber}`,
-    );
 
     const { senderId, messageText, messageType, filePath, message } = await extractMessageInfo(event, platform);
     logger.info(`Extracted message info: senderId=${senderId}, messageType=${messageType}, filePath=${filePath}`);
@@ -78,10 +75,6 @@ async function processIncomingMessage(
     }
 
     const activeCampaign = await getActiveCampaignForPhoneNumber(phoneNumber);
-    logger.info(
-      `Active campaign for ${phoneNumber}: ${JSON.stringify(activeCampaign)}`,
-    );
-
     if (!activeCampaign || !activeCampaign.prompt) {
       logger.warn(
         `No active campaign or prompt for ${phoneNumber}. Message ignored.`,
@@ -102,6 +95,11 @@ async function processIncomingMessage(
       senderId,
       textToProcess,
     );
+
+    if (combinedMessage === null) {
+      return;
+    }
+
     logger.info(`Combined message: ${combinedMessage}`);
 
     const lead = await getOrCreateLeadIdByChatId(

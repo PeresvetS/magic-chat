@@ -22,12 +22,14 @@ class BotStateManager {
       this.userStates.set(userId, {
         state: 'offline',
         newMessage: true,
-        typingTimer: null,
-        offlineTimer: null,
         messageBuffer: [],
-        processingMessage: false,
-        preOnlineComplete: false,
+        isProcessing: false,
+        isSendingResponse: false,
+        shouldInterruptResponse: false,
+        debounceTimer: null,
         lastMessageTimestamp: 0,
+        preOnlineComplete: false,
+        offlineTimer: null,
       });
     }
     return this.userStates.get(userId);
@@ -242,15 +244,17 @@ class BotStateManager {
     );
 
     const userState = this.getUserState(userId);
-    logger.debug(`Current userState for ${userId}: ${safeStringify(userState)}`);
 
     userState.messageBuffer.push(message);
+
     userState.lastMessageTimestamp = Date.now();
 
     if (userState.processingMessage) {
       logger.info(`Сообщение добавлено в буфер для пользователя ${userId}`);
-      return '';
+      return null;
     }
+
+    logger.info(`Processing message for user ${userId}`);
 
     userState.processingMessage = true;
     let status = userState.state;
@@ -277,6 +281,10 @@ class BotStateManager {
           break;
       }
 
+      if (status === 'pre-online') {
+        await this.handleTypingState(phoneNumber, userId);
+      }
+
       // Ждем завершения setPreOnline с таймаутом
       const startTime = Date.now();
       while (!userState.preOnlineComplete) {
@@ -286,11 +294,13 @@ class BotStateManager {
           );
           break;
         }
-        await new Promise((resolve) => setTimeout(resolve, 100));
+        await new Promise((resolve) => setTimeout(resolve, 1000));
       }
+      
 
-      await this.handleTypingState(phoneNumber, userId);
-
+      if (userState.messageBuffer.length === 0) { // Если буфер пуст, значит сообщение не удалось отправить
+        return null;
+      }
       const combinedMessage = userState.messageBuffer.join('\n');
       userState.messageBuffer = [];
       userState.processingMessage = false;
