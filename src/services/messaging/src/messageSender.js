@@ -98,7 +98,7 @@ async function sendResponse(leadId, response, senderPhoneNumber, platform, campa
       await RabbitMQQueueService.enqueue('outgoing', {
         campaignId: campaign.id,
         message: sentence,
-        leadId,
+        leadId: Number(leadId),
         platform,
         senderPhoneNumber,
       });
