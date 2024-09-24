@@ -13,7 +13,7 @@ RUN npm install
 COPY . .
 
 # Генерируем Prisma клиент
-RUN npx prisma generate
+# RUN npx prisma generate
 
 # Открываем порт, который использует приложение
 EXPOSE 3000
