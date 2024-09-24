@@ -20,9 +20,9 @@ const agentChains = new Map();
 async function generateResponse(lead, messages, campaign) {
   try {
 
-    logger.info(
-      `Generating response for lead ${safeStringify(lead)} with messages: ${safeStringify(messages)} and campaign: ${safeStringify(campaign)}`,
-    );
+    // logger.info(
+    //   `Generating response for lead ${safeStringify(lead)} with messages: ${safeStringify(messages)} and campaign: ${safeStringify(campaign)}`,
+    // );
 
     let agentChain = agentChains.get(lead.id);
 

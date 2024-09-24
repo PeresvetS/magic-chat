@@ -41,7 +41,7 @@ async function processIncomingMessage(
         await fileService.processFile({ reply: (text) => sendResponse(senderId, text, phoneNumber, platform) }, filePath);
       } catch (fileError) {
         logger.error(`Error processing file: ${fileError.message}`);
-        await sendResponse(senderId, 'Извините, произошла ошибка при обработке файла.', phoneNumber, platform);
+        await sendResponse(senderId, 'Извините, произошла ошибка ��ри обработке файла.', phoneNumber, platform);
       }
       return;
     } else if (messageType === 'voice' || messageType === 'audio') {
@@ -109,7 +109,7 @@ async function processIncomingMessage(
     );
     logger.info(`Lead: ${JSON.stringify(lead)}`);
 
-    const response = await processMessage(
+    const { response, messageId } = await processMessage(
       lead,
       senderId,
       combinedMessage,
@@ -120,7 +120,7 @@ async function processIncomingMessage(
 
     if (response) {
       logger.info(`Sending response to user ${senderId}: ${response}`);
-      await sendResponse(senderId, response, phoneNumber, platform, activeCampaign); // добавить сохранение инфо, что ответ отправлен
+      await sendResponse(lead.id, senderId, response, phoneNumber, platform, activeCampaign, messageId); // добавить сохранение инфо, что ответ отправлен
     } else {
       logger.warn(
         `No response generated for ${platform} message from ${senderId}`,
@@ -135,7 +135,6 @@ async function processIncomingMessage(
       `Error processing incoming ${platform} message for ${phoneNumber}:`,
       error,
     );
-    await sendResponse(senderId, 'Извините, произошла ошибка при обработке вашего сообщения. Пожалуйста, попробуйте еще раз позже.', phoneNumber, platform);
   }
 }
 
@@ -155,7 +154,7 @@ async function extractMessageInfo(event, platform) {
     };
   }
   
-  // Для Telegram
+  // For Telegram
   if (!event || !event.message) {
     logger.warn('Telegram event does not contain a message');
     return {};
@@ -163,7 +162,11 @@ async function extractMessageInfo(event, platform) {
 
   const { message } = event;
 
-  let chatId = message.peerId ? message.peerId.userId.toString() : null;
+  if (message.peerId.channelId) {
+    return {};
+  }
+
+  let chatId = message.peerId.userId ? message.peerId.userId.toString() : null;
 
   let messageType = 'text';
   let messageText = message.text || '';
@@ -174,16 +177,16 @@ async function extractMessageInfo(event, platform) {
   if (message.media) {
     if (message.media instanceof Api.MessageMediaDocument) {
       const document = message.media.document;
-      if (document.mimeType === 'audio/ogg') {
+      if (document && document.mimeType === 'audio/ogg') {
         messageType = 'voice';
-        filePath = document.id.toString();
+        filePath = document.id ? document.id.toString() : null;
       } else {
         messageType = 'document';
-        filePath = document.id.toString();
+        filePath = document.id ? document.id.toString() : null;
       }
     } else if (message.media instanceof Api.MessageMediaPhoto) {
       messageType = 'photo';
-      filePath = message.media.photo.id.toString();
+      filePath = message.media.photo ? message.media.photo.id.toString() : null;
     }
   }
 

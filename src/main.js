@@ -121,7 +121,9 @@ async function startMessageQueueWorker() {
   const initialDelay = 1000; // 1 second
 
   const startWorker = () => {
-    const worker = new Worker(path.resolve(__dirname, 'workers/messageQueueWorker.js'));
+    const workerPath = path.resolve(__dirname, 'workers/messageQueueWorker.js');
+    lo
+    const worker = new Worker(path.resolve(__dirname, workerPath));
 
     worker.on('error', (error) => {
       console.error('Worker error:', error);
@@ -307,7 +309,7 @@ async function main() {
     // await processUnfinishedTasks();
 
     // Запуск воркера очереди сообщений
-    await startMessageQueueWorker();
+    // await startMessageQueueWorker();
   } catch (error) {
     logger.error('Error in main function:', error);
     throw error;

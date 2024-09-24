@@ -11,8 +11,8 @@ class RabbitMQQueueService {
     this.connection = null;
     this.channel = null;
     this.queues = {
-      incoming: rabbitMQ.incomingQueue,
-      outgoing: rabbitMQ.outgoingQueue
+      mailing: rabbitMQ.mailingQueue || 'mailing',
+      messaging: rabbitMQ.messagingQueue || 'messaging',
     };
   }
 
@@ -23,9 +23,10 @@ class RabbitMQQueueService {
         heartbeat: rabbitMQ.heartbeat,
       });
       this.channel = await this.connection.createChannel();
-      await this.channel.assertQueue(this.queues.incoming, { durable: true });
-      await this.channel.assertQueue(this.queues.outgoing, { durable: true });
+      await this.channel.assertQueue(this.queues.mailing, { durable: true });
+      await this.channel.assertQueue(this.queues.messaging, { durable: true });
       await this.channel.prefetch(rabbitMQ.prefetch);
+      logger.info('Connected to RabbitMQ');
     } catch (error) {
       logger.error('Ошибка подключения к RabbitMQ:', error);
       throw error;
@@ -40,6 +41,7 @@ class RabbitMQQueueService {
       if (this.connection) {
         await this.connection.close();
       }
+      logger.info('Disconnected from RabbitMQ');
     } catch (error) { 
       logger.error('Ошибка отключения от RabbitMQ:', error);
       throw error;
@@ -47,6 +49,7 @@ class RabbitMQQueueService {
   }
 
   async enqueue(queueName, data) {
+    logger.info(`Enqueuing item to ${queueName} queue`);
     try {
       if (!this.channel) {
         await this.connect();
@@ -59,7 +62,7 @@ class RabbitMQQueueService {
         status: 'pending',
       });
 
-      await this.channel.sendToQueue(
+      this.channel.sendToQueue(
         this.queues[queueName],
         Buffer.from(queueItem.id.toString()),
         { persistent: true },
@@ -86,9 +89,59 @@ class RabbitMQQueueService {
         return null;
       }
 
-      // ... (остальной код остается без изменений)
+      const messageId = message.content.toString();
+      const queueItem = await this.getQueueItem(parseInt(messageId, 10));
+
+      if (!queueItem) {
+        logger.warn(`Queue item with id ${messageId} not found in DB`);
+        this.channel.ack(message); // Acknowledge message to remove it from the queue
+        return null;
+      }
+
+      // Attach ack and nack functions for later use
+      queueItem.ackFunction = () => this.channel.ack(message);
+      queueItem.nackFunction = () => this.channel.nack(message);
+
+      return queueItem;
     } catch (error) {
-      logger.error(`Ошибка извлечения элемента из очереди ${queueName}:`, error);
+      logger.error(`Error dequeuing item from queue ${queueName}:`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * Новый метод для событийно-ориентированного потребления сообщений
+   * @param {string} queueName - Название очереди
+   * @param {function} onMessageCallback - Функция-обработчик сообщения
+   */
+  async startConsuming(queueName, onMessageCallback) {
+    try {
+      if (!this.channel) {
+        await this.connect();
+      }
+
+
+      await this.channel.consume(this.queues[queueName], async (message) => {
+        if (message !== null) {
+          const messageId = message.content.toString();
+          const queueItem = await this.getQueueItem(parseInt(messageId, 10));
+
+          if (!queueItem) {
+            logger.warn(`Queue item with id ${messageId} not found in DB`);
+            this.channel.ack(message); // Убираем сообщение из очереди
+            return;
+          }
+
+          // Передаём queueItem и сообщение в коллбэк для обработки
+          await onMessageCallback(queueItem, message);
+          queueItem.ackFunction = () => this.channel.ack(message);
+          queueItem.nackFunction = () => this.channel.nack(message, false, false);
+        }
+      }, { noAck: false });
+
+      logger.info(`Started consuming messages from ${queueName} queue`);
+    } catch (error) {
+      logger.error(`Error starting consumer for queue ${queueName}:`, error);
       throw error;
     }
   }
@@ -103,9 +156,14 @@ class RabbitMQQueueService {
       if (updatedItem.status !== 'completed') {
         logger.warn(`Failed to mark queue item ${queueItem.id} as completed`);
       }
+      if (queueItem.ackFunction && typeof queueItem.ackFunction === 'function') {
+        queueItem.ackFunction(); // Acknowledge the message
+      } else {
+        logger.warn('No ackFunction available for queue item:', queueItem);
+      }
       logger.info(`Queue item ${queueItem.id} marked as completed`);
     } catch (error) {
-      logger.error('Ошибка при подтверждении сообщения:', error);
+      logger.error('Error acknowledging message:', error);
       throw error;
     }
   }
@@ -116,30 +174,35 @@ class RabbitMQQueueService {
         logger.error('Invalid queue item or missing id:', queueItem);
         return;
       }
-
-      const updatedItem = await rabbitMQQueueRepo.updateQueueItem(
-        queueItem.id,
-        {
-          status: 'failed',
-          errorMessage,
-          retryCount: (queueItem.retryCount || 0) + 1,
-          updatedAt: new Date(),
-        },
-      );
-
+  
+      const updatedItem = await rabbitMQQueueRepo.updateQueueItem(queueItem.id, {
+        status: 'failed',
+        errorMessage,
+        retryCount: (queueItem.retryCount || 0) + 1,
+        updatedAt: new Date(),
+      });
+  
       if (updatedItem.retryCount >= 5) {
         logger.warn(
           `Queue item ${queueItem.id} has reached maximum retry attempts. Removing from queue.`,
         );
-        queueItem.ackFunction(); // Удаляем из очереди
+        if (queueItem.ackFunction && typeof queueItem.ackFunction === 'function') {
+          queueItem.ackFunction(); // Acknowledge to remove from queue
+        } else {
+          logger.warn('No ackFunction available for queue item:', queueItem);
+        }
       } else {
-        queueItem.nackFunction(); // Возвращаем в очередь для повторной попытки
+        if (queueItem.nackFunction && typeof queueItem.nackFunction === 'function') {
+          queueItem.nackFunction(); // Return to queue for retry
+        } else {
+          logger.warn('No nackFunction available for queue item:', queueItem);
+        }
         logger.info(
           `Message marked as failed and returned to queue. Retry attempt: ${updatedItem.retryCount}`,
         );
       }
     } catch (error) {
-      logger.error('Ошибка при обработке неудачного сообщения:', error);
+      logger.error('Error handling failed message:', error);
     }
   }
 

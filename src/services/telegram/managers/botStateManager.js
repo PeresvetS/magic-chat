@@ -27,7 +27,7 @@ class BotStateManager {
         isSendingResponse: false,
         shouldInterruptResponse: false,
         debounceTimer: null,
-        lastMessageTimestamp: 0,
+        lastMessageTimestamp: 0, // Ensure this is initialized
         preOnlineComplete: false,
         offlineTimer: null,
       });
@@ -235,7 +235,8 @@ class BotStateManager {
 
   hasNewMessageSince(userId, timestamp) {
     const userState = this.getUserState(userId);
-    return userState.lastMessageTimestamp > timestamp;
+    logger.info(`Checking if new message since ${timestamp} for user ${userId} with last message timestamp ${userState.lastMessageTimestamp}`);
+    return userState.lastMessageTimestamp > timestamp; // Ensure correct comparison
   }
 
   async handleIncomingMessage(phoneNumber, userId, message) {
@@ -247,7 +248,7 @@ class BotStateManager {
 
     userState.messageBuffer.push(message);
 
-    userState.lastMessageTimestamp = Date.now();
+    userState.lastMessageTimestamp = Date.now(); // Update timestamp here
 
     if (userState.processingMessage) {
       logger.info(`Сообщение добавлено в буфер для пользователя ${userId}`);
@@ -281,9 +282,7 @@ class BotStateManager {
           break;
       }
 
-      if (status === 'pre-online') {
-        await this.handleTypingState(phoneNumber, userId);
-      }
+      await this.handleTypingState(phoneNumber, userId);
 
       // Ждем завершения setPreOnline с таймаутом
       const startTime = Date.now();
@@ -299,6 +298,7 @@ class BotStateManager {
       
 
       if (userState.messageBuffer.length === 0) { // Если буфер пуст, значит сообщение не удалось отправить
+        userState.processingMessage = false; // Сброс состояния здесь
         return null;
       }
       const combinedMessage = userState.messageBuffer.join('\n');

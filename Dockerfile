@@ -7,16 +7,16 @@ WORKDIR /app
 COPY package.json ./
 
 # Устанавливаем зависимости
-RUN npm install
+RUN yarn install
 
 # Копируем исходный код приложения
 COPY . .
 
-# Генерируем Prisma клиент
-RUN npx prisma generate
-
 # Открываем порт, который использует приложение
 EXPOSE 3000
+
+# Генерируем Prisma клиент
+RUN npx prisma generate
 
 # Запускаем приложение
 CMD ["npm", "start"]

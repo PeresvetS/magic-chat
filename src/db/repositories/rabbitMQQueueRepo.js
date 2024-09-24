@@ -6,7 +6,13 @@ const logger = require('../../utils/logger');
 class RabbitMQQueueRepo {
   async createQueueItem(data) {
     try {
-      return await prisma.messageQueue.create({ data });
+      if (!data.leadId) {
+        return await prisma.messageQueue.create({ data });
+      }
+      const { leadId, ...restData } = data;
+      return await prisma.messageQueue.create({ 
+        data: { ...restData, lead: { connect: { id: leadId } } }, 
+      });
     } catch (error) {
       logger.error('Ошибка создания элемента очереди:', error);
       throw error;

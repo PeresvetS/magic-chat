@@ -26,8 +26,15 @@ async function saveSession(phoneNumber, session) {
 
 async function deleteSession(phoneNumber) {
   try {
-    await prisma.whatsappSession.delete({ where: { phoneNumber } });
-    logger.info(`WhatsApp session deleted for ${phoneNumber}`);
+    const result = await prisma.whatsappSession.deleteMany({
+      where: { phoneNumber },
+    });
+    
+    if (result.count > 0) {
+      logger.info(`WhatsApp session for ${phoneNumber} deleted successfully`);
+    } else {
+      logger.info(`No WhatsApp session found for ${phoneNumber}. Nothing to delete.`);
+    }
   } catch (error) {
     logger.error(`Error deleting WhatsApp session for ${phoneNumber}:`, error);
     throw error;

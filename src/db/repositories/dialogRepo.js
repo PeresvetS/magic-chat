@@ -47,6 +47,7 @@ async function saveMessage(
         dialogId: dialog.id,
         userRequest,
         assistantResponse,
+        status: 'new',
       },
     });
   } catch (error) {

@@ -3,12 +3,24 @@
 const prisma = require('../utils/prisma');
 const logger = require('../../utils/logger');
 
-async function saveMessage(leadId, userRequest, data) {
+async function saveMessage(leadId, userId, userRequest, assistantResponse = '', status) {
   try {
     return await prisma.message.create({
       data: {
-        ...data,
-        dialog: { connect: { leadId } },
+        dialog: {
+          connectOrCreate: {
+            where: { leadId },
+            create: { 
+              leadId,
+              userId,
+              contactId: leadId.toString(),
+              platform: 'default'
+            },
+          },
+        },
+        userRequest,
+        assistantResponse,
+        status,
       },
     });
   } catch (error) {
@@ -29,7 +41,6 @@ async function getRecentMessages(leadId, limit = 10) {
     throw error;
   }
 }
-
 async function updateMessage(messageId, data) {
   try {
     return await prisma.message.update({
@@ -65,6 +76,7 @@ async function findMessageByCampaignAndRecipient(campaignId, leadId) {
     throw error;
   }
 }
+
 
 module.exports = {
   saveMessage,

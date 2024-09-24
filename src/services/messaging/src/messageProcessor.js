@@ -3,26 +3,21 @@
 const logger = require('../../../utils/logger');
 const llmService = require('../../llm/llmService');
 const { leadService } = require('../../leads/src/leadService');
+const messageService= require('../../dialog/messageService');
 const { saveMessageStats } = require('../../stats/statsService');
 const { campaignsMailingService } = require('../../campaign');
 const {
   getPendingConversationStates,
 } = require('../../conversation/conversationState');
-const { messageRepo } = require('../../../db');
 
 async function processMessage(lead, senderId, message, phoneNumber, campaign) {
   try {
     // Сохраняем входящее сообщение в БД
-    const incomingMessage = await messageRepo.saveMessage({
-      leadId: lead.id,
-      dialogId: lead.dialogId,
-      userRequest: message,
-      status: 'new',
-    });
+    logger.info(`Saving message for lead ${lead.id} , userId ${campaign.userId}`);
+
+   // const incomingMessage = await messageService.saveMessage(lead.id, campaign.userId, message, '', 'new');
 
     logger.info(`Processing message for phone number ${phoneNumber}: ${message}`);
-    logger.debug(`Lead info: ${JSON.stringify(lead)}`);
-    logger.debug(`Campaign info: ${JSON.stringify(campaign)}`);
 
     if (!campaign.prompt) {
       logger.warn(`No prompt provided for processing message from ${senderId}`);
@@ -36,10 +31,9 @@ async function processMessage(lead, senderId, message, phoneNumber, campaign) {
     );
 
     // Обновляем сообщение в БД
-    await messageRepo.updateMessage(incomingMessage.id, {
-      assistantResponse: response,
-      status: 'response_generated',
-    });
+    // await messageService.updateMessage(incomingMessage.id, {
+    //   status: 'response_generated',
+    // });
 
     logger.info(`Response generated for ${senderId}: ${response}`);
     logger.debug(`Token count for ${senderId}: ${tokenCount}`);
@@ -47,7 +41,8 @@ async function processMessage(lead, senderId, message, phoneNumber, campaign) {
     await saveMessageStats(senderId, phoneNumber, tokenCount);
     // await saveDialogToFile(senderId, message, response);
 
-    return response;
+    // return { response, messageId: incomingMessage.id };
+    return { response, messageId: null };
   } catch (error) {
     logger.error(`Error in processMessage for ${senderId}:`, error);
     throw error;

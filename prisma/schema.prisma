@@ -27,7 +27,7 @@ model User {
   bitrixIntegration BitrixIntegration?
   amoCrmIntegration AmoCrmIntegration?
   leads             Lead[]
-  leadsDBs          LeadsDB[] // Добавьте эту строку
+  leadsDBs          LeadsDB[]
   openaiApiKey      String?
 }
 
@@ -363,14 +363,11 @@ model Dialog {
 model Message {
   id                Int      @id @default(autoincrement())
   dialog            Dialog   @relation(fields: [dialogId], references: [id])
-  dialogId          Int      // Remove the @unique attribute
-  userRequest       String?
+  dialogId          Int
+  userRequest       String
   assistantResponse String?
-  status            String   @default("new")
+  status            String
   createdAt         DateTime @default(now())
-  updatedAt         DateTime @default(now())
-
-  @@index([dialogId]) // Add an index instead of a unique constraint
 }
 
 model Prompt {
@@ -386,9 +383,11 @@ model Prompt {
 model MessageQueue {
   id                   Int      @id @default(autoincrement())
   leadId               Int?
+  senderId             String?
   lead                 Lead?    @relation(fields: [leadId], references: [id])
   campaignId           Int
   message              String
+  recipientPhoneNumber String?
   senderPhoneNumber    String
   platform             String
   status               String
