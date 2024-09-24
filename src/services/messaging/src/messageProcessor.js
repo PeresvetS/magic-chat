@@ -8,13 +8,22 @@ const { campaignsMailingService } = require('../../campaign');
 const {
   getPendingConversationStates,
 } = require('../../conversation/conversationState');
+const { messageRepo } = require('../../../db');
 
 async function processMessage(lead, senderId, message, phoneNumber, campaign) {
-  // logger.info(`Processing message for phone number ${phoneNumber}: ${message}`);
-  // logger.debug(`Lead info: ${JSON.stringify(lead)}`);
-  // logger.debug(`Campaign info: ${JSON.stringify(campaign)}`);
-
   try {
+    // Сохраняем входящее сообщение в БД
+    const incomingMessage = await messageRepo.saveMessage({
+      leadId: lead.id,
+      dialogId: lead.dialogId,
+      userRequest: message,
+      status: 'new',
+    });
+
+    logger.info(`Processing message for phone number ${phoneNumber}: ${message}`);
+    logger.debug(`Lead info: ${JSON.stringify(lead)}`);
+    logger.debug(`Campaign info: ${JSON.stringify(campaign)}`);
+
     if (!campaign.prompt) {
       logger.warn(`No prompt provided for processing message from ${senderId}`);
       return null;
@@ -25,15 +34,18 @@ async function processMessage(lead, senderId, message, phoneNumber, campaign) {
       [{ role: 'human', content: message }],
       campaign,
     );
-    logger.info(`Response generated for ${senderId}: ${response}`);
 
+    // Обновляем сообщение в БД
+    await messageRepo.updateMessage(incomingMessage.id, {
+      assistantResponse: response,
+      status: 'response_generated',
+    });
+
+    logger.info(`Response generated for ${senderId}: ${response}`);
     logger.debug(`Token count for ${senderId}: ${tokenCount}`);
 
     await saveMessageStats(senderId, phoneNumber, tokenCount);
-    logger.info(`Saved message stats for ${senderId}`);
-
     // await saveDialogToFile(senderId, message, response);
-    logger.info(`Saved dialog to file for ${senderId}`);
 
     return response;
   } catch (error) {

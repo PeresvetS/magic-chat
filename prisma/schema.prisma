@@ -205,6 +205,7 @@ model Lead {
   conversationState ConversationState?
   dialogId          Int?
   profile           LeadProfile?
+  messageQueue      MessageQueue[]
 
   @@index([campaignId])
   @@index([userId])
@@ -362,10 +363,14 @@ model Dialog {
 model Message {
   id                Int      @id @default(autoincrement())
   dialog            Dialog   @relation(fields: [dialogId], references: [id])
-  dialogId          Int
-  userRequest       String
-  assistantResponse String
-  createdAt         DateTime @default(now()) // добавить статус NEW / GENERATED / DELIVERING / SENT / ERROR
+  dialogId          Int      // Remove the @unique attribute
+  userRequest       String?
+  assistantResponse String?
+  status            String   @default("new")
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @default(now())
+
+  @@index([dialogId]) // Add an index instead of a unique constraint
 }
 
 model Prompt {
@@ -380,9 +385,10 @@ model Prompt {
 
 model MessageQueue {
   id                   Int      @id @default(autoincrement())
+  leadId               Int?
+  lead                 Lead?    @relation(fields: [leadId], references: [id])
   campaignId           Int
   message              String
-  recipientPhoneNumber String
   senderPhoneNumber    String
   platform             String
   status               String

@@ -1,6 +1,6 @@
 // src/services/dialog/messageService.js
 
-const messageRepo = require('../../db/repositories/messageRepo');
+const { messageRepo } = require('../../db');
 const logger = require('../../utils/logger');
 
 async function saveMessage(leadId, userRequest, assistantResponse, userId) {

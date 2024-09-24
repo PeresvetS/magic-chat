@@ -21,7 +21,7 @@ async function processQueue(initialQueueItem = null) {
 
   while (true) {
     if (!queueItem) {
-      queueItem = await RabbitMQQueueService.dequeue();
+      queueItem = await RabbitMQQueueService.dequeue('outgoing'); // ?
     }
 
     if (!queueItem) {

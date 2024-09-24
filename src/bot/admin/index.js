@@ -30,6 +30,8 @@ function createAdminBot() {
   const bot = new TelegramBot(config.ADMIN_BOT_TOKEN, { polling: false });
   let isRunning = false;
   let pollingError = null;
+  let restartAttempts = 0;
+  const maxRestartAttempts = 5;
 
   function handlePollingError(error) {
     logger.error('Admin bot polling error:', error);
@@ -38,18 +40,21 @@ function createAdminBot() {
       error.code === 'ETELEGRAM' &&
       error.message.includes('terminated by other getUpdates request')
     ) {
-      logger.warn(
-        'Admin bot: Another instance is running. Attempting to restart...',
-      );
-      setTimeout(async () => {
-        try {
-          await stop();
-          await launch();
-          logger.info('Admin bot restarted successfully');
-        } catch (e) {
-          logger.error('Error restarting Admin bot:', e);
-        }
-      }, 5000);
+      if (restartAttempts < maxRestartAttempts) {
+        restartAttempts++;
+        logger.warn(
+          `Admin bot: Another instance is running. Attempting to restart... (Attempt ${restartAttempts}/${maxRestartAttempts})`,
+        );
+        setTimeout(async () => {
+          try {
+            await stop();
+            await new Promise(resolve => setTimeout(resolve, 5000));
+            logger.info('Admin bot restarted successfully');
+          } catch (e) {
+            logger.error('Error restarting Admin bot:', e);
+          }
+        }, 5000);
+      }
     }
   }
 

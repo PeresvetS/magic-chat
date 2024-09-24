@@ -39,6 +39,8 @@ function createUserBot() {
   const bot = new TelegramBot(config.USER_BOT_TOKEN, { polling: false });
   let isRunning = false;
   let pollingError = null;
+  let restartAttempts = 0;
+  const maxRestartAttempts = 5;
 
   function handlePollingError(error) {
     logger.error('User bot polling error:', error);
@@ -47,19 +49,25 @@ function createUserBot() {
       error.code === 'ETELEGRAM' &&
       error.message.includes('terminated by other getUpdates request')
     ) {
-      logger.warn(
-        'User bot: Another instance is running. Attempting to restart...',
-      );
-      setTimeout(async () => {
-        try {
-          await bot.stopPolling();
-          await bot.startPolling();
-          logger.info('User bot restarted successfully');
-          pollingError = null;
-        } catch (e) {
-          logger.error('Error restarting User bot:', e);
-        }
-      }, 5000);
+      if (restartAttempts < maxRestartAttempts) {
+        restartAttempts++;
+        logger.warn(
+          `User bot: Another instance is running. Attempting to restart... (Attempt ${restartAttempts}/${maxRestartAttempts})`,
+        );
+        setTimeout(async () => {
+          try {
+            await stop();
+            await new Promise(resolve => setTimeout(resolve, 5000)); // Wait 5 seconds before restarting
+            await launch();
+            logger.info('User bot restarted successfully');
+            restartAttempts = 0;
+          } catch (e) {
+            logger.error('Error restarting User bot:', e);
+          }
+        }, 5000 * restartAttempts); // Increase delay with each attempt
+      } else {
+        logger.error('Max restart attempts reached. Please check the bot manually.');
+      }
     }
   }
 
@@ -192,7 +200,9 @@ function createUserBot() {
     }
     logger.info('Starting User bot polling');
     try {
-      await bot.startPolling({ restart: true, polling: true });
+      await bot.stopPolling(); // Ensure any existing polling is stopped
+      await new Promise(resolve => setTimeout(resolve, 1000)); // Wait a bit before starting
+      await bot.startPolling({ restart: false, polling: true });
       isRunning = true;
       pollingError = null;
       logger.info('User bot polling started successfully');

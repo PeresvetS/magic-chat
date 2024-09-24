@@ -1,29 +1,24 @@
 FROM node:20-alpine
 
-# Установка необходимых пакетов
-RUN apk update && \
-  apk add --no-cache util-linux python3 g++ vim make curl git bash sed
+# Устанавливаем рабочую директорию в контейнере
+WORKDIR /app
 
-# Установка рабочего каталога
-WORKDIR /usr/src/app
+# Копируем package.json и yarn.lock (если есть)
+COPY package.json ./
 
-# Установка переменных окружения (если необходимо)
-ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=false
+# Устанавливаем зависимости
+RUN npm install
 
-# Копирование файлов package.json для установки зависимостей
-COPY package.json package.json
-
-# Установка зависимостей
-RUN yarn install
-
-# Копирование всех файлов в контейнер
+# Копируем исходный код приложения
 COPY . .
 
-# Экспонирование порта для доступа к приложению
-EXPOSE 3000
-
-# Генерация Prisma клиента (если требуется)
+# Генерируем Prisma клиент
 RUN npx prisma generate
 
-# Выполнение миграций и запуск приложения при старте контейнера
-CMD ["sh", "-c", "npx prisma migrate deploy && node ./index.js"]
+# Открываем порт, который использует приложение
+EXPOSE 3000
+
+# Запускаем приложение
+CMD ["npm", "start"]
+# # Применяем Prisma миграции
+# CMD ["npx", "prisma", "migrate", "deploy"]

@@ -1,5 +1,6 @@
 // src/main.js
 
+const path = require('path');
 const cron = require('node-cron');
 const express = require('express');
 const bodyParser = require('body-parser');
@@ -7,6 +8,7 @@ const bodyParser = require('body-parser');
 const config = require('./config');
 const userBot = require('./bot/user');
 const adminBot = require('./bot/admin');
+const { Worker } = require('worker_threads');
 const logger = require('./utils/logger');
 const { retryOperation } = require('./utils/helpers');
 const webhookRouter = require('./api/routes/webhooks');
@@ -113,12 +115,61 @@ async function startMessageQueueProcessing() {
   }
 }
 
+async function startMessageQueueWorker() {
+  let retryCount = 0;
+  const maxRetries = 5;
+  const initialDelay = 1000; // 1 second
+
+  const startWorker = () => {
+    const worker = new Worker(path.resolve(__dirname, 'workers/messageQueueWorker.js'));
+
+    worker.on('error', (error) => {
+      console.error('Worker error:', error);
+      handleWorkerError();
+    });
+
+    worker.on('exit', (code) => {
+      if (code !== 0) {
+        console.error(`Worker stopped with exit code ${code}`);
+        handleWorkerError();
+      }
+    });
+
+    worker.on('message', (message) => {
+      logger.info('Message from worker:', message);
+    });
+
+    // Отправляем сообщение воркеру для запуска
+    worker.postMessage('start');
+  };
+
+  const handleWorkerError = () => {
+    if (retryCount < maxRetries) {
+      retryCount++;
+      const delay = initialDelay * Math.pow(2, retryCount - 1);
+      console.log(`Restarting worker in ${delay}ms (attempt ${retryCount}/${maxRetries})`);
+      setTimeout(startWorker, delay);
+    } else {
+      console.error('Max retry attempts reached. Worker will not be restarted.');
+      // Здесь можно добавить код для уведомления разработчиков или администраторов
+    }
+  };
+
+  startWorker();
+}
+
 async function main() {
   try {
     logger.info('Main function started');
 
     // Инициализация RabbitMQ
-    await RabbitMQQueueService.connect();
+    try {
+      await RabbitMQQueueService.connect();
+      logger.info('Successfully connected to RabbitMQ');
+    } catch (error) {
+      logger.error('Failed to connect to RabbitMQ:', error);
+      // Возможно, стоит добавить повторные попытки подключения или завершить процесс
+    }
 
     // Инициализация сессий Telegram
     await retryOperation(
@@ -182,6 +233,10 @@ async function main() {
     async function gracefulShutdown() {
       logger.info('Graceful shutdown initiated');
 
+      // Остановка обработки очереди сообщений
+      isProcessingQueue = false;
+
+      // Остановка Express сервера
       server.close(() => {
         logger.error('HTTP server closed');
       });
@@ -201,6 +256,7 @@ async function main() {
         TelegramSessionService.disconnectAllSessions().catch((error) =>
           logger.error('Error disconnecting Telegram sessions:', error),
         ),
+        RabbitMQQueueService.disconnect(), // Добавьте метод отключения от RabbitMQ
         ...Array.from(WhatsAppSessionService.clients.keys()).map(
           (phoneNumber) =>
             WhatsAppSessionService.disconnectSession(phoneNumber).catch(
@@ -219,6 +275,9 @@ async function main() {
         global.releaseLock();
       }
 
+      // Добавьте небольшую задержку перед выходом
+      await new Promise(resolve => setTimeout(resolve, 2000));
+
       process.exit(0);
     }
 
@@ -227,7 +286,7 @@ async function main() {
       logger.error('Reason:', reason);
     });
 
-    // Обработка сигналов завершения
+    // Обработка сигалов завершения
     process.on('SIGTERM', gracefulShutdown);
     process.on('SIGINT', gracefulShutdown);
 
@@ -246,10 +305,18 @@ async function main() {
 
     // Process unfinished tasks before starting the server
     // await processUnfinishedTasks();
+
+    // Запуск воркера очереди сообщений
+    await startMessageQueueWorker();
   } catch (error) {
     logger.error('Error in main function:', error);
     throw error;
   }
 }
+
+main().catch((error) => {
+  logger.error('Unhandled error in main function:', error);
+  process.exit(1);
+});
 
 module.exports = { main, app };
