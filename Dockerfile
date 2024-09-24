@@ -4,21 +4,21 @@ FROM node:20-alpine
 WORKDIR /app
 
 # Копируем package.json и yarn.lock (если есть)
-COPY package.json ./
+COPY package.json package.json
 
 # Устанавливаем зависимости
-RUN npm install
+RUN yarn install
 
 # Копируем исходный код приложения
 COPY . .
 
-# Генерируем Prisma клиент
-# RUN npx prisma generate
-
 # Открываем порт, который использует приложение
 EXPOSE 3000
 
+# Генерируем Prisma клиент
+RUN npx prisma generate
+
 # Запускаем приложение
-CMD ["npm", "start"]
+CMD ["sh", "-c", "npx prisma migrate deploy && node ./index.js"]
 # # Применяем Prisma миграции
 # CMD ["npx", "prisma", "migrate", "deploy"]
