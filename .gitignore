@@ -6,4 +6,4 @@ node_modules
 .wwebjs_cache
 .idea
 .vscode
-.DS_Store
+*.DS_Store
