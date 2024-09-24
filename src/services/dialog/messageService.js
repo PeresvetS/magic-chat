@@ -3,9 +3,9 @@
 const { messageRepo } = require('../../db');
 const logger = require('../../utils/logger');
 
-async function saveMessage(leadId, userRequest, assistantResponse, userId) {
+async function saveMessage(dialogId, userRequest, data) {
   try {
-    return await messageRepo.saveMessage(leadId, userRequest, assistantResponse, userId);
+    return await messageRepo.saveMessage(dialogId, userRequest, data);
   } catch (error) {
     logger.error(`Error in messageService.saveMessage: ${error.message}`);
     throw error;

@@ -9,14 +9,13 @@ const {
   getPendingConversationStates,
 } = require('../../conversation/conversationState');
 const { messageRepo } = require('../../../db');
+const { log } = require('winston');
 
 async function processMessage(lead, senderId, message, phoneNumber, campaign) {
   try {
     // Сохраняем входящее сообщение в БД
-    const incomingMessage = await messageRepo.saveMessage({
-      leadId: lead.id,
-      dialogId: lead.dialogId,
-      userRequest: message,
+    logger.info(`Saving message for lead ${lead.dialogId}`);
+    const incomingMessage = await messageRepo.saveMessage(lead.dialogId, message, {
       status: 'new',
     });
 
