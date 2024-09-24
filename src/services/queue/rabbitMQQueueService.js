@@ -79,7 +79,6 @@ class RabbitMQQueueService {
   }
 
   async dequeue(queueName) {
-    logger.info(`Dequeuing item from ${queueName} queue`);
     try {
       if (!this.channel) {
         await this.connect();

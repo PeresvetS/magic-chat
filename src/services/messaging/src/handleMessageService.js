@@ -135,7 +135,7 @@ async function processIncomingMessage(
       `Error processing incoming ${platform} message for ${phoneNumber}:`,
       error,
     );
-    await sendResponse(senderId, senderId, 'Извините, произошла ошибка при обработке вашего сообщения. Пожалуйста, попробуйте еще раз позже.', phoneNumber, platform, activeCampaign, messageId);
+    await sendResponse(null, null, 'Извините, произошла ошибка при обработке вашего сообщения. Пожалуйста, попробуйте еще раз позже.', phoneNumber, platform, null, null);
   }
 }
 

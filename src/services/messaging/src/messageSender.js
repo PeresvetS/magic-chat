@@ -62,7 +62,7 @@ async function sendMessage(
         break;
     }
 
-    await updatePhoneNumberStats(phoneNumber, platform);
+    await updatePhoneNumberStats(senderPhoneNumber, platform);
 
     return result;
   } catch (error) {
@@ -70,7 +70,7 @@ async function sendMessage(
       error,
       senderId,
       message,
-      phoneNumber,
+      senderPhoneNumber,
       platform,
     );
   }
@@ -135,15 +135,13 @@ async function sendResponse(
   }
 }
 
-
-
-//  async function sendResponse(leadId, response, senderPhoneNumber, platform, campaign, messageId) {
+//  async function sendResponse(leadId, senderId, response, senderPhoneNumber, platform, campaign, messageId) {
 //   try {
 //     logger.info(
-//       `Starting sendResponse for ${platform} user ${leadId} from ${senderPhoneNumber}`,
+//       `Starting sendResponse for ${platform} user ${senderId} from ${senderPhoneNumber}`,
 //     );
 //     if (!response) {
-//       logger.warn(`Attempted to send empty ${platform} response to ${leadId}`);
+//       logger.warn(`Attempted to send empty ${platform} response to ${senderId}`);
 //       return;
 //     }
 
@@ -157,6 +155,7 @@ async function sendResponse(
 //         campaignId: campaign.id,
 //         message: sentence,
 //         leadId: Number(leadId),
+//         senderId,
 //         platform,
 //         senderPhoneNumber,
 //       });
@@ -168,7 +167,7 @@ async function sendResponse(
 //     });
 
 //   } catch (error) {
-//     logger.error(`Error sending ${platform} response to ${leadId}: ${error}`);
+//     logger.error(`Error sending ${platform} response to ${senderId}: ${error}`);
 //   }
 // }
 
@@ -257,10 +256,10 @@ async function sendQueuedMessages() {
     logger.info(`Dequeued item from messaging queue: ${safeStringify(queueItem)}`);
 
     try {
-      const { leadId, message, senderPhoneNumber, platform, campaignId } = queueItem;
+      const { leadId, senderId, message, senderPhoneNumber, platform, campaignId } = queueItem;
 
       logger.info(
-        `Processing queued message for ${platform} user ${leadId} from ${senderPhoneNumber}`,
+        `Processing queued message for ${platform} user ${senderId} from ${senderPhoneNumber}`,
       );
 
       const BotStateManager = platform === 'telegram' ? TelegramBotStateManager :
@@ -269,22 +268,22 @@ async function sendQueuedMessages() {
 
       const startTime = Date.now();
 
-      await BotStateManager.setTyping(senderPhoneNumber, leadId);
+      await BotStateManager.setTyping(senderPhoneNumber, senderId);
 
-      if (BotStateManager.hasNewMessageSince(leadId, startTime)) {
-        logger.info(`Response interrupted for user ${leadId}`);
+      if (BotStateManager.hasNewMessageSince(senderId, startTime)) {
+        logger.info(`Response interrupted for user ${senderId}`);
         continue;
       }
 
       const result = await sendMessage(
-        leadId,
+        senderId,
         message,
         senderPhoneNumber,
         platform,
         BotStateManager,
       );
       logger.info(`Message sent to ${leadId}, result: ${JSON.stringify(result)}`);
-      BotStateManager.resetOfflineTimer(senderPhoneNumber, leadId);
+      BotStateManager.resetOfflineTimer(senderPhoneNumber, senderId);
 
       await RabbitMQQueueService.markAsCompleted(queueItem, result);
 
@@ -299,7 +298,7 @@ async function sendQueuedMessages() {
         });
       }
 
-      await BotStateManager.setOnline(senderPhoneNumber, leadId);
+      await BotStateManager.setOnline(senderPhoneNumber, senderId);
 
       // Добавляем случайную задержку между сообщениями
       await new Promise((resolve) =>

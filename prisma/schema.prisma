@@ -383,6 +383,7 @@ model Prompt {
 model MessageQueue {
   id                   Int      @id @default(autoincrement())
   leadId               Int?
+  senderId             String?
   lead                 Lead?    @relation(fields: [leadId], references: [id])
   campaignId           Int
   message              String
