@@ -1,5 +1,6 @@
 // src/main.js
 
+const path = require('path');
 const cron = require('node-cron');
 const express = require('express');
 const bodyParser = require('body-parser');
@@ -7,15 +8,23 @@ const bodyParser = require('body-parser');
 const config = require('./config');
 const userBot = require('./bot/user');
 const adminBot = require('./bot/admin');
+const { Worker } = require('worker_threads');
 const logger = require('./utils/logger');
 const { retryOperation } = require('./utils/helpers');
 const webhookRouter = require('./api/routes/webhooks');
 const { phoneNumberService } = require('./services/phone');
+const { messageQuequeService } = require('./services/mailing');
 const requestLogger = require('./api/middleware/requestLogger');
-const { handleMessageService } = require('./services/messaging');
 const { WhatsAppSessionService } = require('./services/whatsapp');
 const { TelegramSessionService } = require('./services/telegram');
 const notificationBot = require('./bot/notification/notificationBot');
+const {
+  handleMessageService,
+  processPendingMessages,
+} = require('./services/messaging');
+const RabbitMQQueueService = require('./services/queue/rabbitMQQueueService');
+
+let isProcessingUnfinishedTasks = false;
 
 const app = express();
 
@@ -48,13 +57,119 @@ async function checkApplicationState() {
   await Promise.all([
     checkAndRestartBot(userBot, 'User'),
     checkAndRestartBot(adminBot, 'Admin'),
-    checkAndRestartBot(notificationBot, 'Notification')
+    checkAndRestartBot(notificationBot, 'Notification'),
   ]);
+}
+
+async function processUnfinishedTasks() {
+  logger.info('Processing unfinished tasks...');
+
+  if (isProcessingUnfinishedTasks) {
+    logger.info('Already processing unfinished tasks. Skipping.');
+    return;
+  }
+  isProcessingUnfinishedTasks = true;
+
+  try {
+    await processPendingMessages();
+
+    const unprocessedItems = await RabbitMQQueueService.getUnprocessedItems();
+    for (const item of unprocessedItems) {
+      if (item && item.id && item.campaignId) {
+        logger.info(
+          `Processing queue item ${item.id} with campaignId ${item.campaignId}`,
+        );
+        await messageQuequeService.processQueue(item);
+      } else {
+        logger.warn('Skipping invalid queue item:', item);
+      }
+    }
+  } catch (error) {
+    logger.error('Error processing unfinished tasks:', error);
+  } finally {
+    isProcessingUnfinishedTasks = false;
+  }
+
+  logger.info('Unfinished tasks processed');
+}
+
+let isProcessingQueue = false;
+
+async function startMessageQueueProcessing() {
+  if (isProcessingQueue) {
+    logger.info('Message queue processing is already running');
+    return;
+  }
+  isProcessingQueue = true;
+
+  while (true) {
+    try {
+      await messageQuequeService.processQueue();
+      // Добавляем задержку между проверками очереди
+      await new Promise((resolve) => setTimeout(resolve, 5000)); // 5 секунд
+    } catch (error) {
+      logger.error('Error processing message queue:', error);
+      // Добавляем задержку в случае ошибки
+      await new Promise((resolve) => setTimeout(resolve, 10000)); // 10 секунд
+    }
+  }
+}
+
+async function startMessageQueueWorker() {
+  let retryCount = 0;
+  const maxRetries = 5;
+  const initialDelay = 1000; // 1 second
+
+  const startWorker = () => {
+    const worker = new Worker(path.resolve(__dirname, 'workers/messageQueueWorker.js'));
+
+    worker.on('error', (error) => {
+      console.error('Worker error:', error);
+      handleWorkerError();
+    });
+
+    worker.on('exit', (code) => {
+      if (code !== 0) {
+        console.error(`Worker stopped with exit code ${code}`);
+        handleWorkerError();
+      }
+    });
+
+    worker.on('message', (message) => {
+      logger.info('Message from worker:', message);
+    });
+
+    // Отправляем сообщение воркеру для запуска
+    worker.postMessage('start');
+  };
+
+  const handleWorkerError = () => {
+    if (retryCount < maxRetries) {
+      retryCount++;
+      const delay = initialDelay * Math.pow(2, retryCount - 1);
+      console.log(`Restarting worker in ${delay}ms (attempt ${retryCount}/${maxRetries})`);
+      setTimeout(startWorker, delay);
+    } else {
+      console.error('Max retry attempts reached. Worker will not be restarted.');
+      // Здесь можно добавить код для уведомления разработчиков или администраторов
+    }
+  };
+
+  startWorker();
 }
 
 async function main() {
   try {
     logger.info('Main function started');
+
+    // Инициализация RabbitMQ
+    try {
+      await RabbitMQQueueService.connect();
+      logger.info('Successfully connected to RabbitMQ');
+    } catch (error) {
+      logger.error('Failed to connect to RabbitMQ:', error);
+      // Возможно, стоит добавить повторные попытки подключения или завершить процесс
+    }
 
     // Инициализация сессий Telegram
     await retryOperation(
@@ -87,6 +202,19 @@ async function main() {
     ]);
     logger.info('Bots initialized and polling started');
 
+    // Обработка незавершенных задач при запуске
+    logger.info('Processing unfinished tasks...');
+    await processUnfinishedTasks();
+    logger.info('Unfinished tasks processed');
+
+    // Запуск постоянной обработки очереди сообщений
+    logger.info('Starting continuous message queue processing...');
+    startMessageQueueProcessing().catch((error) => {
+      logger.error('Error in message queue processing loop:', error);
+    });
+
+    logger.info('Message queue processed');
+
     // Настройка Express
     app.get('/', (req, res) => {
       res.send('Magic Chat server is running');
@@ -105,18 +233,40 @@ async function main() {
     async function gracefulShutdown() {
       logger.info('Graceful shutdown initiated');
 
+      // Остановка обработки очереди сообщений
+      isProcessingQueue = false;
+
+      // Остановка Express сервера
       server.close(() => {
         logger.error('HTTP server closed');
       });
 
       await Promise.all([
-        adminBot.stop().catch(error => logger.error('Error stopping admin bot:', error)),
-        userBot.stop().catch(error => logger.error('Error stopping user bot:', error)),
-        notificationBot.stop().catch(error => logger.error('Error stopping notification bot:', error)),
-        TelegramSessionService.disconnectAllSessions().catch(error => logger.error('Error disconnecting Telegram sessions:', error)),
-        ...Array.from(WhatsAppSessionService.clients.keys()).map(phoneNumber => 
-          WhatsAppSessionService.disconnectSession(phoneNumber).catch(error => logger.error(`Error disconnecting WhatsApp session for ${phoneNumber}:`, error))
-        )
+        adminBot
+          .stop()
+          .catch((error) => logger.error('Error stopping admin bot:', error)),
+        userBot
+          .stop()
+          .catch((error) => logger.error('Error stopping user bot:', error)),
+        notificationBot
+          .stop()
+          .catch((error) =>
+            logger.error('Error stopping notification bot:', error),
+          ),
+        TelegramSessionService.disconnectAllSessions().catch((error) =>
+          logger.error('Error disconnecting Telegram sessions:', error),
+        ),
+        RabbitMQQueueService.disconnect(), // Добавьте метод отключения от RabbitMQ
+        ...Array.from(WhatsAppSessionService.clients.keys()).map(
+          (phoneNumber) =>
+            WhatsAppSessionService.disconnectSession(phoneNumber).catch(
+              (error) =>
+                logger.error(
+                  `Error disconnecting WhatsApp session for ${phoneNumber}:`,
+                  error,
+                ),
+            ),
+        ),
       ]);
 
       logger.info('All services stopped');
@@ -124,6 +274,9 @@ async function main() {
       if (typeof global.releaseLock === 'function') {
         global.releaseLock();
       }
+
+      // Добавьте небольшую задержку перед выходом
+      await new Promise(resolve => setTimeout(resolve, 2000));
 
       process.exit(0);
     }
@@ -133,7 +286,7 @@ async function main() {
       logger.error('Reason:', reason);
     });
 
-    // Обработка сигналов завершения
+    // Обработка сигалов завершения
     process.on('SIGTERM', gracefulShutdown);
     process.on('SIGINT', gracefulShutdown);
 
@@ -142,6 +295,7 @@ async function main() {
     cron.schedule('0 0 * * *', async () => {
       try {
         await phoneNumberService.resetDailyStats();
+        await processPendingMessages();
         logger.info('Daily stats reset completed');
       } catch (error) {
         logger.error('Error during daily stats reset:', error);
@@ -149,11 +303,20 @@ async function main() {
     });
     logger.info('Daily stats reset scheduled');
 
+    // Process unfinished tasks before starting the server
+    // await processUnfinishedTasks();
+
+    // Запуск воркера очереди сообщений
+    await startMessageQueueWorker();
   } catch (error) {
     logger.error('Error in main function:', error);
     throw error;
   }
 }
 
+main().catch((error) => {
+  logger.error('Unhandled error in main function:', error);
+  process.exit(1);
+});
 
 module.exports = { main, app };

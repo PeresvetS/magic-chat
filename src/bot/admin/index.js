@@ -1,6 +1,7 @@
 // src/bot/admin/index.js
 
 const TelegramBot = require('node-telegram-bot-api');
+
 const config = require('../../config');
 const logger = require('../../utils/logger');
 const { isAdmin } = require('../../middleware/adminCheck');
@@ -29,22 +30,31 @@ function createAdminBot() {
   const bot = new TelegramBot(config.ADMIN_BOT_TOKEN, { polling: false });
   let isRunning = false;
   let pollingError = null;
-
+  let restartAttempts = 0;
+  const maxRestartAttempts = 5;
 
   function handlePollingError(error) {
     logger.error('Admin bot polling error:', error);
     pollingError = error;
-    if (error.code === 'ETELEGRAM' && error.message.includes('terminated by other getUpdates request')) {
-      logger.warn('Admin bot: Another instance is running. Attempting to restart...');
-      setTimeout(async () => {
-        try {
-          await stop();
-          await launch();
-          logger.info('Admin bot restarted successfully');
-        } catch (e) {
-          logger.error('Error restarting Admin bot:', e);
-        }
-      }, 5000);
+    if (
+      error.code === 'ETELEGRAM' &&
+      error.message.includes('terminated by other getUpdates request')
+    ) {
+      if (restartAttempts < maxRestartAttempts) {
+        restartAttempts++;
+        logger.warn(
+          `Admin bot: Another instance is running. Attempting to restart... (Attempt ${restartAttempts}/${maxRestartAttempts})`,
+        );
+        setTimeout(async () => {
+          try {
+            await stop();
+            await new Promise(resolve => setTimeout(resolve, 5000));
+            logger.info('Admin bot restarted successfully');
+          } catch (e) {
+            logger.error('Error restarting Admin bot:', e);
+          }
+        }, 5000);
+      }
     }
   }
 
@@ -81,10 +91,10 @@ function createAdminBot() {
   bot.on('callback_query', async (query) => {
     try {
       logger.info(`Received callback query: ${query.data}`);
-      
+
       const chatId = query.message.chat.id;
       const userId = query.from.id;
-      
+
       if (!(await isAdmin(userId))) {
         logger.warn(`Unauthorized callback_query attempt by user ${userId}`);
         return;
@@ -93,25 +103,28 @@ function createAdminBot() {
       const messageId = query.message.message_id;
       const mainPhoneNumber = config.MAIN_TG_PHONE_NUMBER;
 
-      if (query.data === 'auth_qr') {
-        logger.info('QR auth selected');
-        await bot.answerCallbackQuery(query.id);
-        await bot.editMessageText('Выбрана авторизация через QR-код', {
-          chat_id: chatId,
-          message_id: messageId
-        });
-        await startQRAuth(bot, chatId, mainPhoneNumber);
-      } else if (query.data === 'auth_sms') {
-        logger.info('SMS auth selected');
-        await bot.answerCallbackQuery(query.id);
-        await bot.editMessageText('Выбрана авторизация через SMS', {
-          chat_id: chatId,
-          message_id: messageId
-        });
-        await startSMSAuth(bot, chatId, mainPhoneNumber);
-      }
+      // if (query.data === 'auth_qr') {
+      //   logger.info('QR auth selected');
+      //   await bot.answerCallbackQuery(query.id);
+      //   await bot.editMessageText('Выбрана авторизация через QR-код', {
+      //     chat_id: chatId,
+      //     message_id: messageId,
+      //   });
+      //   await startQRAuth(bot, chatId, mainPhoneNumber, userId);
+      // } else if (query.data === 'auth_sms') {
+      //   logger.info('SMS auth selected');
+      //   await bot.answerCallbackQuery(query.id);
+      //   await bot.editMessageText('Выбрана авторизация через SMS', {
+      //     chat_id: chatId,
+      //     message_id: messageId,
+      //   });
+      //   await startSMSAuth(bot, chatId, mainPhoneNumber, userId);
+      // }
     } catch (error) {
-      logger.error('Error in callback_query handler:', JSON.stringify(error, null, 2));
+      logger.error(
+        'Error in callback_query handler:',
+        JSON.stringify(error, null, 2),
+      );
     }
   });
 
@@ -122,27 +135,6 @@ function createAdminBot() {
   });
 
   bot.on('polling_error', handlePollingError);
-  
-
-  // async function startQRAuth(bot, chatId, phoneNumber) {
-  //   try {
-  //     await bot.sendMessage(chatId, 'Генерация QR-кода для авторизации...');
-  //     await TelegramSessionService.generateQRCode(phoneNumber, bot, chatId);
-  //   } catch (error) {
-  //     logger.error('Error in QR authentication:', error);
-  //     bot.sendMessage(chatId, `Ошибка при генерации QR-кода: ${error.message}`);
-  //   }
-  // }
-
-  // async function startSMSAuth(bot, chatId, phoneNumber) {
-  //   try {
-  //     await bot.sendMessage(chatId, 'Начинаем процесс авторизации через SMS...');
-  //     await TelegramSessionService.authorizeMainClient(bot, chatId);
-  //   } catch (error) {
-  //     logger.error('Error in SMS authentication:', error);
-  //     bot.sendMessage(chatId, `Ошибка при авторизации через SMS: ${error.message}`);
-  //   }
-  // }
 
   async function launch() {
     if (isRunning) {
@@ -180,11 +172,10 @@ function createAdminBot() {
   async function restart() {
     logger.info('Restarting Admin bot');
     await stop();
-    await new Promise(resolve => setTimeout(resolve, 1000));
+    await new Promise((resolve) => setTimeout(resolve, 1000));
     await launch();
     logger.info('Admin bot restarted successfully');
   }
-
 
   return {
     bot,
@@ -193,11 +184,7 @@ function createAdminBot() {
     restart,
     isRunning: () => isRunning,
     getPollingError: () => pollingError,
-    // startQRAuth,
-    // startSMSAuth
   };
-
-  
 }
 
 module.exports = createAdminBot();

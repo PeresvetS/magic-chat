@@ -4,7 +4,7 @@ const path = require('path');
 const fs = require('fs').promises;
 
 const logger = require('./logger');
-const { GLOBAL_RETRY_OPTIONS } = require('../config/constants');
+const { RETRY_OPTIONS } = require('../config/constants');
 
 async function saveDialogToFile(userId, userMessage, botResponse) {
   try {
@@ -21,12 +21,14 @@ async function saveDialogToFile(userId, userMessage, botResponse) {
 
 async function retryOperation(operation, options = {}) {
   const {
-    maxRetries = GLOBAL_RETRY_OPTIONS.MAX_RETRIES,
-    retryDelay = GLOBAL_RETRY_OPTIONS.RETRY_DELAY,
-    shouldRetry = GLOBAL_RETRY_OPTIONS.SHOULD_RETRY,
+    maxRetries = RETRY_OPTIONS.MAX_RETRIES,
+    retryDelay = RETRY_OPTIONS.RETRY_DELAY,
+    shouldRetry = RETRY_OPTIONS.SHOULD_RETRY,
     onRetry = (error, attemptNumber) => {
-      logger.warn(`Retry attempt ${attemptNumber} due to error: ${error.message}`);
-    }
+      logger.warn(
+        `Retry attempt ${attemptNumber} due to error: ${error.message}`,
+      );
+    },
   } = options;
 
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
@@ -36,9 +38,9 @@ async function retryOperation(operation, options = {}) {
       if (attempt === maxRetries || !shouldRetry(error)) {
         throw error;
       }
-      
+
       onRetry(error, attempt);
-      await new Promise(resolve => setTimeout(resolve, retryDelay));
+      await new Promise((resolve) => setTimeout(resolve, retryDelay));
     }
   }
 }

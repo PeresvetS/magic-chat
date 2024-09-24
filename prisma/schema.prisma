@@ -28,6 +28,7 @@ model User {
   amoCrmIntegration AmoCrmIntegration?
   leads             Lead[]
   leadsDBs          LeadsDB[] // Добавьте эту строку
+  openaiApiKey      String?
 }
 
 model Admin {
@@ -63,7 +64,6 @@ model PhoneNumber {
   phoneNumber       String           @unique
   user              User?            @relation(fields: [userId], references: [id])
   userId            Int?
-  isBanned          Boolean          @default(false)
   banType           String?
   maxInactivityTime Int              @default(3600)
   createdAt         DateTime         @default(now())
@@ -71,6 +71,8 @@ model PhoneNumber {
   telegramAccount   TelegramAccount?
   whatsappAccount   WhatsappAccount?
   WABAAccount       WABAAccount?
+  banStatus         String?
+  banExpiresAt      DateTime?
 }
 
 model TelegramAccount {
@@ -79,6 +81,7 @@ model TelegramAccount {
   phoneNumberId        Int         @unique
   isPremium            Boolean     @default(false)
   isAuthenticated      Boolean     @default(false)
+  isBanned             Boolean     @default(false)
   contactsReachedToday Int         @default(0)
   contactsReachedTotal Int         @default(0)
   dailyLimit           Int         @default(40)
@@ -182,24 +185,27 @@ model MessageStat {
 }
 
 model Lead {
-  id              Int              @id @default(autoincrement())
-  bitrixId        String?          @unique
-  leadsDBId       Int
-  leadsDB         LeadsDB          @relation(fields: [leadsDBId], references: [id])
-  campaignId      Int?
-  userId          Int?
-  phone           String?
-  name            String?
-  source          String?
-  createdAt       DateTime         @default(now())
-  updatedAt       DateTime         @updatedAt
-  campaign        CampaignMailing? @relation(fields: [campaignId], references: [id])
-  user            User?            @relation(fields: [userId], references: [id])
-  status          LeadStatus       @default(NEW)
-  telegramChatId  String?
-  whatsappChatId  String?
-  lastMessageTime DateTime?
-  lastPlatform    String?
+  id                Int                @id @default(autoincrement())
+  bitrixId          String?            @unique
+  leadsDBId         Int
+  leadsDB           LeadsDB            @relation(fields: [leadsDBId], references: [id])
+  campaignId        Int?
+  userId            Int?
+  phone             String?
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+  campaign          CampaignMailing?   @relation(fields: [campaignId], references: [id])
+  user              User?              @relation(fields: [userId], references: [id])
+  status            LeadStatus         @default(NEW)
+  dialog            Dialog?            @relation(fields: [dialogId], references: [id])
+  telegramChatId    String?
+  whatsappChatId    String?
+  lastMessageTime   DateTime?
+  lastPlatform      String?
+  conversationState ConversationState?
+  dialogId          Int?
+  profile           LeadProfile?
+  messageQueue      MessageQueue[]
 
   @@index([campaignId])
   @@index([userId])
@@ -208,8 +214,27 @@ model Lead {
   @@index([whatsappChatId])
 }
 
+model LeadProfile {
+  id                 Int      @id @default(autoincrement())
+  lead               Lead     @relation(fields: [leadId], references: [id])
+  leadId             Int      @unique
+  name               String?
+  status             String?
+  address            String?
+  source             String?
+  businessType       String?
+  leadGenerationMethod String?
+  mainPains          String?
+  location           String?
+  interests          String?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+}
+
 enum LeadStatus {
   NEW
+  SENT_MESSAGE
+  STARTED_CONVERSATION
   UNAVAILABLE
   PROCESSED_NEGATIVE
   PROCESSED_POSITIVE
@@ -250,13 +275,31 @@ model CampaignMailing {
   user                    User                  @relation(fields: [userId], references: [id])
   userId                  Int
   phoneNumbers            PhoneNumberCampaign[]
-  prompt                  Prompt?               @relation(fields: [promptId], references: [id])
+  prompt                  Prompt?               @relation("PrimaryPrompt", fields: [promptId], references: [id])
   promptId                Int?
   leads                   Lead[]
   leadsDBs                CampaignLeadsDB[]
   googleSheetUrl          String?
   notificationTelegramIds BigInt[]
   defaultPhoneNumber      String?
+  secondaryPrompt         Prompt?               @relation("SecondaryPrompt", fields: [secondaryPromptId], references: [id])
+  secondaryPromptId       Int?
+  isSecondaryAgentActive  Boolean               @default(false)
+  modelName               String                @default("gpt-4o-mini")
+  openaiApiKey            String?
+  knowledgeBases          KnowledgeBase[]    
+  maxKnowledgeBlocks      Int                   @default(5)
+}
+
+model ConversationState {
+  id           Int      @id @default(autoincrement())
+  leadId       Int      @unique
+  lead         Lead     @relation(fields: [leadId], references: [id])
+  summary      String
+  lastMessage  String
+  pendingReply Boolean  @default(false)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 }
 
 model PhoneNumberCampaign {
@@ -304,6 +347,7 @@ model WhatsappSession {
 
 model Dialog {
   id           Int       @id @default(autoincrement())
+  leadId       Int       @unique 
   userId       Int
   contactId    String
   contactPhone String?
@@ -311,6 +355,7 @@ model Dialog {
   messages     Message[]
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
+  Lead         Lead[]
 
   @@unique([userId, contactId, platform])
 }
@@ -318,17 +363,65 @@ model Dialog {
 model Message {
   id                Int      @id @default(autoincrement())
   dialog            Dialog   @relation(fields: [dialogId], references: [id])
-  dialogId          Int
-  userRequest       String
-  assistantResponse String
+  dialogId          Int      // Remove the @unique attribute
+  userRequest       String?
+  assistantResponse String?
+  status            String   @default("new")
   createdAt         DateTime @default(now())
+  updatedAt         DateTime @default(now())
+
+  @@index([dialogId]) // Add an index instead of a unique constraint
 }
 
 model Prompt {
-  id        Int               @id @default(autoincrement())
-  name      String            @unique
-  content   String
-  createdAt DateTime          @default(now())
-  updatedAt DateTime          @updatedAt
-  campaigns CampaignMailing[]
+  id                 Int               @id @default(autoincrement())
+  name               String            @unique
+  content            String
+  createdAt          DateTime          @default(now())
+  updatedAt          DateTime          @updatedAt
+  primaryCampaigns   CampaignMailing[] @relation("PrimaryPrompt")
+  secondaryCampaigns CampaignMailing[] @relation("SecondaryPrompt")
+}
+
+model MessageQueue {
+  id                   Int      @id @default(autoincrement())
+  leadId               Int?
+  lead                 Lead?    @relation(fields: [leadId], references: [id])
+  campaignId           Int
+  message              String
+  senderPhoneNumber    String
+  platform             String
+  status               String
+  errorMessage         String?
+  result               Json?
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+  additionalData       Json?
+  retryCount           Int      @default(0)
+
+  @@index([status])
+  @@index([createdAt])
+}
+
+model KnowledgeBase {
+  id          Int             @id @default(autoincrement())
+  name        String
+  description String?
+  pineconeId  String          @unique
+  campaign    CampaignMailing @relation(fields: [campaignId], references: [id])
+  campaignId  Int
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+}
+
+model PhoneNumberRotation {
+  id          Int      @id @default(autoincrement())
+  userId      BigInt
+  campaignId  Int
+  platform    String
+  currentIndex Int     @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([userId, campaignId, platform])
 }

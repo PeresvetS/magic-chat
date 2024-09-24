@@ -120,7 +120,9 @@ class BotStateManager {
     this.lastMessageTimestamp.set(userId, Date.now());
 
     if (this.processingMessage) {
-      logger.info(`Сообщение добавлено в буфер для пользователя WhatsApp ${userId}`);
+      logger.info(
+        `Сообщение добавлено в буфер для пользователя WhatsApp ${userId}`,
+      );
       return '';
     }
 
@@ -143,7 +145,9 @@ class BotStateManager {
           break;
         case 'online':
         case 'typing':
-          await retryOperation(() => this.markMessagesAsRead(phoneNumber, userId));
+          await retryOperation(() =>
+            this.markMessagesAsRead(phoneNumber, userId),
+          );
           break;
       }
 
@@ -151,10 +155,12 @@ class BotStateManager {
       const startTime = Date.now();
       while (!this.preOnlineComplete.get(userId)) {
         if (Date.now() - startTime > RETRY_OPTIONS.TIMEOUT) {
-          logger.warn(`Timeout waiting for preOnline to complete for WhatsApp user ${userId}`);
+          logger.warn(
+            `Timeout waiting for preOnline to complete for WhatsApp user ${userId}`,
+          );
           break;
         }
-        await new Promise(resolve => setTimeout(resolve, 100));
+        await new Promise((resolve) => setTimeout(resolve, 100));
       }
 
       await this.handleTypingState(phoneNumber, userId);
@@ -163,7 +169,9 @@ class BotStateManager {
       this.messageBuffer = [];
       this.processingMessage = false;
 
-      logger.info(`Завершена обработка сообщения для пользователя WhatsApp ${userId}`);
+      logger.info(
+        `Завершена обработка сообщения для пользователя WhatsApp ${userId}`,
+      );
       return combinedMessage || '';
     } catch (error) {
       logger.error(

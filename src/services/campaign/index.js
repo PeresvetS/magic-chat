@@ -1,9 +1,9 @@
 // src/services/campaign/index.js
 
 const campaignsMailingService = require('./src/campaignsMailingService');
-const campaignsParsingService = require('./src/campaignsParsingService');
+const campaignsLLMService = require('./src/campaignsLLMService');
 
 module.exports = {
   campaignsMailingService,
-  campaignsParsingService,
+  campaignsLLMService,
 };

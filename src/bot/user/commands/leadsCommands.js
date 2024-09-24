@@ -1,8 +1,8 @@
 // src/bot/user/commands/leadsCommands.js
 
 const logger = require('../../../utils/logger');
-const LeadsService = require('../../../services/leads/src/LeadsService');
-const { processExcelFile } = require('../../../services/leads').xlsProcessor;
+const leadService = require('../../../services/leads/src/leadService');
+const { processExcelFile } = require('../../../services/leads/src/xlsProcessor');
 const {
   setUserState,
   getUserState,
@@ -36,10 +36,7 @@ module.exports = {
     }
 
     try {
-      const leadsDB = await LeadsService.createLeadsDB(
-        leadsDBName,
-        msg.from.id,
-      );
+      const leadsDB = await leadService.createLeadsDB(leadsDBName, msg.from.id);
       bot.sendMessage(
         msg.chat.id,
         `База лидов "${leadsDBName}" успешно создана. ID: ${leadsDB.id}`,
@@ -55,7 +52,7 @@ module.exports = {
 
   '/list_leadsdb': async (bot, msg) => {
     try {
-      const leadsDBs = await LeadsService.getLeadsDBs(msg.from.id);
+      const leadsDBs = await leadService.getLeadsDBs(msg.from.id);
       if (leadsDBs.length === 0) {
         bot.sendMessage(msg.chat.id, 'У вас нет созданных баз лидов.');
         return;
@@ -77,7 +74,7 @@ module.exports = {
   '/upload_leads_to_db (.+)': async (bot, msg, match) => {
     const [, leadsDBName] = match;
     try {
-      const leadsDB = await LeadsService.getLeadsDBByName(
+      const leadsDB = await leadService.getLeadsDBByName(
         msg.from.id,
         leadsDBName,
       );
@@ -102,7 +99,7 @@ module.exports = {
   '/attach_leadsdb_to_campaign (.+) (.+)': async (bot, msg, match) => {
     const [, leadsDBName, campaignName] = match;
     try {
-      await LeadsService.attachLeadsDBToCampaignByName(
+      await leadService.attachLeadsDBToCampaignByName(
         leadsDBName,
         campaignName,
         msg.from.id,
@@ -119,7 +116,7 @@ module.exports = {
   '/detach_leadsdb_from_campaign (.+) (.+)': async (bot, msg, match) => {
     const [, leadsDBName, campaignName] = match;
     try {
-      await LeadsService.detachLeadsDBFromCampaignByName(
+      await leadService.detachLeadsDBFromCampaignByName(
         leadsDBName,
         campaignName,
         msg.from.id,
@@ -145,7 +142,7 @@ module.exports = {
       let message = `Лиды в базе "${leadsDBName}":\n\n`;
 
       for (const status of statuses) {
-        const leads = await LeadsService.getLeadsFromLeadsDBByName(
+        const leads = await leadService.getLeadsFromLeadsDBByName(
           leadsDBName,
           status,
           msg.from.id,
@@ -170,7 +167,7 @@ module.exports = {
     async (bot, msg, match) => {
       const [, leadsDBName, leadId, newStatus] = match;
       try {
-        await LeadsService.updateLeadStatusByName(
+        await leadService.updateLeadStatusByName(
           msg.from.id,
           leadsDBName,
           parseInt(leadId),
@@ -192,7 +189,7 @@ module.exports = {
   '/delete_lead (.+) ([0-9]+)': async (bot, msg, match) => {
     const [, leadsDBName, leadId] = match;
     try {
-      await LeadsService.deleteLeadByName(
+      await leadService.deleteLeadByName(
         msg.from.id,
         leadsDBName,
         parseInt(leadId),
@@ -213,7 +210,7 @@ module.exports = {
   '/set_default_leadsdb (.+)': async (bot, msg, match) => {
     const [, leadsDBName] = match;
     try {
-      await LeadsService.setDefaultLeadsDBByName(msg.from.id, leadsDBName);
+      await leadService.setDefaultLeadsDBByName(msg.from.id, leadsDBName);
       bot.sendMessage(
         msg.chat.id,
         `База лидов "${leadsDBName}" установлена как дефолтная для входящих лидов из CRM.`,
@@ -225,7 +222,7 @@ module.exports = {
 
   '/get_default_leadsdb': async (bot, msg) => {
     try {
-      const defaultLeadsDB = await LeadsService.getOrCreateDefaultLeadsDB(
+      const defaultLeadsDB = await leadService.getOrCreateDefaultLeadsDB(
         msg.from.id,
       );
       bot.sendMessage(
@@ -247,9 +244,13 @@ module.exports = {
     const userState = getUserState(userId);
 
     logger.info(`Received message with ${userState} and ${userState?.action}`);
+  },
+
+  documentHandler: async (bot, msg) => {
+    const userId = msg.from.id;
+    const userState = getUserState(userId);
 
     if (userState && userState.action === 'upload_leads_to_db') {
-      logger.info(`XLS file is ${msg.document?.mime_type}`);
       if (
         msg.document &&
         (msg.document.mime_type === 'application/vnd.ms-excel' ||
@@ -259,7 +260,7 @@ module.exports = {
         try {
           const file = await bot.getFileLink(msg.document.file_id);
           const leads = await processExcelFile(file);
-          const addedLeadsCount = await LeadsService.addLeadsToLeadsDB(
+          const addedLeadsCount = await leadService.addLeadsToLeadsDB(
             parseInt(userState.leadsDBId),
             leads,
           );

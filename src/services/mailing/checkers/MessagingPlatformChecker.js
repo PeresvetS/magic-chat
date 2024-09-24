@@ -1,172 +1,132 @@
 // src/services/mailing/checkers/messagingPlatformChecker.js
 
-const WABAChecker = require('./WABAChecker');
 const logger = require('../../../utils/logger');
-const TelegramChecker = require('./TelegramChecker');
-const WhatsAppChecker = require('./WhatsAppChecker');
-const LeadsService = require('../../leads/src/LeadsService');
+const { safeStringify } = require('../../../utils/helpers');
 const { getPlatformPriority } = require('../../../db').campaignsMailingRepo;
+const CheckerFactory = require('./CheckerFactory');
+const { leadService } = require('../../leads/src/leadService');
+const { phoneNumberService } = require('../../phone');
 
 class MessagingPlatformChecker {
-  constructor() {
-    this.telegramChecker = TelegramChecker;
-    this.whatsappChecker = WhatsAppChecker;
-    this.wabaChecker = WABAChecker;
+  constructor(campaignId) {
+    this.campaignId = campaignId;
+    this.checkerFactory = CheckerFactory;
+    this.initialized = false;
+    this.initializedPlatforms = new Set();
+    this.cleanupInterval = null;
   }
 
   async initialize() {
-    try {
-      await this.telegramChecker.initialize();
-      await this.whatsappChecker.initialize();
-      await this.wabaChecker.initialize();
-    } catch (error) {
-      logger.error('Error initializing checkers:', error);
-      throw new Error('Failed to initialize checkers.');
+    if (this.initialized) return;
+    
+    const platformPriority = await getPlatformPriority(this.campaignId);
+    await this.initializePlatform(platformPriority);
+
+    this.initialized = true;
+    this.startCleanupInterval();
+  }
+
+  startCleanupInterval() {
+    // Запускаем периодическую очистку кэша
+    this.cleanupInterval = setInterval(() => {
+      this.cleanupCache();
+    }, 60 * 60 * 1000); // Например, каждый час
+  }
+
+  cleanupCache() {
+    logger.info('Starting cache cleanup');
+    for (const platform of this.initializedPlatforms) {
+      const checker = this.checkerFactory.getChecker(platform);
+      if (typeof checker.cleanupCache === 'function') {
+        checker.cleanupCache();
+      }
+    }
+    logger.info('Cache cleanup completed');
+  }
+
+  async initializePlatform(platform) {
+    if (this.initializedPlatforms.has(platform)) return;
+
+    logger.info(`Initializing ${platform}`);
+    const checker = this.checkerFactory.getChecker(platform);
+    await checker.initialize(this.campaignId);
+
+    this.initializedPlatforms.add(platform);
+  }
+
+  async checkPlatforms(phoneNumber, platformPriority, mode = 'one') {
+    const platform = platformPriority;
+    // const platforms = platformPriority.split('');
+    // for (const platform of platforms) {
+      logger.info(`Checking ${platform} for ${phoneNumber}`);
+      const checker = this.checkerFactory.getChecker(platform);
+      let result = false;
+      let attempts = 0;
+      const maxAttempts = 3; // Максимальное количество попыток
+
+      while (!result && attempts < maxAttempts) {
+        try {
+          result = await checker.check(phoneNumber);
+          if (result) {
+            return platform;
+          }
+        } catch (error) {
+          if (this.isBanError(error)) {
+            await this.handleBanError(platform, error);
+          } else {
+            logger.error(`Error checking ${platform} for ${phoneNumber}:`, error);
+          }
+        }
+        attempts++;
+      }
+
+      // if (mode === 'one') break;
+    // }
+    await leadService.setLeadUnavailable(phoneNumber);
+    return 'none';
+  }
+
+  isBanError(error) {
+    const banErrors = ['USER_DEACTIVATED', 'USER_BANNED', 'PRIVACY_RESTRICTED', 'FLOOD_WAIT', 'RESTRICTED'];
+    return banErrors.some(banError => error.message.includes(banError));
+  }
+
+  async handleBanError(platform, error) {
+    const phoneNumber = this.extractPhoneNumberFromError(error);
+    if (phoneNumber) {
+      await phoneNumberService.updatePhoneNumberBanStatus(phoneNumber, error.message);
     }
   }
 
-  async checkTelegram(phoneNumber) {
-    logger.info(`Checking Telegram for number ${phoneNumber}`);
-    return await this.telegramChecker.checkTelegram(phoneNumber);
-  }
-
-  async checkWhatsApp(phoneNumber) {
-    logger.info(`Checking WhatsApp for number ${phoneNumber}`);
-    const status = await this.whatsappChecker.checkWhatsApp(phoneNumber);
-    return status.canReceiveMessage === true;
-  }
-
-  async checkWABA(phoneNumber) {
-    logger.info(`Checking WABA for number ${phoneNumber}`);
-    return await this.wabaChecker.checkWABA(phoneNumber);
-  }
-
-  async checkPlatforms(phoneNumber, platform, mode = 'one') {
-    let telegramAvailable;
-    let whatsappAvailable;
-    let wabaAvailable;
-
-    switch (platform) {
-      case 'telegram': {
-        telegramAvailable = await this.checkTelegram(phoneNumber);
-        if (telegramAvailable) {
-          return 'telegram';
-        }
-
-        if (mode === 'both') {
-          whatsappAvailable = await this.checkWhatsApp(phoneNumber);
-          if (whatsappAvailable) {
-            return 'whatsapp';
-          }
-        }
-        await LeadsService.setLeadUnavailable(phoneNumber);
-        return 'none';
-      }
-
-      case 'whatsapp': {
-        whatsappAvailable = await this.checkWhatsApp(phoneNumber);
-        if (whatsappAvailable) {
-          return 'whatsapp';
-        }
-
-        if (mode === 'both') {
-          telegramAvailable = await this.checkTelegram(phoneNumber);
-          if (telegramAvailable) {
-            return 'telegram';
-          }
-        }
-        await LeadsService.setLeadUnavailable(phoneNumber);
-        return 'none';
-      }
-
-      case 'waba': {
-        wabaAvailable = await this.checkWABA(phoneNumber);
-        if (wabaAvailable) {
-          return 'waba';
-        }
-
-        if (mode === 'both') {
-          telegramAvailable = await this.checkTelegram(phoneNumber);
-          if (telegramAvailable) {
-            return 'telegram';
-          }
-        }
-        await LeadsService.setLeadUnavailable(phoneNumber);
-        return 'none';
-      }
-
-      case 'tgwa': {
-        const [telegramAvailable, whatsappAvailable] = await Promise.all([
-          this.checkTelegram(phoneNumber),
-          this.checkWhatsApp(phoneNumber),
-        ]);
-        if (telegramAvailable && whatsappAvailable) {
-          return 'tgwa';
-        }
-        if (telegramAvailable) {
-          return 'telegram';
-        }
-        if (whatsappAvailable) {
-          return 'whatsapp';
-        }
-        await LeadsService.setLeadUnavailable(phoneNumber);
-        return 'none';
-      }
-
-      case 'tgwaba': {
-        const [telegramAvailable, wabaAvailable] = await Promise.all([
-          this.checkTelegram(phoneNumber),
-          this.checkWABA(phoneNumber),
-        ]);
-        if (telegramAvailable && wabaAvailable) {
-          return 'tgwaba';
-        }
-        if (telegramAvailable) {
-          return 'telegram';
-        }
-        if (wabaAvailable) {
-          return 'waba';
-        }
-        await LeadsService.setLeadUnavailable(phoneNumber);
-        return 'none';
-      }
-
-      default:
-        throw new Error('Invalid platform');
+  async choosePlatform(campaignId, phoneNumberToCheck, platformPriority = null, mode = 'one') {
+    if (!this.initialized) {
+      await this.initialize();
     }
-  }
 
-  async choosePlatform(
-    campaignId,
-    phoneNumber,
-    platformPriority = null,
-    mode = 'one',
-  ) {
-    logger.info(
-      `Choosing messaging platform for ${phoneNumber} with priority ${platformPriority}`,
-    );
-
-    if (!phoneNumber || typeof phoneNumber !== 'string') {
+    if (!phoneNumberToCheck || typeof phoneNumberToCheck !== 'string') {
       throw new Error('Invalid phone number');
     }
 
-    if (
-      !['telegram', 'whatsapp', 'waba', 'tgwa', 'tgwaba'].includes(
-        platformPriority,
-      )
-    ) {
+    logger.info(`Choosing messaging platform for ${phoneNumberToCheck} with priority ${platformPriority}`);
+
+    if (!platformPriority || !/^[twa]+$/.test(platformPriority)) {
       logger.warn('Invalid priority platform, getting from DB');
-      platformPriority = await getPlatformPriority(campaignId);
+      platformPriority = await getPlatformPriority(this.campaignId);
     }
 
-    return await this.checkPlatforms(phoneNumber, platformPriority, mode);
+    return await this.checkPlatforms(phoneNumberToCheck, platformPriority, mode);
   }
 
   async disconnect() {
-    await this.telegramChecker.disconnect();
-    await this.whatsappChecker.disconnect();
-    await this.wabaChecker.disconnect();
+    for (const platform of this.initializedPlatforms) {
+      const checker = this.checkerFactory.getChecker(platform);
+      await checker.disconnect();
+    }
+    // Останавливаем интервал очистки кэша при отключении
+    if (this.cleanupInterval) {
+      clearInterval(this.cleanupInterval);
+    }
   }
 }
 
-module.exports = new MessagingPlatformChecker();
+module.exports = MessagingPlatformChecker;

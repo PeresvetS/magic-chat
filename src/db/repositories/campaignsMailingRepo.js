@@ -3,6 +3,7 @@
   const prisma = require('../utils/prisma');
   const logger = require('../../utils/logger');
   const { getUserByTgId } = require('./userRepo');
+  const { safeStringify } = require('../../utils/helpers');
 
   async function createCampaignMailing(telegramId, name) {
     try {
@@ -227,6 +228,8 @@
         include: { telegramAccount: true, whatsappAccount: true }
       });
 
+      logger.info(`Phone number record: ${safeStringify(phoneNumberRecord)}`);
+
       if (!phoneNumberRecord) {
         throw new Error('Phone number does not exist');
       }
@@ -243,14 +246,18 @@
       const existingAttachment = await prisma.phoneNumberCampaign.findFirst({
         where: {
           phoneNumber,
+          campaignId,
           campaign: { isActive: true }
         }
       });
+
+      logger.info(`Existing attachment: ${safeStringify(existingAttachment)}`);
 
       if (existingAttachment) {
         throw new Error('Phone number is already attached to an active campaign');
       }
 
+      logger.info(`Attaching phone number ${phoneNumber} to campaign ${campaignId} on platform ${platform}`);
       return await prisma.phoneNumberCampaign.create({
         data: {
           campaignId,
@@ -268,16 +275,19 @@
     try {
       const existingAttachment = await prisma.phoneNumberCampaign.findFirst({
         where: {
-          campaignId: campaignId,
-          phoneNumber: phoneNumber
+          campaignId,
+          phoneNumber
         }
       });
+
+      logger.info(`Existing attachment: ${safeStringify(existingAttachment)}`);
   
       if (!existingAttachment) {
         logger.warn(`No attachment found for campaignId: ${campaignId} and phoneNumber: ${phoneNumber}`);
         return null;
       }
   
+      logger.info(`Detaching phone number ${phoneNumber} from campaign ${campaignId}`);
       return await prisma.phoneNumberCampaign.delete({
         where: {
           id: existingAttachment.id
@@ -311,7 +321,9 @@
       });
       
       logger.info(`Retrieved ${result.length} phone numbers for campaign ${campaignId}`);
-      return result;
+      
+      // Ensure result is always an array
+      return result || [];
     } catch (error) {
       logger.error(`Error getting campaign phone numbers for campaign ${campaignId}:`, error.message);
       throw error;
@@ -372,9 +384,26 @@
 
   async function getCampaignById(id) {
     try {
-      return await prisma.campaignMailing.findUnique({ where: { id } });
+      return await prisma.campaignMailing.findUnique({
+        where: { id },
+        include: {
+          phoneNumbers: true,
+          prompt: true,
+          knowledgeBases: true,
+        }
+      });
     } catch (error) {
       logger.error(`Error getting campaign by ID ${id}:`, error.message);
+      throw error;
+    }
+  }
+
+  async function getCampaignKnowledgeBases(id) {
+    try {
+      const campaign = await prisma.campaignMailing.findUnique({ where: { id }, include: { knowledgeBases: true } });
+      return campaign.knowledgeBases;
+    } catch (error) {
+      logger.error(`Error getting knowledge bases for campaign ${id}:`, error);
       throw error;
     }
   }
@@ -395,7 +424,14 @@
 
   async function getCampaignByName(name) {
     try {
-      return await prisma.campaignMailing.findUnique({ where: { name } });
+      return await prisma.campaignMailing.findUnique({
+        where: { name },
+        include: {
+          phoneNumbers: true,
+          prompt: true,
+          knowledgeBases: true,
+        }
+      });
     } catch (error) {
       logger.error(`Error getting campaign by name ${name}:`, error.message);
       throw error;
@@ -483,6 +519,44 @@
     }
   }
 
+  async function setCampaignModel(id, modelName) {
+    try {
+      const updatedCampaign = await prisma.campaignMailing.update({
+        where: { id },
+        data: { modelName, updatedAt: new Date() }
+      });
+      logger.info(`Model set for campaign: ${id}`);
+      return updatedCampaign;
+    } catch (error) {
+      logger.error(`Error setting model for campaign ${id}:`, error);
+      throw error;
+    }
+  }
+
+  async function getCampaignModel(id) {
+    try {
+      const campaign = await prisma.campaignMailing.findUnique({ where: { id } });
+      return campaign.modelName;
+    } catch (error) {
+      logger.error(`Error getting model for campaign ${id}:`, error);
+      throw error;
+    }
+  }
+
+  async function setCampaignOpenAIKey(id, openaiApiKey) {
+    try {
+      const updatedCampaign = await prisma.campaignMailing.update({
+        where: { id },
+        data: { openaiApiKey, updatedAt: new Date() }
+      });
+      logger.info(`OpenAI API key set for campaign: ${id}`);
+      return updatedCampaign;
+    } catch (error) {
+      logger.error(`Error setting OpenAI API key for campaign ${id}:`, error);
+      throw error;
+    }
+  }
+
   module.exports = {
     getCampaignById,
     getCampaigUserId,
@@ -511,5 +585,9 @@
     getActiveCampaignForPhoneNumber,
     checkPhoneNumbersAuthentication,
     setSecondaryPrompt,
-    toggleSecondaryAgent
+    toggleSecondaryAgent,
+    setCampaignModel,
+    setCampaignOpenAIKey,
+    getCampaignModel,
+    getCampaignKnowledgeBases
   };

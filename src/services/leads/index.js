@@ -1,9 +1,9 @@
 // src/services/leads/index.js
 
-const LeadsService = require('./src/LeadsService');
-const xlsProcessor = require('./src/xlsProcessor');
+const leadService = require('./src/leadService');
+const leadProfileService = require('./src/leadProfileService');
 
 module.exports = {
-  LeadsService,
-  xlsProcessor,
+  leadService,
+  leadProfileService,
 };

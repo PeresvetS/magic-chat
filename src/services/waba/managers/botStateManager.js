@@ -142,7 +142,9 @@ class WABABotStateManager {
           break;
         case 'online':
         case 'typing':
-          await retryOperation(() => this.markMessagesAsRead(phoneNumber, userId));
+          await retryOperation(() =>
+            this.markMessagesAsRead(phoneNumber, userId),
+          );
           break;
       }
 
@@ -150,10 +152,12 @@ class WABABotStateManager {
       const startTime = Date.now();
       while (!this.preOnlineComplete.get(userId)) {
         if (Date.now() - startTime > RETRY_OPTIONS.TIMEOUT) {
-          logger.warn(`Timeout waiting for preOnline to complete for WABA user ${userId}`);
+          logger.warn(
+            `Timeout waiting for preOnline to complete for WABA user ${userId}`,
+          );
           break;
         }
-        await new Promise(resolve => setTimeout(resolve, 100));
+        await new Promise((resolve) => setTimeout(resolve, 100));
       }
 
       await this.handleTypingState(phoneNumber, userId);
@@ -165,6 +169,8 @@ class WABABotStateManager {
       logger.info(
         `Завершена обработка WABA сообщения для пользователя ${userId}`,
       );
+
+      this.resetOfflineTimer(phoneNumber, userId);
       return combinedMessage || '';
     } catch (error) {
       logger.error(

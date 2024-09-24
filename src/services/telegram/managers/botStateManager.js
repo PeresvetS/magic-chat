@@ -11,15 +11,28 @@ const { retryOperation } = require('../../../utils/messageUtils');
 
 class BotStateManager {
   constructor() {
-    this.state = 'offline';
-    this.newMessage = true;
-    this.typingTimer = null;
-    this.offlineTimer = null;
-    this.messageBuffer = [];
+    this.userStates = new Map();
     this.peerCache = new Map();
-    this.processingMessage = false;
-    this.preOnlineComplete = new Map();
-    this.lastMessageTimestamp = new Map();
+    this.onlineStatusManager = OnlineStatusManager;
+    logger.info('BotStateManager initialized');
+  }
+
+  getUserState(userId) {
+    if (!this.userStates.has(userId)) {
+      this.userStates.set(userId, {
+        state: 'offline',
+        newMessage: true,
+        messageBuffer: [],
+        isProcessing: false,
+        isSendingResponse: false,
+        shouldInterruptResponse: false,
+        debounceTimer: null,
+        lastMessageTimestamp: 0,
+        preOnlineComplete: false,
+        offlineTimer: null,
+      });
+    }
+    return this.userStates.get(userId);
   }
 
   async getSession(phoneNumber) {
@@ -34,53 +47,56 @@ class BotStateManager {
   }
 
   async setOffline(phoneNumber, userId) {
-    this.state = 'offline';
-    this.newMessage = true;
-    clearTimeout(this.typingTimer);
-    clearTimeout(this.offlineTimer);
+    const userState = this.getUserState(userId);
+    userState.state = 'offline';
+    userState.newMessage = true;
+    clearTimeout(userState.typingTimer);
+    clearTimeout(userState.offlineTimer);
     const session = await this.getSession(phoneNumber);
-    await OnlineStatusManager.setOffline(userId, session);
+    await this.onlineStatusManager.setOffline(userId, session);
     logger.info(`Bot set to offline for user ${userId}`);
   }
 
   async setPreOnline(phoneNumber, userId) {
-    this.state = 'pre-online';
-    this.preOnlineComplete.set(userId, false);
-    if (this.newMessage) {
+    const userState = this.getUserState(userId);
+    userState.state = 'pre-online';
+    userState.preOnlineComplete = false;
+    if (userState.newMessage) {
       await delay(Math.random() * 12000 + 3000); // 3-15 seconds delay
       const session = await this.getSession(phoneNumber);
-      await OnlineStatusManager.setOnline(userId, session);
+      await this.onlineStatusManager.setOnline(userId, session);
       await delay(Math.random() * 5000 + 2000); // 2-7 seconds delay
       await this.markMessagesAsRead(phoneNumber, userId);
-      // await delay(Math.random() * 1500 + 1500); // 1.5-3 seconds delay
-      // await this.setTyping(phoneNumber, userId);
-      this.state = 'typing';
-      this.newMessage = false;
+      userState.state = 'typing';
+      userState.newMessage = false;
     }
-    this.preOnlineComplete.set(userId, true);
+    userState.preOnlineComplete = true;
   }
 
   async setOnline(phoneNumber, userId) {
-    this.state = 'online';
-    if (this.newMessage) {
+    const userState = this.getUserState(userId);
+    userState.state = 'online';
+    if (userState.newMessage) {
     }
     const session = await this.getSession(phoneNumber);
-    await OnlineStatusManager.setOnline(userId, session);
+    await this.onlineStatusManager.setOnline(userId, session);
     await this.markMessagesAsRead(phoneNumber, userId);
     this.resetOfflineTimer(phoneNumber, userId);
     logger.info(`Bot set to online for user ${userId}`);
   }
 
   async setTyping(phoneNumber, userId) {
-    this.state = 'typing';
-    clearTimeout(this.offlineTimer);
+    const userState = this.getUserState(userId);
+    userState.state = 'typing';
+    clearTimeout(userState.offlineTimer);
     await this.markMessagesAsRead(phoneNumber, userId);
     await this.simulateTyping(phoneNumber, userId);
   }
 
   resetOfflineTimer(phoneNumber, userId) {
-    clearTimeout(this.offlineTimer);
-    this.offlineTimer = setTimeout(
+    const userState = this.getUserState(userId);
+    clearTimeout(userState.offlineTimer);
+    userState.offlineTimer = setTimeout(
       () => this.setOffline(phoneNumber, userId),
       Math.random() * 10000 + 20000,
     ); // 20-30 seconds
@@ -115,6 +131,10 @@ class BotStateManager {
       );
       if (error.message.includes('AUTH_KEY_UNREGISTERED')) {
         await sessionManager.reauthorizeSession(phoneNumber);
+      } else if (error.message.includes('PEER_ID_INVALID')) {
+        logger.warn(`Invalid peer ID for ${userId}. Removing from cache.`);
+        const cacheKey = `${phoneNumber}_${userId}`;
+        this.peerCache.delete(cacheKey);
       }
     }
   }
@@ -142,30 +162,63 @@ class BotStateManager {
   async getCorrectPeer(phoneNumber, userId) {
     try {
       const cacheKey = `${phoneNumber}_${userId}`;
-      
+
       if (this.peerCache.has(cacheKey)) {
         logger.info('Peer is reused from cache');
         return this.peerCache.get(cacheKey);
       }
 
       logger.info(`Creating new peer for ${phoneNumber} and user ${userId}`);
-      
+
       const session = await this.getSession(phoneNumber);
       logger.info(`Session checked for ${phoneNumber}`);
 
-      const dialogs = await session.getDialogs();
-      const dialog = dialogs.find(
-        (d) => d.entity && d.entity.id.toString() === userId.toString()
-      );
+      let entity;
 
-      if (dialog) {
-        logger.info(`Dialog found: ${safeStringify(dialog.inputEntity)}`);
-        const newPeer = { peer: dialog.inputEntity, session };
+      // Попробуем получить сущность пользователя через getInputEntity
+      try {
+        entity = await session.getInputEntity(Number(userId));
+      } catch (error) {
+        logger.warn(
+          `Failed to get entity via getInputEntity for userId ${userId}: ${error.message}`,
+        );
+      }
+
+      if (!entity) {
+        // Если не удалось, попробуем получить из контактов
+        try {
+          const contacts = await session.getContacts();
+          entity = contacts.find(
+            (contact) => contact.id.toString() === userId.toString(),
+          );
+        } catch (error) {
+          logger.warn(
+            `Failed to get contacts for userId ${userId}: ${error.message}`,
+          );
+        }
+      }
+
+      if (!entity) {
+        // Если не удалось, попробуем получить из диалогов
+        try {
+          const dialogs = await session.getDialogs({});
+          entity = dialogs
+            .filter((dialog) => dialog.isUser)
+            .map((dialog) => dialog.entity)
+            .find((entity) => entity.id.toString() === userId.toString());
+        } catch (error) {
+          logger.warn(
+            `Failed to get dialogs for userId ${userId}: ${error.message}`,
+          );
+        }
+      }
+
+      if (entity) {
+        const newPeer = { peer: entity, session };
         this.peerCache.set(cacheKey, newPeer);
         return newPeer;
       }
-
-      throw new Error('User or dialog not found');
+      throw new Error(`Could not find entity for userId ${userId}`);
     } catch (error) {
       logger.error(`Error in getCorrectPeer: ${error.message}`);
       if (
@@ -181,34 +234,39 @@ class BotStateManager {
   }
 
   hasNewMessageSince(userId, timestamp) {
-    const lastMessageTime = this.lastMessageTimestamp.get(userId) || 0;
-    return lastMessageTime > timestamp;
+    const userState = this.getUserState(userId);
+    return userState.lastMessageTimestamp > timestamp;
   }
 
   async handleIncomingMessage(phoneNumber, userId, message) {
     logger.info(
       `Начало обработки сообщения для пользователя ${userId}: ${message}`,
     );
-  
-    this.messageBuffer.push(message);
-    this.lastMessageTimestamp.set(userId, Date.now());
-  
-    if (this.processingMessage) {
+
+    const userState = this.getUserState(userId);
+
+    userState.messageBuffer.push(message);
+
+    userState.lastMessageTimestamp = Date.now();
+
+    if (userState.processingMessage) {
       logger.info(`Сообщение добавлено в буфер для пользователя ${userId}`);
-      return '';
+      return null;
     }
-  
-    this.processingMessage = true;
-    let status = this.state;
-  
+
+    logger.info(`Processing message for user ${userId}`);
+
+    userState.processingMessage = true;
+    let status = userState.state;
+
     logger.info(`Состояние бота: ${status}`);
-  
-    if (this.state === 'offline' && OnlineStatusManager.isOnline(userId)) {
+
+    if (userState.state === 'offline' && this.onlineStatusManager.isOnline(userId)) {
       status = 'pre-online';
     }
-  
+
     this.resetOfflineTimer(phoneNumber, userId);
-  
+
     try {
       switch (status) {
         case 'offline':
@@ -217,36 +275,47 @@ class BotStateManager {
           break;
         case 'online':
         case 'typing':
-          await retryOperation(() => this.markMessagesAsRead(phoneNumber, userId));
+          await retryOperation(() =>
+            this.markMessagesAsRead(phoneNumber, userId),
+          );
           break;
       }
-  
+
+      if (status === 'pre-online') {
+        await this.handleTypingState(phoneNumber, userId);
+      }
+
       // Ждем завершения setPreOnline с таймаутом
       const startTime = Date.now();
-      while (!this.preOnlineComplete.get(userId)) {
+      while (!userState.preOnlineComplete) {
         if (Date.now() - startTime > RETRY_OPTIONS.TIMEOUT) {
-          logger.warn(`Timeout waiting for preOnline to complete for user ${userId}`);
+          logger.warn(
+            `Timeout waiting for preOnline to complete for user ${userId}`,
+          );
           break;
         }
-        await new Promise(resolve => setTimeout(resolve, 100));
+        await new Promise((resolve) => setTimeout(resolve, 1000));
       }
-  
-      await this.handleTypingState(phoneNumber, userId);
-  
-      const combinedMessage = this.messageBuffer.join('\n');
-      this.messageBuffer = [];
-      this.processingMessage = false;
-  
+      
+
+      if (userState.messageBuffer.length === 0) { // Если буфер пуст, значит сообщение не удалось отправить
+        return null;
+      }
+      const combinedMessage = userState.messageBuffer.join('\n');
+      userState.messageBuffer = [];
+      userState.processingMessage = false;
+
       logger.info(`Завершена обработка сообщения для пользователя ${userId}`);
       return combinedMessage || '';
     } catch (error) {
       logger.error(
         `Ошибка при обработке сообщения для пользователя ${userId}: ${error.message}`,
       );
-      this.processingMessage = false;
+      userState.processingMessage = false;
       return '';
     } finally {
-      this.processingMessage = false;
+      userState.processingMessage = false;
+      logger.info(`Сброс состояния processingMessage для пользователя ${userId}`);
     }
   }
 

@@ -5,11 +5,15 @@ const {
   getUserState,
   clearUserState,
 } = require('../utils/userState');
-const LeadsService = require('../../../services/leads/src/LeadsService');
+const {
+  checkMailingStatus,
+  checkBulkDistributionStatus,
+} = require('../utils/mailingStatusChecker');
+const { leadService } = require('../../../services/leads');
 const { campaignsMailingService } = require('../../../services/campaign');
 const { distributionService } = require('../../../services/mailing');
-const { promptService } = require('../../../services/prompt');
 const logger = require('../../../utils/logger');
+const { delay } = require('../../../utils/helpers');
 
 async function getCampaignByName(name, bot, chatId) {
   try {
@@ -81,53 +85,6 @@ module.exports = {
           'Произошла ошибка при создании кампании. Пожалуйста, попробуйте позже.',
         );
       }
-    }
-  },
-
-  '/set_google_sheet ([^\\s]+) (.+)': async (bot, msg, match) => {
-    const [, campaignName, googleSheetUrl] = match;
-
-    if (!campaignName || !googleSheetUrl) {
-      bot.sendMessage(
-        msg.chat.id,
-        'Пожалуйста, укажите название кампании и URL Google таблицы. Например: /set_google_sheet МояКампания https://docs.google.com/spreadsheets/d/...',
-      );
-      return;
-    }
-
-    try {
-      const campaign =
-        await campaignsMailingService.getCampaignByName(campaignName);
-      if (!campaign) {
-        bot.sendMessage(msg.chat.id, `Кампания "${campaignName}" не найдена.`);
-        return;
-      }
-
-      // Простая проверка формата URL
-      if (
-        !googleSheetUrl.startsWith('https://docs.google.com/spreadsheets/d/')
-      ) {
-        bot.sendMessage(
-          msg.chat.id,
-          'Пожалуйста, укажите корректный URL Google таблицы.',
-        );
-        return;
-      }
-
-      await campaignsMailingService.setGoogleSheetUrl(
-        campaign.id,
-        googleSheetUrl,
-      );
-      bot.sendMessage(
-        msg.chat.id,
-        `Google таблица успешно подключена к кампании "${campaignName}".`,
-      );
-    } catch (error) {
-      logger.error('Error setting Google Sheet URL:', error);
-      bot.sendMessage(
-        msg.chat.id,
-        'Произошла ошибка при подключении Google таблицы. Пожалуйста, попробуйте позже.',
-      );
     }
   },
 
@@ -244,48 +201,23 @@ module.exports = {
           return;
         }
 
-        const result = await distributionService.distributeMessage(
+        const initialResult = await distributionService.distributeMessage(
           activeCampaign.id,
           activeCampaign.message,
           phoneNumber,
           priorityPlatform || activeCampaign.platformPriority,
         );
-        if (result.telegram && result.telegram.success) {
-          bot.sendMessage(
-            msg.chat.id,
-            `Тестовое сообщение успешно отправлено в Telegram на номер ${phoneNumber}`,
-          );
-        } else if (result.whatsapp && result.whatsapp.success) {
-          bot.sendMessage(
-            msg.chat.id,
-            `Тестовое сообщение успешно отправлено в WhatsApp на номер ${phoneNumber}`,
-          );
-        } else if (result.waba && result.waba.success) {
-          bot.sendMessage(
-            msg.chat.id,
-            `Тестовое сообщение успешно отправлено в WABA на номер ${phoneNumber}`,
-          );
-        } else if (result.tgwa && result.tgwa.success) {
-          bot.sendMessage(
-            msg.chat.id,
-            `Тестовое сообщение успешно отправлено в Telegram и/или WhatsApp на номер ${phoneNumber}`,
-          );
-        } else if (result.tgwaba && result.tgwaba.success) {
-          bot.sendMessage(
-            msg.chat.id,
-            `Тестовое сообщение успешно отправлено в Telegram и/или WABA на номер ${phoneNumber}`,
-          );
-        } else {
-          bot.sendMessage(
-            msg.chat.id,
-            `Не удалось отправить тестовое сообщение на номер ${phoneNumber}. Проверьте, доступен ли этот номер в мессенджерах.`,
-          );
-        }
+
+        bot.sendMessage(
+          msg.chat.id,
+          'Сообщение поставлено в очередь на отправку. Ожидайте результатов...',
+        );
+        await checkMailingStatus(bot, msg, initialResult, phoneNumber);
       } catch (error) {
         logger.error('Error in mailing test:', error);
         bot.sendMessage(
           msg.chat.id,
-          'Произошла ошибка при отправке тестового сообщения.',
+          'Произошла ошибка при отправке сообщения.',
         );
       }
     },
@@ -321,33 +253,19 @@ module.exports = {
           return;
         }
 
-        const result = await distributionService.distributeMessage(
+        const initialResult = await distributionService.distributeMessage(
           campaign.id,
           campaign.message,
           phoneNumber,
-          priorityPlatform || campaign.priorityPlatform,
+          priorityPlatform || campaign.platformPriority,
         );
-        if (result.telegram && result.telegram.success) {
-          bot.sendMessage(
-            msg.chat.id,
-            `Сообщение успешно отправлено в Telegram на номер ${phoneNumber}`,
-          );
-        } else if (result.whatsapp && result.whatsapp.success) {
-          bot.sendMessage(
-            msg.chat.id,
-            `Сообщение успешно отправлено в WhatsApp на номер ${phoneNumber}`,
-          );
-        } else if (result.tgwa && result.tgwa.success) {
-          bot.sendMessage(
-            msg.chat.id,
-            `Сообщение успешно отправлено в Telegram и/или WhatsApp на номер ${phoneNumber}`,
-          );
-        } else {
-          bot.sendMessage(
-            msg.chat.id,
-            `Не удалось отправить сообщение на номер ${phoneNumber}. Проверьте, доступен ли этот номер в мессенджерах.`,
-          );
-        }
+
+        bot.sendMessage(
+          msg.chat.id,
+          'Сообщение поставлено в очередь на отправку. Ожидайте результатов...',
+        );
+        await delay(30000);
+        await checkMailingStatus(bot, msg, initialResult, phoneNumber);  // поменять логику проверки статуса
       } catch (error) {
         logger.error('Error in manual send:', error);
         bot.sendMessage(
@@ -539,10 +457,13 @@ module.exports = {
         return;
       }
 
-      const { phoneNumbers, defaultTelegramNumber, defaultWhatsappNumber } =
-        await campaignsMailingService.getCampaignPhoneNumbers(campaign.id);
+      const phoneNumbers = await campaignsMailingService.getCampaignPhoneNumbers(campaign.id);
 
-      if (phoneNumbers.length === 0) {
+      // Log the phone numbers for debugging
+      logger.info(`Phone numbers for campaign ${campaignName}: ${JSON.stringify(phoneNumbers)}`);
+
+      // Ensure phoneNumbers is always an array
+      if (!phoneNumbers || phoneNumbers.length === 0) {
         bot.sendMessage(
           msg.chat.id,
           `У кампании "${campaignName}" нет прикрепленных номеров.`,
@@ -554,12 +475,12 @@ module.exports = {
       phoneNumbers.forEach((p) => {
         let status = '';
         if (
-          p.phoneNumber === defaultTelegramNumber &&
+          p.phoneNumber === campaign.defaultTelegramNumber &&
           p.platform === 'telegram'
         ) {
           status = ' (дефолтный для Telegram)';
         } else if (
-          p.phoneNumber === defaultWhatsappNumber &&
+          p.phoneNumber === campaign.defaultWhatsappNumber &&
           p.platform === 'whatsapp'
         ) {
           status = ' (дефолтный для WhatsApp)';
@@ -567,10 +488,10 @@ module.exports = {
         message += `${p.phoneNumber} (${p.platform})${status}\n`;
       });
 
-      if (!defaultTelegramNumber) {
+      if (!campaign.defaultTelegramNumber) {
         message += '\nДля Telegram не установлен дефолтный номер.';
       }
-      if (!defaultWhatsappNumber) {
+      if (!campaign.defaultWhatsappNumber) {
         message += '\nДля WhatsApp не установлен дефолтный номер.';
       }
 
@@ -615,42 +536,6 @@ module.exports = {
     }
   },
 
-  '/set_campaign_prompt ([^\\s]+) ([^\\s]+)': async (bot, msg, match) => {
-    const [, campaignName, promptName] = match;
-    if (!campaignName || !promptName) {
-      bot.sendMessage(
-        msg.chat.id,
-        'Пожалуйста, укажите название кампании и название промпта. Например: /set_campaign_prompt МояКампания МойПромпт',
-      );
-      return;
-    }
-
-    try {
-      const campaign = await getCampaignByName(campaignName, bot, msg.chat.id);
-      if (!campaign) {
-        return;
-      }
-
-      const prompt = await promptService.getPromptByName(promptName);
-      if (!prompt) {
-        bot.sendMessage(msg.chat.id, `Промпт "${promptName}" не найден.`);
-        return;
-      }
-
-      await campaignsMailingService.setCampaignPrompt(campaign.id, prompt.id);
-      bot.sendMessage(
-        msg.chat.id,
-        `Промпт "${promptName}" успешно установлен для кампании "${campaignName}".`,
-      );
-    } catch (error) {
-      logger.error('Error setting campaign prompt:', error);
-      bot.sendMessage(
-        msg.chat.id,
-        'Произошла ошибка при установке промпта для кампании.',
-      );
-    }
-  },
-
   '/view_leads ([^\\s]+)': async (bot, msg, match) => {
     const [, campaignName] = match;
     if (!campaignName) {
@@ -669,7 +554,7 @@ module.exports = {
         return;
       }
 
-      const attachedLeadsDBs = await LeadsService.getAttachedLeadsDBs(
+      const attachedLeadsDBs = await leadService.getAttachedLeadsDBs(
         campaign.id,
       );
       let message = `Лиды для кампании "${campaignName}":\n\n`;
@@ -684,7 +569,7 @@ module.exports = {
         ];
 
         for (const status of statuses) {
-          const leads = await LeadsService.getLeadsFromLeadsDB(
+          const leads = await leadService.getLeadsFromLeadsDB(
             leadsDB.id,
             status,
           );
@@ -721,7 +606,7 @@ module.exports = {
       if (!campaignName || !status) {
         bot.sendMessage(
           msg.chat.id,
-          'Пожалуйста, укажите название кампании и статус лидов. Например: /send_mc_to_leads МояКампания NEW',
+          'Пожалуйста, укажите название кампании и с��атус лидов. Например: /send_mc_to_leads МояКампания NEW',
         );
         return;
       }
@@ -744,7 +629,7 @@ module.exports = {
           return;
         }
 
-        const attachedLeadsDBs = await LeadsService.getAttachedLeadsDBs(
+        const attachedLeadsDBs = await leadService.getAttachedLeadsDBs(
           campaign.id,
         );
         if (attachedLeadsDBs.length === 0) {
@@ -757,7 +642,7 @@ module.exports = {
 
         let allLeads = [];
         for (const leadsDB of attachedLeadsDBs) {
-          const leads = await LeadsService.getLeadsFromLeadsDB(
+          const leads = await leadService.getLeadsFromLeadsDB(
             leadsDB.id,
             status,
           );
@@ -774,7 +659,7 @@ module.exports = {
 
         bot.sendMessage(
           msg.chat.id,
-          `Начинаем рассылку для ${allLeads.length} лидов со статусом ${getStatusName(status)}...`,
+          `Начинаем постановку в очередь рассылки для ${allLeads.length} лидов со статусом ${getStatusName(status)}...`,
         );
 
         const contacts = allLeads.map((lead) => ({ phoneNumber: lead.phone }));
@@ -786,15 +671,15 @@ module.exports = {
         );
 
         const summaryMessage =
-          `Рассылка для кампании "${campaignName}" завершена.\n` +
+          `Постановка в очередь для кампании "${campaignName}" завершена.\n` +
           `Всего лидов со статусом ${getStatusName(status)}: ${results.totalContacts}\n` +
-          `Успешно отправлено: ${results.successfulSends}\n` +
-          `Не удалось отправить: ${results.failedSends}`;
+          `Успешно поставлено в очередь: ${results.queuedSends}\n` +
+          `Не удалось поставить в очередь: ${results.failedEnqueues}`;
 
         bot.sendMessage(msg.chat.id, summaryMessage);
 
         // Отправка детальной информации, если есть ошибки
-        if (results.failedSends > 0) {
+        if (results.failedEnqueues > 0) {
           const failedDetails = results.details
             .filter((detail) => detail.status === 'failed')
             .map((detail) => `${detail.phoneNumber}: ${detail.error}`)
@@ -802,9 +687,23 @@ module.exports = {
 
           bot.sendMessage(
             msg.chat.id,
-            `Детали неудачных отправок:\n${failedDetails}`,
+            `Детали неудачных постановок в очередь:\n${failedDetails}`,
           );
         }
+
+        // Запуск процесса прверки статуса отправки
+        bot.sendMessage(
+          msg.chat.id,
+          'Начинаем процесс отправки сообщений. Вы будете получать обновления о ходе отправки.',
+        );
+
+        // Запускаем асинхронный процесс проверки статуса отправки
+        checkBulkDistributionStatus(
+          bot,
+          msg.chat.id,
+          results.details,
+          campaign.id,
+        );
       } catch (error) {
         logger.error('Error in send_mc_to_leads:', error);
         bot.sendMessage(

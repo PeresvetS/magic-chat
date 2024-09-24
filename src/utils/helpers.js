@@ -1,4 +1,4 @@
-const logger = require('./logger');
+// src/utils/helpers.js
 
 async function delay(ms) {
   return new Promise((resolve) => {
@@ -76,16 +76,23 @@ const parsePHPSerialized = (data) => {
 };
 
 /* eslint-disable no-await-in-loop */
-async function retryOperation(operation, maxRetries, delays) {
+async function retryOperation(operation, maxRetries, initialDelay, customErrorHandler = null, logger) {
+  let currentDelay = initialDelay;
   for (let i = 0; i < maxRetries; i += 1) {
     try {
       return await operation();
     } catch (error) {
+      if (customErrorHandler && await customErrorHandler(error)) {
+        continue;
+      }
       if (i === maxRetries - 1) {
         throw error;
       }
-      logger.warn(`Operation failed, retrying in ${delays}ms...`);
-      await delay(delays);
+      if (logger && typeof logger.info === 'function') {
+        logger.info(`Operation failed, retrying in ${currentDelay}ms...`);
+      }
+      await delay(currentDelay);
+      currentDelay *= 2; // Exponential backoff
     }
   }
   throw new Error('All retries failed');

@@ -1,46 +1,109 @@
-// src/services/mailing/checkers/telegramChecker.js
-
-const { Api } = require('telegram/tl');
+// src/services/mailing/checkers/TelegramChecker.js
 
 const logger = require('../../../utils/logger');
 const { TelegramSessionService } = require('../../telegram');
+const PhoneNumberRotationService = require('../../phone/src/PhoneNumberRotationService');
+const { safeStringify } = require('../../../utils/helpers');
 
 class TelegramChecker {
   constructor() {
-    this.client = null;
+    this.clients = new Map();
+    this.sessionStubs = new Map();
+    this.lastUsedTime = new Map();
+    this.phoneNumberRotationService = null;
   }
 
-  async initialize() {
-    if (!this.client) {
-      this.client = await TelegramSessionService.getMainClient();
-      if (!this.client) {
-        throw new Error('Failed to get main Telegram client');
-      }
+  async initialize(campaignId) {
+    this.phoneNumberRotationService = new PhoneNumberRotationService(campaignId);
+    await this.phoneNumberRotationService.initialize();
+    const numbers = await this.phoneNumberRotationService.getAllPhoneNumbers('telegram');
+    for (const number of numbers) {
+      this.createSessionStub(number.phoneNumber);
     }
   }
 
-  async checkTelegram(phoneNumber) {
-    logger.info(`Checking Telegram for number ${phoneNumber}`);
+  createSessionStub(phoneNumber) {
+    this.sessionStubs.set(phoneNumber, true);
+  }
+
+  async getOrCreateClient(phoneNumber) {
+    if (this.clients.has(phoneNumber)) {
+      this.lastUsedTime.set(phoneNumber, Date.now());
+      return this.clients.get(phoneNumber);
+    }
+
+    if (this.sessionStubs.has(phoneNumber)) {
+      const client = await TelegramSessionService.getOrCreateSession(phoneNumber);
+      if (!client) {
+        throw new Error(`Failed to get Telegram client for phone number ${phoneNumber}`);
+      }
+      this.clients.set(phoneNumber, client);
+      this.sessionStubs.delete(phoneNumber);
+      this.lastUsedTime.set(phoneNumber, Date.now());
+      return client;
+    }
+
+    throw new Error(`No session stub found for phone number ${phoneNumber}`);
+  }
+
+  async check(phoneNumberToCheck) {
+    const senderPhoneNumber = await this.phoneNumberRotationService.getNextAvailablePhoneNumber('telegram');
+    if (!senderPhoneNumber) {
+      logger.error(`No available Telegram phone numbers for checking ${phoneNumberToCheck}`);
+      return false;
+    }
+
+    logger.info(`Checking Telegram for number ${phoneNumberToCheck} using sender ${senderPhoneNumber}`);
     try {
-      await this.initialize();
+      const client = await this.getOrCreateClient(senderPhoneNumber);
 
-      const result = await this.client.invoke(
-        new Api.contacts.ResolvePhone({
-          phone: phoneNumber,
-        }),
-      );
+      logger.info('Updating entity cache...');
+      await client.getDialogs({limit: 1});
+      logger.info('Entity cache updated');
 
-      return result.users && result.users.length > 0;
+      const user = await TelegramSessionService.findUserByPhoneNumber(phoneNumberToCheck, client);
+      
+      return user !== null;
     } catch (error) {
-      logger.error(`Error checking Telegram for number ${phoneNumber}:`, error);
+      if (this.isBanError(error)) {
+        const client = await this.getOrCreateClient(senderPhoneNumber);
+        await this.handleBanError(senderPhoneNumber, error, client);
+        throw error; // Re-throw to allow MessagingPlatformChecker to handle it
+      }
+      logger.error(`Error checking Telegram for number ${phoneNumberToCheck}:`, error);
       return false;
     }
   }
 
+  isBanError(error) {
+    const banErrors = ['USER_DEACTIVATED', 'USER_BANNED', 'PRIVACY_RESTRICTED', 'FLOOD_WAIT', 'RESTRICTED'];
+    return banErrors.some(banError => error.message.includes(banError));
+  }
+
+  async handleBanError(phoneNumber, error, client) {
+    await this.phoneNumberRotationService.handleBanStatus(phoneNumber, error.message, 'telegram', client);
+    this.clients.delete(phoneNumber);
+    this.lastUsedTime.delete(phoneNumber);
+  }
+
   async disconnect() {
-    // Мы не отключаем клиент здесь, так как он управляется TelegramSessionService
-    this.client = null;
+    for (const [phoneNumber, client] of this.clients) {
+      await client.disconnect();
+    }
+    this.clients.clear();
+  }
+
+  cleanupCache() {
+    const now = Date.now();
+    for (const [phoneNumber, client] of this.clients.entries()) {
+      const lastUsed = this.lastUsedTime.get(phoneNumber) || 0;
+      if (now - lastUsed > 30 * 60 * 1000) { // 30 минут неактивности
+        client.disconnect();
+        this.clients.delete(phoneNumber);
+        this.lastUsedTime.delete(phoneNumber);
+      }
+    }
   }
 }
 
-module.exports = new TelegramChecker();
+module.exports = TelegramChecker;

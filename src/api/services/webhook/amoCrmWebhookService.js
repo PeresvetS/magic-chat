@@ -2,7 +2,7 @@
 
 const logger = require('../../../utils/logger');
 const { safeStringify } = require('../../../utils/helpers');
-const LeadsService = require('../../../services/leads/src/LeadsService');
+const { leadService } = require('../../../services/leads');
 
 async function processAmoCrmWebhook(data, user) {
   try {
@@ -19,7 +19,7 @@ async function processAmoCrmWebhook(data, user) {
       status: data.status || 'NEW',
     };
 
-    const savedLead = await LeadsService.addLeadToCRM(user.id, leadData);
+    const savedLead = await leadService.addLeadToCRM(user.id, leadData);
 
     logger.info('Successfully processed AmoCRM webhook', {
       userId: user.id,

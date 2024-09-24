@@ -1,15 +1,16 @@
 // src/services/mailing/services/messageDistributionService.js
 
-const messageSenderService = require('./messageSenderService');
 const MessagingPlatformChecker = require('../checkers/MessagingPlatformChecker');
 const logger = require('../../../utils/logger');
-const { campaignsMailingService } = require('../../campaign');
 const PhoneNumberManagerService = require('../../phone/src/PhoneNumberManagerService');
+const { campaignsMailingService } = require('../../campaign');
+const RabbitMQQueueService = require('../../queue/rabbitMQQueueService');
 
 class MessageDistributionService {
   constructor() {
     this.lastMessageTimes = new Map();
     this.RATE_LIMIT_SECONDS = 60; // 1 минута
+    this.phoneNumberManager = new PhoneNumberManagerService();
   }
 
   async distributeMessage(
@@ -19,6 +20,11 @@ class MessageDistributionService {
     platformPriority = 'telegram',
     mode = 'one',
   ) {
+    if (!campaignId) {
+      logger.error('Campaign ID is undefined');
+      throw new Error('Campaign ID is required for message distribution');
+    }
+
     logger.info(
       `Distributing message to ${phoneNumber} with priority ${platformPriority} and mode ${mode}`,
     );
@@ -36,15 +42,21 @@ class MessageDistributionService {
         );
       }
 
-      const platforms = await MessagingPlatformChecker.choosePlatform(
+      const messagingPlatformChecker = new MessagingPlatformChecker(campaignId);
+      // Инициализируем MessagingPlatformChecker перед использованием
+      await messagingPlatformChecker.initialize();
+
+      const platforms = await messagingPlatformChecker.choosePlatform(
         campaignId,
         strPhoneNumber,
         platformPriority,
         mode,
       );
+      
       logger.info(
         `Distributing message to ${strPhoneNumber} with platforms ${platforms}`,
       );
+      
       const results = {
         strPhoneNumber,
         telegram: null,
@@ -55,11 +67,11 @@ class MessageDistributionService {
       };
 
       for (const platform of platforms.split(',')) {
-        let senderPhoneNumber =
-          await PhoneNumberManagerService.getNextAvailablePhoneNumber(
-            campaignId,
-            platform,
-          );
+        const phoneNumberManager = new PhoneNumberManagerService();
+        let senderPhoneNumber = await phoneNumberManager.getNextAvailablePhoneNumber(
+          campaignId,
+          platform,
+        );
         if (!senderPhoneNumber) {
           logger.warn(
             `No available phone numbers for ${platform} in campaign ${campaignId}`,
@@ -67,68 +79,46 @@ class MessageDistributionService {
           continue;
         }
 
-        let sendResult;
-        do {
-          switch (platform) {
-            case 'telegram':
-              sendResult = await messageSenderService.sendTelegramMessage(
+        try {
+          logger.info(
+            `Enqueuing message for ${platform} with campaignId ${campaignId}, sender ${senderPhoneNumber}`,
+          );
+          const queueItem = await RabbitMQQueueService.enqueue(
+            campaignId,
+            message,
+            strPhoneNumber,
+            platform,
+            senderPhoneNumber,
+          );
+          results[platform] = { queueItemId: queueItem.id, status: 'queued' };
+          logger.info(`Message queued for ${platform}: ${queueItem.id}`);
+        } catch (error) {
+          logger.error(`Error enqueueing message for ${platform}:`, error);
+          results[platform] = { error: error.message, status: 'failed' };
+          
+          // Попробуем сменить номер и повторить попытку
+          senderPhoneNumber = await phoneNumberManager.switchToNextPhoneNumber(
+            campaignId,
+            senderPhoneNumber,
+            platform,
+          );
+          if (senderPhoneNumber) {
+            try {
+              const queueItem = await RabbitMQQueueService.enqueue(
                 campaignId,
-                senderPhoneNumber,
-                strPhoneNumber,
                 message,
-              );
-              break;
-            case 'whatsapp':
-              sendResult = await messageSenderService.sendWhatsAppMessage(
-                campaignId,
-                senderPhoneNumber,
                 strPhoneNumber,
-                message,
-              );
-              break;
-            case 'waba':
-              sendResult = await messageSenderService.sendWABAMessage(
-                campaignId,
-                senderPhoneNumber,
-                strPhoneNumber,
-                message,
-              );
-              break;
-            case 'tgwa':
-              sendResult = await messageSenderService.sendTgAndWa(
-                campaignId,
-                strPhoneNumber,
-                message,
-              );
-              break;
-            case 'tgwaba':
-              sendResult = await messageSenderService.sendTgAndWABA(
-                campaignId,
-                strPhoneNumber,
-                message,
-              );
-              break;
-          }
-
-          if (
-            !sendResult.success &&
-            sendResult.error === 'DAILY_LIMIT_REACHED'
-          ) {
-            senderPhoneNumber =
-              await PhoneNumberManagerService.switchToNextPhoneNumber(
-                campaignId,
-                senderPhoneNumber,
                 platform,
+                senderPhoneNumber,
               );
-            if (!senderPhoneNumber) {
-              break;
+              results[platform] = { queueItemId: queueItem.id, status: 'queued' };
+              logger.info(`Message queued for ${platform} with new sender number: ${queueItem.id}`);
+            } catch (retryError) {
+              logger.error(`Error enqueueing message for ${platform} with new sender number:`, retryError);
+              results[platform] = { error: retryError.message, status: 'failed' };
             }
-          } else {
-            break;
           }
-        } while (true);
-
-        results[platform] = sendResult;
+        }
       }
 
       return results;
@@ -148,8 +138,8 @@ class MessageDistributionService {
     logger.info(`Starting bulk distribution for campaign ${campaignId}`);
     const results = {
       totalContacts: contacts.length,
-      successfulSends: 0,
-      failedSends: 0,
+      queuedSends: 0,
+      failedEnqueues: 0,
       details: [],
     };
 
@@ -174,34 +164,21 @@ class MessageDistributionService {
           mode,
         );
 
-        if (
-          (result.telegram && result.telegram.success) ||
-          (result.whatsapp && result.whatsapp.success) ||
-          (result.tgwa && result.tgwa.success)
-        ) {
-          results.successfulSends++;
-          results.details.push({
-            phoneNumber: contact.phoneNumber,
-            status: 'success',
-            platform: this.getSuccessfulPlatform(result),
-          });
-        } else {
-          results.failedSends++;
-          results.details.push({
-            phoneNumber: contact.phoneNumber,
-            status: 'failed',
-            error: this.getErrorMessage(result),
-          });
-        }
+        results.queuedSends++;
+        results.details.push({
+          phoneNumber: contact.phoneNumber,
+          status: 'queued',
+          queueItems: result,
+        });
 
-        // Добавляем небольшую задержку между отправками
-        await new Promise((resolve) => setTimeout(resolve, 1000));
+        // Добавляем небольшую задержку меду постановками в очередь
+        await new Promise((resolve) => setTimeout(resolve, 100));
       } catch (error) {
         logger.error(
-          `Error in bulk distribution for ${contact.phoneNumber}:`,
+          `Error enqueueing message for ${contact.phoneNumber}:`,
           error,
         );
-        results.failedSends++;
+        results.failedEnqueues++;
         results.details.push({
           phoneNumber: contact.phoneNumber,
           status: 'failed',
@@ -211,40 +188,41 @@ class MessageDistributionService {
     }
 
     logger.info(
-      `Bulk distribution completed for campaign ${campaignId}. Results:`,
+      `Bulk distribution queuing completed for campaign ${campaignId}. Results:`,
       results,
     );
     return results;
   }
 
+  isSuccessfulSend(result) {
+    return Object.values(result).some(
+      (platformResult) =>
+        platformResult &&
+        (platformResult.success ||
+          (platformResult.status && platformResult.status === 'completed'))
+    );
+  }
+
   getSuccessfulPlatform(result) {
-    if (result.telegram && result.telegram.success) {
-      return 'telegram';
-    }
-    if (result.whatsapp && result.whatsapp.success) {
-      return 'whatsapp';
-    }
-    if (result.waba && result.waba.success) {
-      return 'waba';
-    }
-    if (result.tgwa && result.tgwa.success) {
-      return 'telegram and whatsapp';
-    }
-    if (result.tgwaba && result.tgwaba.success) {
-      return 'telegram and waba';
+    for (const platform of ['telegram', 'whatsapp', 'waba', 'tgwa', 'tgwaba']) {
+      if (
+        result[platform] &&
+        (result[platform].success ||
+          (result[platform].status && result[platform].status === 'completed'))
+      ) {
+        return platform;
+      }
     }
     return 'unknown';
   }
 
   getErrorMessage(result) {
-    return (
-      result.telegram?.error ||
-      result.whatsapp?.error ||
-      result.waba?.error ||
-      result.tgwa?.error ||
-      result.tgwaba?.error ||
-      'Unknown error'
-    );
+    for (const platform of ['telegram', 'whatsapp', 'waba', 'tgwa', 'tgwaba']) {
+      if (result[platform] && result[platform].error) {
+        return result[platform].error;
+      }
+    }
+    return 'Unknown error';
   }
 
   async sendMessageToLead(lead, user) {
@@ -312,6 +290,47 @@ class MessageDistributionService {
         this.lastMessageTimes.delete(key);
       }
     }
+  }
+
+  async getDistributionResults(results) {
+    const updatedResults = { ...results };
+
+    for (const platform of Object.keys(updatedResults)) {
+      if (updatedResults[platform] && updatedResults[platform].queueItemId) {
+        const queueItem = await RabbitMQQueueService.getQueueItem(
+          updatedResults[platform].queueItemId
+        );
+
+        if (queueItem) {
+          updatedResults[platform] = {
+            status: queueItem.status,
+            success: queueItem.status === 'completed',
+            result: queueItem.result,
+            error: queueItem.status === 'failed' ? queueItem.result : null,
+          };
+
+          // Если result - это строка, пытаемся разобрать её как JSON
+          if (typeof updatedResults[platform].result === 'string') {
+            try {
+              updatedResults[platform].result = JSON.parse(updatedResults[platform].result);
+            } catch (e) {
+              logger.warn(`Failed to parse result as JSON for queue item ${updatedResults[platform].queueItemId}: ${e.message}`);
+              // Оставляем result как есть, если не удалось разобрать JSON
+            }
+          }
+        } else {
+          logger.warn(
+            `Queue item not found for ${platform}: ${updatedResults[platform].queueItemId}`,
+          );
+          updatedResults[platform] = { status: 'unknown' };
+        }
+      } else {
+        // Если queueItemId отсутствует, оставляем платформу как null
+        updatedResults[platform] = null;
+      }
+    }
+
+    return updatedResults;
   }
 }
 

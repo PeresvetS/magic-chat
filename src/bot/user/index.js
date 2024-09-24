@@ -1,33 +1,32 @@
 // src/bot/user/index.js
 
-const path = require('path');
-const qrcode = require('qrcode');
-const fs = require('fs').promises;
 const TelegramBot = require('node-telegram-bot-api');
 
 const config = require('../../config');
 const logger = require('../../utils/logger');
-const { userService } = require('../../services/user');
-const wabaCommands = require('./commands/wabaCommands');
-const LeadsService = require('../../services/leads/src/LeadsService');
-const { getUserState, clearUserState } = require('./utils/userState');
+const { getUserInfo } = require('../../services/user/src/userService');
+const { getUserState } = require('./utils/userState');
 const { TelegramSessionService } = require('../../services/telegram');
 const { WhatsAppSessionService } = require('../../services/whatsapp');
-const { processExcelFile } = require('../../services/leads').xlsProcessor;
 const { setPhoneAuthenticated } =
   require('../../services/phone').phoneNumberService;
 const PhoneNumberManagerService = require('../../services/phone/src/PhoneNumberManagerService');
+const wabaCommands = require('./commands/wabaCommands');
 const helpCommands = require('./commands/helpCommands');
 const phoneCommands = require('./commands/phoneCommands');
 const leadsCommands = require('./commands/leadsCommands');
 const promptCommands = require('./commands/promptCommands');
 const mailingCommands = require('./commands/mailingCommads');
 const crmSettingsCommands = require('./commands/crmSettingsCommands');
+const campaignLLMCommands = require('./commands/campaignLLMCommands');
 const subscriptionCommands = require('./commands/subscriptionCommands');
+const knowledgeBaseCommands = require('./commands/knowledgeBaseCommands');
 
 const commandModules = [
+  knowledgeBaseCommands,
   subscriptionCommands,
   crmSettingsCommands,
+  campaignLLMCommands,
   mailingCommands,
   promptCommands,
   phoneCommands,
@@ -40,27 +39,41 @@ function createUserBot() {
   const bot = new TelegramBot(config.USER_BOT_TOKEN, { polling: false });
   let isRunning = false;
   let pollingError = null;
+  let restartAttempts = 0;
+  const maxRestartAttempts = 5;
 
   function handlePollingError(error) {
     logger.error('User bot polling error:', error);
     pollingError = error;
-    if (error.code === 'ETELEGRAM' && error.message.includes('terminated by other getUpdates request')) {
-      logger.warn('User bot: Another instance is running. Attempting to restart...');
-      setTimeout(async () => {
-        try {
-          await bot.stopPolling();
-          await bot.startPolling();
-          logger.info('User bot restarted successfully');
-          pollingError = null;
-        } catch (e) {
-          logger.error('Error restarting User bot:', e);
-        }
-      }, 5000);
+    if (
+      error.code === 'ETELEGRAM' &&
+      error.message.includes('terminated by other getUpdates request')
+    ) {
+      if (restartAttempts < maxRestartAttempts) {
+        restartAttempts++;
+        logger.warn(
+          `User bot: Another instance is running. Attempting to restart... (Attempt ${restartAttempts}/${maxRestartAttempts})`,
+        );
+        setTimeout(async () => {
+          try {
+            await stop();
+            await new Promise(resolve => setTimeout(resolve, 5000)); // Wait 5 seconds before restarting
+            await launch();
+            logger.info('User bot restarted successfully');
+            restartAttempts = 0;
+          } catch (e) {
+            logger.error('Error restarting User bot:', e);
+          }
+        }, 5000 * restartAttempts); // Increase delay with each attempt
+      } else {
+        logger.error('Max restart attempts reached. Please check the bot manually.');
+      }
     }
   }
-  
 
-  PhoneNumberManagerService.setNotificationCallback((telegramId, message) => {
+  const phoneNumberManager = new PhoneNumberManagerService();
+
+  phoneNumberManager.setNotificationCallback((telegramId, message) => {
     bot.sendMessage(telegramId, message);
   });
 
@@ -69,9 +82,12 @@ function createUserBot() {
       if (command !== 'messageHandler') {
         bot.onText(new RegExp(`^${command}`), async (msg, match) => {
           try {
-            const userInfo = await userService.getUserInfo(msg.from.id);
+            const userInfo = await getUserInfo(msg.from.id);
             if (!userInfo || !userInfo.isSubscribed) {
-              bot.sendMessage(msg.chat.id, 'У вас нет активной подписки. Обратитесь к администратору для её оформления.');
+              bot.sendMessage(
+                msg.chat.id,
+                'У вас нет активной подписки. Обратитесь к администратору для её оформления.',
+              );
               return;
             }
             if (userInfo.isBanned) {
@@ -81,13 +97,27 @@ function createUserBot() {
             await handler(bot, msg, match);
           } catch (error) {
             logger.error(`Error executing command ${command}:`, error);
-            bot.sendMessage(msg.chat.id, `Произошла ошибка при выполнении команды: ${error.message}`);
+            bot.sendMessage(
+              msg.chat.id,
+              `Произошла ошибка при выполнении команды: ${error.message}`,
+            );
           }
         });
       }
     });
   });
 
+  bot.on('document', async (msg) => {
+    const userState = getUserState(msg.from.id);
+  
+    if (userState && userState.action === 'add_kb_document') {
+      await knowledgeBaseCommands.documentHandler(bot, msg);
+    } else if (userState && userState.action === 'upload_leads_to_db') {
+      await leadsCommands.documentHandler(bot, msg);
+    } else {
+      bot.sendMessage(msg.chat.id, 'Пожалуйста, сначала выберите действие (добавление документа в базу знаний или загрузка лидов).');
+    }
+  });
 
   // Обработчик для всех текстовых сообщений
   bot.on('text', async (msg) => {
@@ -96,7 +126,7 @@ function createUserBot() {
     } // Игнорируем команды
 
     try {
-      const userInfo = await userService.getUserInfo(msg.from.id);
+      const userInfo = await getUserInfo(msg.from.id);
 
       if (!userInfo || !userInfo.isSubscribed) {
         bot.sendMessage(
@@ -128,80 +158,13 @@ function createUserBot() {
     }
   });
 
-  bot.on('document', async (msg) => {
-    logger.info(`Received document from user ${msg.from.id}`);
-    try {
-      const userId = msg.from.id;
-      const userState = getUserState(userId);
-
-      logger.info(`User state for ${userId}: ${JSON.stringify(userState)}`);
-
-      if (userState && userState.action === 'upload_leads_to_db') {
-        const allowedMimeTypes = [
-          'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-          'application/vnd.ms-excel',
-        ];
-
-        logger.info(`Processing document for LeadsDB ${userState.leadsDBId}`);
-
-        if (allowedMimeTypes.includes(msg.document.mime_type)) {
-          try {
-            logger.info(
-              `Processing Excel file for LeadsDB ${userState.leadsDBId}`,
-            );
-            const fileLink = await bot.getFileLink(msg.document.file_id);
-            logger.info('Processing Excel file');
-            const leads = await processExcelFile(fileLink);
-            logger.info(
-              `Preparing to add leads to LeadsDB ${userState.leadsDBId}`,
-            );
-            const addedLeadsCount = await LeadsService.addLeadsToLeadsDB(
-              parseInt(userState.leadsDBId),
-              leads,
-            );
-            logger.info(`Leads added to LeadsDB ${userState.leadsDBId}`);
-            bot.sendMessage(
-              msg.chat.id,
-              `Успешно добавлено ${addedLeadsCount} лидов в базу лидов (ID: ${userState.leadsDBId}).`,
-            );
-          } catch (error) {
-            logger.error('Error processing Excel file:', error);
-            bot.sendMessage(
-              msg.chat.id,
-              'Произошла ошибка при обработке Excel файла. Пожалуйста, попробуйте еще раз.',
-            );
-          } finally {
-            clearUserState(userId);
-          }
-        } else {
-          bot.sendMessage(
-            msg.chat.id,
-            'Пожалуйста, отправьте файл в формате XLS или XLSX.',
-          );
-        }
-      } else {
-        logger.info(
-          `Received document without active upload_leads_to_db state for user ${userId}`,
-        );
-        bot.sendMessage(
-          msg.chat.id,
-          'Пожалуйста, сначала используйте команду /upload_leads_to_db для указания базы лидов, затем отправьте файл.',
-        );
-      }
-    } catch (error) {
-      logger.error('Error handling document:', error);
-      bot.sendMessage(
-        msg.chat.id,
-        'Произошла ошибка при обработке документа. Пожалуйста, попробуйте еще раз или обратитесь к администратору.',
-      );
-    }
-  });
-
   bot.on('callback_query', async (query) => {
     const [action, authType, phoneNumber, platform] = query.data.split('_');
     logger.info(`Received callback query: ${query.data}`);
 
-    if (action !== 'auth') return;
+    if (action !== 'auth') {
+      return;
+    }
 
     try {
       switch (platform) {
@@ -216,17 +179,19 @@ function createUserBot() {
       }
     } catch (error) {
       logger.error(`Error handling ${platform} authentication:`, error);
-      bot.answerCallbackQuery(query.id, `Ошибка аутентификации: ${error.message}`);
+      bot.answerCallbackQuery(
+        query.id,
+        `Ошибка аутентификации: ${error.message}`,
+      );
     }
   });
 
   bot.on('polling_error', handlePollingError);
-  
+
   process.on('unhandledRejection', (reason, promise) => {
     logger.error('Unhandled Rejection at:', promise);
     logger.error('Reason:', reason);
   });
-
 
   async function launch() {
     if (isRunning) {
@@ -235,7 +200,9 @@ function createUserBot() {
     }
     logger.info('Starting User bot polling');
     try {
-      await bot.startPolling({ restart: true, polling: true });
+      await bot.stopPolling(); // Ensure any existing polling is stopped
+      await new Promise(resolve => setTimeout(resolve, 1000)); // Wait a bit before starting
+      await bot.startPolling({ restart: false, polling: true });
       isRunning = true;
       pollingError = null;
       logger.info('User bot polling started successfully');
@@ -264,41 +231,80 @@ function createUserBot() {
   async function restart() {
     logger.info('Restarting User bot');
     await stop();
-    await new Promise(resolve => setTimeout(resolve, 1000));
+    await new Promise((resolve) => setTimeout(resolve, 1000));
     await launch();
     logger.info('User bot restarted successfully');
   }
 
   async function handleTelegramAuth(bot, query, phoneNumber, authType) {
     try {
+      let client;
       if (authType === 'code') {
-        await TelegramSessionService.authenticateSession(phoneNumber, bot, query.message.chat.id);
+        client = await TelegramSessionService.authenticateSession(
+          phoneNumber,
+          bot,
+          query.message.chat.id,
+        );
       } else if (authType === 'qr') {
-        await TelegramSessionService.generateQRCode(phoneNumber, bot, query.message.chat.id);
+        client = await TelegramSessionService.generateQRCode(
+          phoneNumber,
+          bot,
+          query.message.chat.id,
+        );
       }
-      await setPhoneAuthenticated(phoneNumber, 'telegram', true);
-      bot.sendMessage(query.message.chat.id, `Номер телефона ${phoneNumber} успешно аутентифицирован в Telegram.`);
+      
+      if (client) {
+        await setPhoneAuthenticated(phoneNumber, 'telegram', true);
+        bot.sendMessage(
+          query.message.chat.id,
+          `Номер телефона ${phoneNumber} успешно аутентифицирован в Telegram.`,
+        );
+      }
     } catch (error) {
-      bot.sendMessage(query.message.chat.id, `Ошибка аутентификации: ${error.message}`);
+      if (error.message === 'PHONE_NUMBER_INVALID') {
+        bot.sendMessage(
+          query.message.chat.id,
+          'Неверный формат номера телефона. Пожалуйста, проверьте номер и попробуйте снова.',
+        );
+      } else {
+        bot.sendMessage(
+          query.message.chat.id,
+          `Ошибка аутентификации: ${error.message}`,
+        );
+      }
     }
   }
 
   async function handleWhatsAppAuth(bot, query, phoneNumber, authType) {
     try {
       if (authType === 'qr') {
-        const { qr, client } = await WhatsAppSessionService.generateQRCode(phoneNumber);
+        const { qr, client } =
+          await WhatsAppSessionService.generateQRCode(phoneNumber);
         // Send QR code and wait for authentication
       } else if (authType === 'phone') {
-        const client = await WhatsAppSessionService.authenticateWithPhoneNumber(phoneNumber);
+        const client =
+          await WhatsAppSessionService.authenticateWithPhoneNumber(phoneNumber);
         // Wait for authentication
       }
       await setPhoneAuthenticated(phoneNumber, 'whatsapp', true);
-      bot.sendMessage(query.message.chat.id, `Номер телефона ${phoneNumber} успешно аутентифицирован в WhatsApp.`);
+      bot.sendMessage(
+        query.message.chat.id,
+        `Номер телефона ${phoneNumber} успешно аутентифицирован в WhatsApp.`,
+      );
     } catch (error) {
-      bot.sendMessage(query.message.chat.id, `Ошибка аутентификации: ${error.message}`);
+      bot.sendMessage(
+        query.message.chat.id,
+        `Ошибка аутентификации: ${error.message}`,
+      );
     }
   }
-  
+
+  async function checkAndReauthorize(phoneNumber) {
+    const client = await TelegramSessionService.getSession(phoneNumber);
+    if (!(await TelegramSessionService.checkAuthorization(client))) {
+      await TelegramSessionService.reauthorizeSession(phoneNumber, 3, 5000, client);
+    }
+  }
 
   return {
     bot,
@@ -308,111 +314,9 @@ function createUserBot() {
     isRunning: () => isRunning,
     getPollingError: () => pollingError,
     handleTelegramAuth,
-    handleWhatsAppAuth
+    handleWhatsAppAuth,
+    checkAndReauthorize,
   };
-
 }
-
-// async function tryWhatsappAuth(bot, query, phoneNumber, authType) {
-//   await bot.answerCallbackQuery(query.id);
-//   try {
-//     logger.info(`Starting WhatsApp authentication process for ${phoneNumber}`);
-
-//     if (authType === 'qr') {
-//       await bot.sendMessage(
-//         query.message.chat.id,
-//         'Начинаем процесс аутентификации WhatsApp с использованием QR-code. Это может занять некоторое время.',
-//       );
-//       const { qr, client } =
-//         await WhatsAppSessionService.generateQRCode(phoneNumber);
-//       if (!qr) {
-//         throw new Error('Failed to generate QR code');
-//       }
-//       logger.info(`QR code generated for ${phoneNumber}`);
-
-//       // Генерируем изображение QR-кода
-//       const qrImagePath = path.join(
-//         __dirname,
-//         `../../../temp/${phoneNumber.replace(/[^a-zA-Z0-9]/g, '')}_qr.png`,
-//       );
-//       await qrcode.toFile(qrImagePath, qr);
-
-//       // Отправляем изображение QR-кода
-//       await bot.sendPhoto(query.message.chat.id, qrImagePath, {
-//         caption:
-//           'Пожалуйста, отсканируйте этот QR-код в приложении WhatsApp для подключения. У вас есть 5 минут на сканирование.',
-//       });
-
-//       // Удаляем временный файл
-//       await fs.unlink(qrImagePath);
-
-//       // Ожидаем завершения аутентификации
-//       await new Promise((resolve, reject) => {
-//         const timeout = setTimeout(() => {
-//           reject(new Error('Authentication timeout'));
-//         }, 300000); // 5 минут таймаут
-
-//         client.on('ready', () => {
-//           clearTimeout(timeout);
-//           resolve();
-//         });
-
-//         client.on('auth_failure', (msg) => {
-//           clearTimeout(timeout);
-//           reject(new Error(`Authentication failed: ${msg}`));
-//         });
-//       });
-//     } else if (authType === 'phone') {
-//       await bot.sendMessage(
-//         query.message.chat.id,
-//         'Начинаем процесс аутентификации WhatsApp с использованием номера телефона. Это может занять некоторое время.',
-//       );
-//       const client =
-//         await WhatsAppSessionService.authenticateWithPhoneNumber(phoneNumber);
-
-//       // Ожидаем завершения аутентификации
-//       await new Promise((resolve, reject) => {
-//         const timeout = setTimeout(() => {
-//           reject(new Error('Authentication timeout'));
-//         }, 500000);
-
-//         client.on('ready', () => {
-//           clearTimeout(timeout);
-//           resolve();
-//         });
-
-//         client.on('auth_failure', (msg) => {
-//           clearTimeout(timeout);
-//           reject(new Error(`Authentication failed: ${msg}`));
-//         });
-//       });
-//     }
-
-//     await setPhoneAuthenticated(phoneNumber, 'whatsapp', true);
-//     logger.info(`Authentication process completed for ${phoneNumber}`);
-//     await bot.sendMessage(
-//       query.message.chat.id,
-//       `Номер телефона ${phoneNumber} успешно аутентифицирован в WhatsApp.`,
-//     );
-//   } catch (error) {
-//     logger.error(
-//       `Error in WhatsApp authentication process for ${phoneNumber}:`,
-//       error,
-//     );
-//     let errorMessage =
-//       'Произошла ошибка при аутентификации WhatsApp. Попробуйте ещё раз.';
-//     if (error.message.includes('timeout')) {
-//       errorMessage =
-//         'Время ожидания аутентификации истекло. Пожалуйста, попробуйте еще раз.';
-//     } else if (error.message.includes('auth_failure')) {
-//       errorMessage =
-//         'Ошибка аутентификации WhatsApp. Пожалуйста, убедитесь, что вы правильно ввели номер телефона или отсканировали QR-код.';
-//     } else if (error.message.includes('Failed to generate QR code')) {
-//       errorMessage =
-//         'Не удалось сгенерировать QR-код. Пожалуйста, попробуйте еще раз.';
-//     }
-//     await bot.sendMessage(query.message.chat.id, errorMessage);
-//   }
-// }
 
 module.exports = createUserBot();

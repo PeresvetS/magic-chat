@@ -80,7 +80,7 @@ async function getOrCreateSession(phoneNumber) {
       return session;
     }
 
-    session = await TelegramSessionService.createOrGetSession(phoneNumber);
+    session = await TelegramSessionService.getOrCreateSession(phoneNumber);
     if (!session || !session.connected) {
       logger.warn(
         `Session for ${phoneNumber} is not connected. Trying to reconnect...`,

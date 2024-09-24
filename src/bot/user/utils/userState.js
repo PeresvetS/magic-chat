@@ -19,15 +19,21 @@ function getUserState(userId) {
 function clearUserState(userId) {
   const state = userStates[userId];
   delete userStates[userId];
-  logger.info(`Cleared user state for ${userId}. Previous state: ${JSON.stringify(state)}`);
+  logger.info(
+    `Cleared user state for ${userId}. Previous state: ${JSON.stringify(state)}`,
+  );
 }
 
 function initUserState(userId, initialState = {}) {
   if (!userStates[userId]) {
     setUserState(userId, initialState);
-    logger.info(`Initialized user state for ${userId} with: ${JSON.stringify(initialState)}`);
+    logger.info(
+      `Initialized user state for ${userId} with: ${JSON.stringify(initialState)}`,
+    );
   } else {
-    logger.info(`User state already exists for ${userId}, skipping initialization`);
+    logger.info(
+      `User state already exists for ${userId}, skipping initialization`,
+    );
   }
 }
 
@@ -35,7 +41,9 @@ function updateUserState(userId, updates) {
   const currentState = getUserState(userId);
   const newState = { ...currentState, ...updates };
   setUserState(userId, newState);
-  logger.info(`Updated user state for ${userId}. New state: ${JSON.stringify(newState)}`);
+  logger.info(
+    `Updated user state for ${userId}. New state: ${JSON.stringify(newState)}`,
+  );
   return newState;
 }
 

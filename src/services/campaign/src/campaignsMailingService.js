@@ -1,16 +1,15 @@
 // src/services/campaign/src/campaignsMailingService.js
 
 const logger = require('../../../utils/logger');
-const { phoneNumberService } = require('../../phone');
+const { getPhoneNumberInfo } = require('../../phone/src/phoneNumberService');
 const WABAAccountService = require('../../waba/services/WABAAccountService');
 const {
   campaignsMailingRepo,
   phoneNumberCampaignRepo,
 } = require('../../../db');
 
-class CampaignMailingService {
-  async createCampaign(telegramId, name) {
-    try {
+async function createCampaign(telegramId, name) {
+  try {
       return await campaignsMailingRepo.createCampaignMailing(telegramId, name);
     } catch (error) {
       logger.error('Error in createCampaignMailing service:', error);
@@ -18,7 +17,47 @@ class CampaignMailingService {
     }
   }
 
-  async getCampaignById(campaignId) {
+  async function getCampaigUserId(campaignId) {
+    try {
+      const userId = await campaignsMailingRepo.getCampaigUserId(campaignId);
+      if (!userId) {
+        throw new Error(`Campaign with ID ${campaignId} not found`);
+      }
+      return userId;
+    } catch (error) {
+      logger.error(
+        `Error getting campaign user ID for campaign ${campaignId}:`,
+        error,
+      );
+      throw error;
+    }
+  }
+
+  async function getCampaignSenderNumber(campaignId, platform = 'telegram') {
+    try {
+      const phoneNumbers =
+        await campaignsMailingRepo.getCampaignPhoneNumbers(campaignId);
+      const phoneSenderNumber = phoneNumbers.find(
+        (pn) => pn.platform === platform,
+      )?.phoneNumber;
+  
+      if (!phoneSenderNumber) {
+        throw new Error(
+          `No ${platform} sender phone number found for campaign ${campaignId}`,
+        );
+      }
+  
+      return phoneSenderNumber;
+    } catch (error) {
+      logger.error(
+        `Error getting campaign sender number for campaign ${campaignId}:`,
+        error,
+      );
+      throw error;
+    }
+  }
+
+  async function getCampaignById(campaignId) {
     try {
       return await campaignsMailingRepo.getCampaignById(campaignId);
     } catch (error) {
@@ -27,10 +66,10 @@ class CampaignMailingService {
     }
   }
 
-  async setDefaultPhoneNumber(campaignId, phoneNumber) {
+  async function setDefaultPhoneNumber(campaignId, phoneNumber) {
     try {
       const phoneInfo =
-        await phoneNumberService.getPhoneNumberInfo(phoneNumber);
+        await getPhoneNumberInfo(phoneNumber);
       if (!phoneInfo) {
         throw new Error('Phone number does not exist');
       }
@@ -50,7 +89,7 @@ class CampaignMailingService {
     }
   }
 
-  async getDefaultPhoneNumber(campaignId) {
+  async function getDefaultPhoneNumber(campaignId) {
     try {
       let defaultPhoneNumber =
         await campaignsMailingRepo.getDefaultPhoneNumber(campaignId);
@@ -68,7 +107,7 @@ class CampaignMailingService {
     }
   }
 
-  async attachPhoneNumber(campaignId, phoneNumber, platform) {
+  async function attachPhoneNumber(campaignId, phoneNumber, platform) {
     try {
       const existingAttachment =
         await phoneNumberCampaignRepo.findExistingAttachment(
@@ -108,30 +147,25 @@ class CampaignMailingService {
         }
       }
 
-      return await phoneNumberCampaignRepo.createAttachment(
-        campaignId,
-        phoneNumber,
-        platform,
-      );
+      logger.info(`Attaching phone number ${phoneNumber} to campaign ${campaignId} on platform ${platform}`);
+      return await phoneNumberCampaignRepo.createAttachment(campaignId, phoneNumber, platform);
     } catch (error) {
       logger.error('Error attaching phone number to campaign:', error);
       throw error;
     }
   }
 
-  async detachPhoneNumber(campaignId, phoneNumber) {
+  async function detachPhoneNumber(campaignId, phoneNumber) {
     try {
-      return await phoneNumberCampaignRepo.deleteAttachment(
-        campaignId,
-        phoneNumber,
-      );
+      logger.info(`Detaching phone number ${phoneNumber} from campaign ${campaignId}`);
+      return await phoneNumberCampaignRepo.deleteAttachment(campaignId, phoneNumber);
     } catch (error) {
       logger.error('Error detaching phone number from campaign:', error);
       throw error;
     }
   }
 
-  async getCampaignByName(name) {
+  async function getCampaignByName(name) {
     try {
       return await campaignsMailingRepo.getCampaignByName(name);
     } catch (error) {
@@ -140,7 +174,7 @@ class CampaignMailingService {
     }
   }
 
-  async setCampaignMessage(id, message) {
+  async function setCampaignMessage(id, message) {
     try {
       return await campaignsMailingRepo.setCampaignMessage(id, message);
     } catch (error) {
@@ -148,17 +182,7 @@ class CampaignMailingService {
       throw error;
     }
   }
-
-  async setGoogleSheetUrl(id, googleSheetUrl) {
-    try {
-      return await campaignsMailingRepo.setGoogleSheetUrl(id, googleSheetUrl);
-    } catch (error) {
-      logger.error('Error in setGoogleSheetUrl service:', error);
-      throw error;
-    }
-  }
-
-  async addNotificationTelegramId(id, telegramId) {
+  async function addNotificationTelegramId(id, telegramId) {
     try {
       return await campaignsMailingRepo.addNotificationTelegramId(
         id,
@@ -170,7 +194,7 @@ class CampaignMailingService {
     }
   }
 
-  async removeNotificationTelegramId(id, telegramId) {
+  async function removeNotificationTelegramId(id, telegramId) {
     try {
       return await campaignsMailingRepo.removeNotificationTelegramId(
         id,
@@ -182,7 +206,7 @@ class CampaignMailingService {
     }
   }
 
-  async getNotificationTelegramIds(id) {
+  async function getNotificationTelegramIds(id) {
     try {
       return await campaignsMailingRepo.getNotificationTelegramIds(id);
     } catch (error) {
@@ -191,7 +215,7 @@ class CampaignMailingService {
     }
   }
 
-  async toggleCampaignActivity(id, isActive) {
+  async function toggleCampaignActivity(id, isActive) {
     try {
       return await campaignsMailingRepo.toggleCampaignActivity(id, isActive);
     } catch (error) {
@@ -200,7 +224,7 @@ class CampaignMailingService {
     }
   }
 
-  async getActiveCampaignForPhoneNumber(phoneNumber) {
+  async function getActiveCampaignForPhoneNumber(phoneNumber) {
     try {
       return await campaignsMailingRepo.getActiveCampaignForPhoneNumber(
         phoneNumber,
@@ -211,7 +235,7 @@ class CampaignMailingService {
     }
   }
 
-  async listCampaigns(userId) {
+  async function listCampaigns(userId) {
     try {
       return await campaignsMailingRepo.listCampaignMailings(userId);
     } catch (error) {
@@ -220,7 +244,7 @@ class CampaignMailingService {
     }
   }
 
-  async getActiveCampaign(telegramId) {
+  async function getActiveCampaign(telegramId) {
     try {
       return await campaignsMailingRepo.getActiveCampaign(telegramId);
     } catch (error) {
@@ -229,7 +253,7 @@ class CampaignMailingService {
     }
   }
 
-  async setPlatformPriority(campaignId, platformPriority) {
+  async function setPlatformPriority(campaignId, platformPriority) {
     try {
       const validPlatforms = ['telegram', 'whatsapp', 'waba'];
       const isValidPriority = platformPriority
@@ -248,7 +272,7 @@ class CampaignMailingService {
     }
   }
 
-  async getPlatformPriority(campaignId) {
+  async function getPlatformPriority(campaignId) {
     try {
       return await campaignsMailingRepo.getPlatformPriority(campaignId);
     } catch (error) {
@@ -257,11 +281,11 @@ class CampaignMailingService {
     }
   }
 
-  async attachPhoneNumber(campaignId, phoneNumber, platform) {
+  async function attachPhoneNumber(campaignId, phoneNumber, platform) {
     try {
       // Проверяем, существует ли и аутентифицирован ли номер
       const phoneInfo =
-        await phoneNumberService.getPhoneNumberInfo(phoneNumber);
+        await getPhoneNumberInfo(phoneNumber);
       if (!phoneInfo) {
         throw new Error('Phone number does not exist');
       }
@@ -289,7 +313,7 @@ class CampaignMailingService {
     }
   }
 
-  async detachPhoneNumber(campaignId, phoneNumber) {
+  async function detachPhoneNumber(campaignId, phoneNumber) {
     try {
       return await campaignsMailingRepo.detachPhoneNumber(
         campaignId,
@@ -301,28 +325,21 @@ class CampaignMailingService {
     }
   }
 
-  async getCampaignPhoneNumbers(campaignId) {
+  async function getCampaignPhoneNumbers(campaignId) {
     try {
-      return await campaignsMailingRepo.getCampaignPhoneNumbers(campaignId);
+      const phoneNumbers = await campaignsMailingRepo.getCampaignPhoneNumbers(campaignId);
+    
+      return phoneNumbers;
     } catch (error) {
       logger.error('Error in getCampaignPhoneNumbers service:', error);
       throw error;
     }
   }
 
-  async setCampaignPrompt(id, promptId) {
-    try {
-      return await campaignsMailingRepo.setCampaignPrompt(id, promptId);
-    } catch (error) {
-      logger.error('Error in setCampaignPrompt service:', error);
-      throw error;
-    }
-  }
-
-  async setDefaultPhoneNumber(campaignId, phoneNumber, platform) {
+  async function setDefaultPhoneNumber(campaignId, phoneNumber, platform) {
     try {
       const phoneInfo =
-        await phoneNumberService.getPhoneNumberInfo(phoneNumber);
+        await getPhoneNumberInfo(phoneNumber);
       if (!phoneInfo) {
         throw new Error('Phone number does not exist');
       }
@@ -343,23 +360,26 @@ class CampaignMailingService {
     }
   }
 
-  async setSecondaryPrompt(id, promptId) {
-    try {
-      return await campaignsMailingRepo.setSecondaryPrompt(id, promptId);
-    } catch (error) {
-      logger.error('Error in setSecondaryPrompt service:', error);
-      throw error;
-    }
-  }
-
-  async toggleSecondaryAgent(id, isActive) {
-    try {
-      return await campaignsMailingRepo.toggleSecondaryAgent(id, isActive);
-    } catch (error) {
-      logger.error('Error in toggleSecondaryAgent service:', error);
-      throw error;
-    }
-  }
-}
-
-module.exports = new CampaignMailingService();
+module.exports = {
+  createCampaign,
+  getCampaigUserId,
+  getCampaignById,
+  setDefaultPhoneNumber,
+  getDefaultPhoneNumber,
+  attachPhoneNumber,
+  detachPhoneNumber,
+  getCampaignSenderNumber,
+  getCampaignByName,
+  setCampaignMessage,
+  addNotificationTelegramId,
+  removeNotificationTelegramId,
+  getNotificationTelegramIds,
+  toggleCampaignActivity,
+  getActiveCampaignForPhoneNumber,
+  listCampaigns,
+  getActiveCampaign,
+  setPlatformPriority,
+  getPlatformPriority,
+  setDefaultPhoneNumber,
+  getCampaignPhoneNumbers,
+};

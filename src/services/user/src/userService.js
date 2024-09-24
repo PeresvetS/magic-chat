@@ -4,12 +4,11 @@ const { userRepo } = require('../../../db');
 const { getLimits } = require('./limitService');
 const logger = require('../../../utils/logger');
 const { getUserSubscriptionInfo } = require('./subscriptionService');
-const { getUserPhoneNumbers } = require('../../phone').phoneNumberService;
-
+const { getUserPhoneNumbers } = require('../../phone/src/phoneNumberService');
 
 async function getUserInfo(telegramId) {
   try {
-    const user = await this.getUserByTgId(telegramId);
+    const user = await userRepo.getUserByTgId(telegramId);
     if (!user) {
       throw new Error(`User with ID ${telegramId} not found`);
     }
@@ -35,6 +34,33 @@ async function getUserInfo(telegramId) {
     throw error;
   }
 }
+
+async function getUserIdByTelegramId(telegramId) {
+  try {
+    const user = await userRepo.getUserByTgId(telegramId);
+    if (!user) {
+      throw new Error(`User not found for Telegram ID: ${telegramId}`);
+    }
+    return user.id;
+  } catch (error) {
+    logger.error('Error getting user ID by Telegram ID:', error);
+    throw error;
+  }
+}
+
+async function getUserIdByCampaignId(campaignId) {
+  try {
+    const user = await userRepo.getUserIdByCampaignId(campaignId);
+    if (!user) {
+      throw new Error(`User not found for campaign ID: ${campaignId}`);
+    }
+    return user;
+  } catch (error) {
+    logger.error('Error getting user by campaign ID:', error);
+    throw error;
+  }
+}
+
 
 async function createUser(
   telegramId,
@@ -115,6 +141,15 @@ async function updateUserBanStatus(telegramId, isBanned) {
   }
 }
 
+async function setUserOpenAIKey(userId, openaiApiKey) {
+  try {
+    return await userRepo.setUserOpenAIKey(userId, openaiApiKey);
+  } catch (error) {
+    logger.error('Error in setUserOpenAIKey service:', error);
+    throw error;
+  }
+}
+
 module.exports = {
   banUser,
   unbanUser,
@@ -122,5 +157,8 @@ module.exports = {
   getUserInfo,
   getAllUsers,
   getUserByTgId,
+  setUserOpenAIKey,
   getUserByIdentifier,
+  getUserIdByTelegramId,
+  getUserIdByCampaignId,
 };

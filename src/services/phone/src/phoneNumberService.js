@@ -1,24 +1,16 @@
 // src/services/phone/phoneNumberService.js
 
 const logger = require('../../../utils/logger');
-const { phoneNumberRepo, userRepo } = require('../../../db');
-
-function validatePhoneNumber(phoneNumber) {
-  const phoneRegex = /^\+[1-9]\d{5,14}$/;
-  if (!phoneRegex.test(phoneNumber)) {
-    logger.warn(`Invalid phone number format: ${phoneNumber}`);
-    throw new Error(
-      'Неверный формат номера телефона. Используйте международный формат, начиная с +',
-    );
-  }
-  logger.info(`Phone number validated successfully: ${phoneNumber}`);
-}
+const { phoneNumberRepo } = require('../../../db');
+const { getUserById } = require('../../../db').userRepo;
+const { validatePhoneNumber } = require('../../../utils/phoneHelpers');
 
 async function addPhoneNumber(
   userId,
   phoneNumber,
   platform,
   isPremium = false,
+  isBanned = false,
 ) {
   try {
     validatePhoneNumber(phoneNumber);
@@ -26,9 +18,13 @@ async function addPhoneNumber(
       `Attempting to add ${platform} number ${phoneNumber} for user ${userId}`,
     );
 
-    const user = await userRepo.getUserById(userId);
-    if (!user) {
-      throw new Error(`User with ID ${userId} not found`);
+    if (userId) {
+      const user = await getUserById(userId);
+      if (!user) {
+        logger.warn(
+          `User with ID ${userId} not found. Proceeding without user association.`,
+        );
+      }
     }
 
     const result = await phoneNumberRepo.addPhoneNumber(
@@ -36,6 +32,7 @@ async function addPhoneNumber(
       phoneNumber,
       platform,
       isPremium,
+      isBanned,
     );
     logger.info(
       `${platform} number ${phoneNumber} added/updated successfully for user with ID ${userId}`,
@@ -75,7 +72,7 @@ async function removePhoneNumber(userId, phoneNumber, platform) {
       throw new Error('Номер телефона не может быть пустым');
     }
 
-    const user = await userRepo.getUserById(userId);
+    const user = await getUserById(userId);
     if (!user) {
       throw new Error(`User with ID ${userId} not found`);
     }
@@ -185,19 +182,22 @@ async function setPhoneAuthenticated(phoneNumber, platform, isAuthenticated) {
     `Setting ${platform} authentication status for phone number ${phoneNumber} to ${isAuthenticated}`,
   );
   try {
-    await phoneNumberRepo.setPhoneAuthenticated(
+    validatePhoneNumber(phoneNumber);
+    const result = await phoneNumberRepo.setPhoneAuthenticated(
       phoneNumber,
       platform,
       isAuthenticated,
     );
     logger.info(`${platform} authentication status updated for ${phoneNumber}`);
+    return result;
   } catch (error) {
     if (error.code === 406 && error.errorMessage === 'AUTH_KEY_DUPLICATED') {
       logger.warn(
         `AUTH_KEY_DUPLICATED for ${phoneNumber}. Attempting to handle gracefully.`,
       );
-      // Здесь можно добавить логику для обработки дублирования ключа
-      // Например, попытаться использовать существующую сессию или очистить старую
+        // Здесь можно добавить логику для обработки дублирования ключа
+        // Например, попытаться использовать существующую сессию или очистить старую
+       
     } else {
       logger.error(
         `Error setting ${platform} authentication status for phone number ${phoneNumber}:`,
@@ -205,6 +205,94 @@ async function setPhoneAuthenticated(phoneNumber, platform, isAuthenticated) {
       );
       throw error;
     }
+  }
+}
+
+async function checkDailyPhoneNumberLimit(phoneNumber, platform) {
+  try {
+    const phoneNumberInfo =
+      await phoneNumberRepo.getPhoneNumberInfo(phoneNumber);
+
+    if (!phoneNumberInfo) {
+      return true; // Если записи нет, считаем что лимит не достигнут
+    }
+
+    switch (platform) {
+      case 'telegram':
+        if (!phoneNumberInfo.telegramAccount) {
+          throw new Error(
+            `No Telegram account found for phone number ${phoneNumber}`,
+          );
+        }
+        return (
+          phoneNumberInfo.telegramAccount.contactsReachedToday <
+          phoneNumberInfo.telegramAccount.dailyLimit
+        );
+      case 'whatsapp':
+        if (!phoneNumberInfo.whatsappAccount) {
+          throw new Error(
+            `No WhatsApp account found for phone number ${phoneNumber}`,
+          );
+        }
+        return (
+          phoneNumberInfo.whatsappAccount.contactsReachedToday <
+          phoneNumberInfo.whatsappAccount.dailyLimit
+        );
+      case 'waba':
+        if (!phoneNumberInfo.WABAAccount) {
+          throw new Error(
+            `No WABA account found for phone number ${phoneNumber}`,
+          );
+        }
+        return (
+          phoneNumberInfo.WABAAccount.contactsReachedToday <
+          phoneNumberInfo.WABAAccount.dailyLimit
+        );
+      default:
+        throw new Error(`Invalid platform: ${platform}`);
+    }
+  } catch (error) {
+    logger.error(`Error checking daily limit for ${platform}:`, error);
+    throw error;
+  }
+}
+
+async function updateMessagePhoneNumberCount(
+  phoneSenderNumber,
+  isNewContact,
+  platform,
+) {
+  try {
+    await phoneNumberRepo.updatePhoneNumberStats(
+      phoneSenderNumber,
+      isNewContact,
+      platform,
+    );
+  } catch (error) {
+    logger.error(
+      `Ошибка обновления счетчика сообщений для ${platform}:`,
+      error,
+    );
+    throw error;
+  }
+}
+
+async function updatePhoneNumberBanStatus(phoneNumber, banStatus, banExpiresAt = null) {
+  try {
+    await phoneNumberRepo.updatePhoneNumberBanStatus(phoneNumber, banStatus, banExpiresAt);
+    logger.info(`Updated ban status for ${phoneNumber}: ${banStatus}, expires: ${banExpiresAt}`);
+  } catch (error) {
+    logger.error('Error updating phone number ban status:', error);
+    throw error;
+  }
+}
+
+async function getActivePlatformPhoneNumbers(userId, platform) {
+  try {
+    return await phoneNumberRepo.getActivePlatformPhoneNumbers(userId, platform);
+  } catch (error) {
+    logger.error(`Error getting active ${platform} phone numbers for user ${userId}:`, error);
+    throw error;
   }
 }
 
@@ -218,4 +306,8 @@ module.exports = {
   getUserPhoneNumbers,
   resetDailyStats,
   setPhoneAuthenticated,
+  checkDailyPhoneNumberLimit,
+  updateMessagePhoneNumberCount,
+  updatePhoneNumberBanStatus,
+  getActivePlatformPhoneNumbers,
 };

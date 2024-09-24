@@ -1,19 +1,20 @@
 // src/bot/user/commands/subscriptionCommands.js
 
-const { subscriptionService, userService } = require('../../../services/user');
+const { getUserSubscriptionInfo } =
+  require('../../../services/user/src/subscriptionService');
+const { getUserByTgId } = require('../../../services/user/src/userService');
 const logger = require('../../../utils/logger');
 
 module.exports = {
   '/check_subscription': async (bot, msg, match) => {
     try {
-      const user = await userService.getUserByTgId(msg.from.id);
+      const user = await getUserByTgId(msg.from.id);
 
       if (!user) {
         throw new Error('Пользователь не найден');
       }
 
-      const subscriptionInfo =
-        await subscriptionService.getUserSubscriptionInfo(user.id);
+      const subscriptionInfo = await getUserSubscriptionInfo(user.id);
 
       if (subscriptionInfo) {
         // Преобразуем BigInt в строку, если это необходимо

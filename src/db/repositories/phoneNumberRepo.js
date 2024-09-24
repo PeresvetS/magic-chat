@@ -122,35 +122,64 @@ async function removePhoneNumber(phoneNumber, platform) {
   try {
     const phoneNumberRecord = await prisma.phoneNumber.findUnique({
       where: { phoneNumber },
-      include: { telegramAccount: true, whatsappAccount: true },
+      include: { telegramAccount: true, whatsappAccount: true, WABAAccount: true },
     });
 
     if (!phoneNumberRecord) {
       throw new Error(`Номер телефона ${phoneNumber} не найден`);
     }
 
-    if (platform === 'telegram' && phoneNumberRecord.telegramAccount) {
-      await prisma.telegramAccount.delete({
-        where: { id: phoneNumberRecord.telegramAccount.id },
-      });
-    } else if (platform === 'whatsapp' && phoneNumberRecord.whatsappAccount) {
-      await prisma.whatsappAccount.delete({
-        where: { id: phoneNumberRecord.whatsappAccount.id },
+    if (platform === 'telegram' || platform === 'all') {
+      if (phoneNumberRecord.telegramAccount) {
+        await prisma.telegramAccount.delete({
+          where: { id: phoneNumberRecord.telegramAccount.id },
+        });
+      }
+      await prisma.telegramSession.deleteMany({
+        where: { phoneNumber },
       });
     }
 
-    // Проверяем, остались ли связанные аккаунты после удаления
-    const updatedPhoneNumberRecord = await prisma.phoneNumber.findUnique({
-      where: { phoneNumber },
-      include: { telegramAccount: true, whatsappAccount: true },
-    });
+    if (platform === 'whatsapp' || platform === 'all') {
+      // if (phoneNumberRecord.whatsappAccount) {
+      //   await prisma.whatsappAccount.delete({
+      //     where: { id: phoneNumberRecord.whatsappAccount.id },
+      //   });
+      // }
+      // await prisma.whatsappSession.deleteMany({
+      //   where: { phoneNumber },
+      // });
+    }
 
-    // Если не осталось связанных аккаунтов, удаляем сам номер телефона
-    if (
-      !updatedPhoneNumberRecord.telegramAccount &&
-      !updatedPhoneNumberRecord.whatsappAccount
-    ) {
+    if (platform === 'waba' || platform === 'all') {
+      // if (phoneNumberRecord.WABAAccount) {
+      //   await prisma.wABAAccount.delete({
+      //     where: { id: phoneNumberRecord.WABAAccount.id },
+      //   });
+      // }
+      // await prisma.wabaSession.deleteMany({
+      //   where: { phoneNumber },
+      // });
+    }
+
+    // Если платформа 'all', удаляем сам номер телефона
+    if (platform === 'all') {
       await prisma.phoneNumber.delete({ where: { phoneNumber } });
+    } else {
+      // Проверяем, остались ли связанные аккаунты после удаления
+      const updatedPhoneNumberRecord = await prisma.phoneNumber.findUnique({
+        where: { phoneNumber },
+        include: { telegramAccount: true, whatsappAccount: true, WABAAccount: true },
+      });
+
+      // Если не осталось связанных аккаунтов, удаляем сам номер телефона
+      if (
+        !updatedPhoneNumberRecord.telegramAccount &&
+        !updatedPhoneNumberRecord.whatsappAccount &&
+        !updatedPhoneNumberRecord.WABAAccount
+      ) {
+        await prisma.phoneNumber.delete({ where: { phoneNumber } });
+      }
     }
 
     logger.info(`Удален ${platform} аккаунт для номера ${phoneNumber}`);
@@ -168,6 +197,7 @@ async function addPhoneNumber(
   phoneNumber,
   platform,
   isPremium = false,
+  isBanned = false,
 ) {
   try {
     const phoneNumberRecord = await prisma.phoneNumber.upsert({
@@ -180,10 +210,11 @@ async function addPhoneNumber(
       case 'telegram':
         await prisma.telegramAccount.upsert({
           where: { phoneNumberId: phoneNumberRecord.id },
-          update: { isPremium },
+          update: { isPremium, isBanned },
           create: {
             phoneNumberId: phoneNumberRecord.id,
             isPremium,
+            isBanned,
             isAuthenticated: false,
           },
         });
@@ -191,11 +222,12 @@ async function addPhoneNumber(
       case 'whatsapp':
         await prisma.whatsappAccount.upsert({
           where: { phoneNumberId: phoneNumberRecord.id },
-          update: {},
+          update: { isBanned },
           create: {
             phoneNumberId: phoneNumberRecord.id,
             isAuthenticated: false,
             accountType: 'regular',
+            isBanned,
           },
         });
         break;
@@ -374,28 +406,33 @@ async function resetDailyStats() {
 
 async function setPhoneAuthenticated(phoneNumber, platform, isAuthenticated) {
   try {
-    const phoneNumberRecord = await prisma.phoneNumber.findUnique({
+    let phoneNumberRecord = await prisma.phoneNumber.findUnique({
       where: { phoneNumber },
       include: { telegramAccount: true, whatsappAccount: true },
     });
 
     if (!phoneNumberRecord) {
-      throw new Error(`Phone number ${phoneNumber} not found`);
+      logger.info(
+        `Phone number ${phoneNumber} not found. Creating new record.`,
+      );
+      phoneNumberRecord = await prisma.phoneNumber.create({
+        data: { phoneNumber },
+      });
     }
 
-    if (platform === 'telegram' && phoneNumberRecord.telegramAccount) {
+    if (platform === 'telegram') {
       await updateTelegramAccountStatus(phoneNumberRecord, isAuthenticated);
       logger.info(
         `Updated Telegram account status for ${phoneNumber}: isAuthenticated=${isAuthenticated}`,
       );
-    } else if (platform === 'whatsapp' && phoneNumberRecord.whatsappAccount) {
+    } else if (platform === 'whatsapp') {
       await updateWhatsAppAccountStatus(phoneNumberRecord, isAuthenticated);
       logger.info(
         `Updated WhatsApp account status for ${phoneNumber}: isAuthenticated=${isAuthenticated}`,
       );
     } else {
       throw new Error(
-        `Platform ${platform} account not found for phone number ${phoneNumber}`,
+        `Unsupported platform ${platform} for phone number ${phoneNumber}`,
       );
     }
 
@@ -461,6 +498,50 @@ async function updateWhatsAppAccountStatus(phoneNumberRecord, isAuthenticated) {
   }
 }
 
+async function updatePhoneNumberBanStatus(phoneNumber, banStatus, banExpiresAt = null) {
+  try {
+    return await prisma.phoneNumber.update({
+      where: { phoneNumber },
+      data: {
+        banStatus,
+        banExpiresAt,
+        updatedAt: new Date(),
+      },
+    });
+  } catch (error) {
+    logger.error('Error updating phone number ban status:', error);
+    throw error;
+  }
+}
+
+async function getActivePlatformPhoneNumbers(userId, platform) {
+  try {
+    const now = new Date();
+    return await prisma.phoneNumber.findMany({
+      where: {
+        userId,
+        OR: [
+          { banStatus: null },
+          { banStatus: { notIn: ['USER_DEACTIVATED', 'USER_BANNED', 'PRIVACY_RESTRICTED'] } },
+          { banExpiresAt: { lt: now } },
+        ],
+        [platform === 'telegram' ? 'telegramAccount' : 'whatsappAccount']: {
+          isAuthenticated: true,
+        },
+      },
+      select: {
+        phoneNumber: true,
+        banStatus: true,
+        banExpiresAt: true,
+      },
+    });
+  } catch (error) {
+    logger.error(`Error getting active ${platform} phone numbers for user ${userId}:`, error);
+    throw error;
+  }
+}
+
+
 module.exports = {
   getPhoneNumber,
   setPhoneNumber,
@@ -477,4 +558,6 @@ module.exports = {
   resetDailyStats,
   setPhoneAuthenticated,
   removePhoneNumber,
+  updatePhoneNumberBanStatus,
+  getActivePlatformPhoneNumbers,
 };
