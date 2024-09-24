@@ -17,7 +17,7 @@ const WABABotStateManager = require('../../waba/managers/botStateManager');
 const RabbitMQQueueService = require('../../queue/rabbitMQQueueService');
 
 async function sendMessage(
-  leadId,
+  senderId,
   message,
   senderPhoneNumber,
   platform,
@@ -25,7 +25,7 @@ async function sendMessage(
 ) {
   try {
     logger.info(
-      `Starting sendMessage for ${platform} user ${leadId} from ${senderPhoneNumber}`,
+      `Starting sendMessage for ${platform} user ${senderId} from ${senderPhoneNumber}`,
     );
 
     let result;
@@ -34,19 +34,19 @@ async function sendMessage(
         const whatsappClient =
           await WhatsAppSessionService.createOrGetSession(senderPhoneNumber);
         result = await retryOperation(() =>
-          whatsappClient.sendMessage(leadId, message),
+          whatsappClient.sendMessage(senderId, message),
         );
         break;
       case 'waba':
         result = await retryOperation(() =>
-          WABASessionService.sendMessage(senderPhoneNumber, leadId, message),
+          WABASessionService.sendMessage(senderPhoneNumber, senderId, message),
         );
         break;
       case 'telegram':
       default:
         const { peer, session } = await BotStateManager.getCorrectPeer(
           senderPhoneNumber,
-          leadId,
+          senderId,
         );
         result = await retryOperation(() =>
           session.invoke(
@@ -62,53 +62,115 @@ async function sendMessage(
         break;
     }
 
-    await updatePhoneNumberStats(senderPhoneNumber, platform);
+    await updatePhoneNumberStats(phoneNumber, platform);
 
     return result;
   } catch (error) {
     return handleSendMessageError(
       error,
-      leadId,
+      senderId,
       message,
-      senderPhoneNumber,
+      phoneNumber,
       platform,
     );
   }
 }
 
-async function sendResponse(leadId, response, senderPhoneNumber, platform, campaign, messageId) {
+async function sendResponse(
+  userId,
+  senderId,
+  response,
+  phoneNumber,
+  platform = 'telegram',
+) {
   try {
     logger.info(
-      `Starting sendResponse for ${platform} user ${leadId} from ${senderPhoneNumber}`,
+      `Starting sendResponse for ${platform} user ${senderId} from ${phoneNumber}`,
     );
     if (!response) {
-      logger.warn(`Attempted to send empty ${platform} response to ${leadId}`);
+      logger.warn(`Attempted to send empty ${platform} response to ${senderId}`);
       return;
     }
+    const BotStateManager = platform === 'telegram' ? TelegramBotStateManager :
+    platform === 'whatsapp' ? WhatsAppBotStateManager :
+    platform === 'waba' ? WABABotStateManager : null; 
 
-    await validatePhoneNumber(senderPhoneNumber);
-
-    // Разбиваем ответ на предложения и отправляем в очередь
+    await validatePhoneNumber(phoneNumber);
     const sentences = response.split(/\n+/);
-    
-    for (const sentence of sentences) {
-      await RabbitMQQueueService.enqueue('messaging', {
-        campaignId: campaign.id,
-        message: sentence,
-        leadId: Number(leadId),
-        platform,
-        senderPhoneNumber,
-      });
-    }
-    
-    // Обновляем статус сообщения
-    await messageService.updateMessage(messageId, {
-      status: 'queued_for_sending',
+
+    const sendPromise = new Promise(async (resolve, reject) => {
+      const startTime = Date.now();
+
+      for (const sentence of sentences) {
+        await BotStateManager.setTyping(phoneNumber, senderId);
+
+        if (BotStateManager.hasNewMessageSince(senderId, startTime)) {
+          logger.info(`Response interrupted for user ${userId}`);
+          resolve();
+          return;
+        }
+
+        const result = await sendMessage(
+          senderId,
+          sentence,
+          phoneNumber,
+          platform,
+          BotStateManager,
+        );
+        logger.info(`Message sent to ${senderId},   : ${JSON.stringify(result)}`);
+        BotStateManager.resetOfflineTimer(phoneNumber, senderId);
+
+        await new Promise((resolve) =>
+          setTimeout(resolve, Math.random() * 2000 + 1000),
+        );
+      }
+
+      await BotStateManager.setOnline(phoneNumber, senderId);
+      resolve();
     });
+
+    return sendPromise;
   } catch (error) {
-    logger.error(`Error sending ${platform} response to ${leadId}: ${error}`);
+    logger.error(`Error sending ${platform} response to ${senderId}: ${error}`);
   }
 }
+
+
+
+//  async function sendResponse(leadId, response, senderPhoneNumber, platform, campaign, messageId) {
+//   try {
+//     logger.info(
+//       `Starting sendResponse for ${platform} user ${leadId} from ${senderPhoneNumber}`,
+//     );
+//     if (!response) {
+//       logger.warn(`Attempted to send empty ${platform} response to ${leadId}`);
+//       return;
+//     }
+
+//     await validatePhoneNumber(senderPhoneNumber);
+
+//     // Разбиваем ответ на предложения и отправляем в очередь
+//     const sentences = response.split(/\n+/);
+    
+//     for (const sentence of sentences) {
+//       await RabbitMQQueueService.enqueue('messaging', {
+//         campaignId: campaign.id,
+//         message: sentence,
+//         leadId: Number(leadId),
+//         platform,
+//         senderPhoneNumber,
+//       });
+//     }
+    
+//     // Обновляем статус сообщения
+//     await messageService.updateMessage(messageId, {
+//       status: 'queued_for_sending',
+//     });
+
+//   } catch (error) {
+//     logger.error(`Error sending ${platform} response to ${leadId}: ${error}`);
+//   }
+// }
 
 async function validatePhoneNumber(phoneNumber) {
   const phoneInfo = await getPhoneNumberInfo(phoneNumber);
@@ -121,13 +183,13 @@ async function validatePhoneNumber(phoneNumber) {
 
 async function handleSendMessageError(
   error,
-  leadId,
+  senderId,
   message,
   senderPhoneNumber,
   platform,
 ) {
   logger.error(
-    `Error sending ${platform} message from ${senderPhoneNumber} to ${leadId}: ${error.message}`,
+    `Error sending ${platform} message from ${senderPhoneNumber} to ${senderId}: ${error.message}`,
   );
 
   switch (platform) {
@@ -138,7 +200,7 @@ async function handleSendMessageError(
           `FloodWaitError: Waiting for ${seconds} seconds before retrying`,
         );
         await new Promise((resolve) => setTimeout(resolve, seconds * 1000));
-        return sendMessage(leadId, message, senderPhoneNumber, platform);
+        return sendMessage(senderId, message, phoneNumber, platform);
       }
 
       if (error.message.includes('AUTH_KEY_UNREGISTERED')) {
@@ -149,7 +211,7 @@ async function handleSendMessageError(
         logger.info(
           `Telegram session reauthorized for ${senderPhoneNumber}, retrying message send`,
         );
-        return sendMessage(leadId, message, senderPhoneNumber, platform);
+        return sendMessage(senderId, message, senderPhoneNumber, platform);
       }
       break;
 
@@ -162,7 +224,7 @@ async function handleSendMessageError(
         logger.info(
           `WhatsApp session reauthorized for ${senderPhoneNumber}, retrying message send`,
         );
-        return sendMessage(leadId, message, senderPhoneNumber, platform);
+        return sendMessage(senderId, message, senderPhoneNumber, platform);
       }
       break;
 
@@ -175,7 +237,7 @@ async function handleSendMessageError(
         logger.info(
           `WABA session reauthorized for ${senderPhoneNumber}, retrying message send`,
         );
-        return sendMessage(leadId, message, senderPhoneNumber, platform);
+        return sendMessage(senderId, message, senderPhoneNumber, platform);
       }
       break;
   }
@@ -183,64 +245,71 @@ async function handleSendMessageError(
   throw error;
 }
 
-/**
- * Обновленная функция для обработки одного сообщения
- * @param {object} queueItem - Элемент очереди
- */
-async function sendQueuedMessages(queueItem) {
-  try {
-    const { leadId, message, senderPhoneNumber, platform, campaignId } = queueItem;
-
-    logger.info(
-      `Processing queued message for ${platform} user ${leadId} from ${senderPhoneNumber}`,
-    );
-
-    const BotStateManager = platform === 'telegram' ? TelegramBotStateManager :
-      platform === 'whatsapp' ? WhatsAppBotStateManager :
-      platform === 'waba' ? WABABotStateManager : null;
-
-    const startTime = Date.now();
-
-    await BotStateManager.setTyping(senderPhoneNumber, leadId);
-
-    if (BotStateManager.hasNewMessageSince(leadId, startTime)) {
-      logger.info(`Response interrupted for user ${leadId}`);
-      return;
+async function sendQueuedMessages() {
+  while (true) {
+    const queueItem = await RabbitMQQueueService.dequeue('messaging');
+    if (!queueItem) {
+      // Если очередь пуста, ждем немного и проверяем снова
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      continue;
     }
 
-    const result = await sendMessage(
-      leadId,
-      message,
-      senderPhoneNumber,
-      platform,
-      BotStateManager,
-    );
-    logger.info(`Message sent to ${leadId}, result: ${JSON.stringify(result)}`);
-    BotStateManager.resetOfflineTimer(senderPhoneNumber, leadId);
+    logger.info(`Dequeued item from messaging queue: ${safeStringify(queueItem)}`);
 
-    await RabbitMQQueueService.markAsCompleted(queueItem, result);
+    try {
+      const { leadId, message, senderPhoneNumber, platform, campaignId } = queueItem;
 
-    // Обновляем статус сообщения в БД
-    const dbMessage = await messageService.findMessageByCampaignAndRecipient(
-      campaignId,
-      leadId
-    );
-    if (dbMessage) {
-      await messageService.updateMessage(dbMessage.id, {
-        status: 'sent',
-      });
+      logger.info(
+        `Processing queued message for ${platform} user ${leadId} from ${senderPhoneNumber}`,
+      );
+
+      const BotStateManager = platform === 'telegram' ? TelegramBotStateManager :
+        platform === 'whatsapp' ? WhatsAppBotStateManager :
+        platform === 'waba' ? WABABotStateManager : null;
+
+      const startTime = Date.now();
+
+      await BotStateManager.setTyping(senderPhoneNumber, leadId);
+
+      if (BotStateManager.hasNewMessageSince(leadId, startTime)) {
+        logger.info(`Response interrupted for user ${leadId}`);
+        continue;
+      }
+
+      const result = await sendMessage(
+        leadId,
+        message,
+        senderPhoneNumber,
+        platform,
+        BotStateManager,
+      );
+      logger.info(`Message sent to ${leadId}, result: ${JSON.stringify(result)}`);
+      BotStateManager.resetOfflineTimer(senderPhoneNumber, leadId);
+
+      await RabbitMQQueueService.markAsCompleted(queueItem, result);
+
+      // Обновляем статус сообщения в БД
+      const dbMessage = await messageService.findMessageByCampaignAndRecipient(
+        campaignId,
+        leadId
+      );
+      if (dbMessage) {
+        await messageService.updateMessage(dbMessage.id, {
+          status: 'sent',
+        });
+      }
+
+      await BotStateManager.setOnline(senderPhoneNumber, leadId);
+
+      // Добавляем случайную задержку между сообщениями
+      await new Promise((resolve) =>
+        setTimeout(resolve, Math.random() * 2000 + 1000),
+      );
+
+    } catch (error) {
+      logger.error('Error sending queued message:', error);
+      await RabbitMQQueueService.markAsFailed(queueItem, error.message);
     }
-
-    await BotStateManager.setOnline(senderPhoneNumber, leadId);
-
-    // Добавляем случайную задержку между сообщениями
-    await new Promise((resolve) =>
-      setTimeout(resolve, Math.random() * 2000 + 1000),
-    );
-
-  } catch (error) {
-    logger.error('Error sending queued message:', error);
-    throw error; // Позволяет воркеру обработать ошибку и отклонить сообщение
   }
 }
 
