@@ -109,7 +109,7 @@ async function processIncomingMessage(
     );
     logger.info(`Lead: ${JSON.stringify(lead)}`);
 
-    const response = await processMessage(
+    const { response, messageId } = await processMessage(
       lead,
       senderId,
       combinedMessage,
@@ -120,7 +120,7 @@ async function processIncomingMessage(
 
     if (response) {
       logger.info(`Sending response to user ${senderId}: ${response}`);
-      await sendResponse(lead.id, response, phoneNumber, platform, activeCampaign); // добавить сохранение инфо, что ответ отправлен
+      await sendResponse(lead.id, response, phoneNumber, platform, activeCampaign, messageId); // добавить сохранение инфо, что ответ отправлен
     } else {
       logger.warn(
         `No response generated for ${platform} message from ${senderId}`,
@@ -135,7 +135,7 @@ async function processIncomingMessage(
       `Error processing incoming ${platform} message for ${phoneNumber}:`,
       error,
     );
-    await sendResponse(senderId, 'Извините, произошла ошибка при обработке вашего сообщения. Пожалуйста, попробуйте еще раз позже.', phoneNumber, platform);
+    await sendResponse(senderId, 'Извините, произошла ошибка при обработке вашего сообщения. Пожалуйста, попробуйте еще раз позже.', phoneNumber, platform, activeCampaign, messageId);
   }
 }
 

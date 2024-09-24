@@ -76,7 +76,7 @@ async function sendMessage(
   }
 }
 
-async function sendResponse(leadId, response, senderPhoneNumber, platform, campaign) {
+async function sendResponse(leadId, response, senderPhoneNumber, platform, campaign, messageId) {
   try {
     logger.info(
       `Starting sendResponse for ${platform} user ${leadId} from ${senderPhoneNumber}`,
@@ -105,7 +105,7 @@ async function sendResponse(leadId, response, senderPhoneNumber, platform, campa
     }
     
     // Обновляем статус сообщения
-    await messageService.updateMessage(incomingMessage.id, {
+    await messageService.updateMessage(messageId, {
       status: 'queued_for_sending',
     });
 

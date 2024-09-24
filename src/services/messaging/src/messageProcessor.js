@@ -41,7 +41,7 @@ async function processMessage(lead, senderId, message, phoneNumber, campaign) {
     await saveMessageStats(senderId, phoneNumber, tokenCount);
     // await saveDialogToFile(senderId, message, response);
 
-    return response;
+    return { response, messageId: incomingMessage.id };
   } catch (error) {
     logger.error(`Error in processMessage for ${senderId}:`, error);
     throw error;
