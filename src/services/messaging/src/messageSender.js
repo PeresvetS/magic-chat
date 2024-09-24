@@ -228,6 +228,8 @@ async function sendQueuedMessages() {
       continue;
     }
 
+    logger.info(`Dequeued item from messaging queue: ${safeStringify(queueItem)}`);
+
     try {
       const { leadId, message, senderPhoneNumber, platform, campaignId } = queueItem;
 

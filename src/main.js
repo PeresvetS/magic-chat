@@ -121,7 +121,9 @@ async function startMessageQueueWorker() {
   const initialDelay = 1000; // 1 second
 
   const startWorker = () => {
-    const worker = new Worker(path.resolve(__dirname, 'workers/messageQueueWorker.js'));
+    const workerPath = path.resolve(__dirname, 'workers/messageQueueWorker.js');
+    logger.info(`Starting worker from path: ${workerPath}`);
+    const worker = new Worker(path.resolve(__dirname, workerPath));
 
     worker.on('error', (error) => {
       console.error('Worker error:', error);

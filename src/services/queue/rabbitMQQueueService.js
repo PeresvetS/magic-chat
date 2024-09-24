@@ -47,6 +47,7 @@ class RabbitMQQueueService {
   }
 
   async enqueue(queueName, data) {
+    logger.info(`Enqueuing item to ${queueName} queue`);
     try {
       if (!this.channel) {
         await this.connect();
@@ -59,7 +60,7 @@ class RabbitMQQueueService {
         status: 'pending',
       });
 
-      await this.channel.sendToQueue(
+      this.channel.sendToQueue(
         this.queues[queueName],
         Buffer.from(queueItem.id.toString()),
         { persistent: true },
@@ -76,6 +77,7 @@ class RabbitMQQueueService {
   }
 
   async dequeue(queueName) {
+    logger.info(`Dequeuing item from ${queueName} queue`);
     try {
       if (!this.channel) {
         await this.connect();
@@ -86,7 +88,6 @@ class RabbitMQQueueService {
         return null;
       }
 
-      // ... (остальной код остается без изменений)
     } catch (error) {
       logger.error(`Ошибка извлечения элемента из очереди ${queueName}:`, error);
       throw error;
