@@ -82,6 +82,7 @@ async function sendResponse(
   response,
   phoneNumber,
   platform = 'telegram',
+  messageId = null,
 ) {
   try {
     logger.info(

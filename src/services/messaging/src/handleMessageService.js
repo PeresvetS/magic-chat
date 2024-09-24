@@ -135,7 +135,6 @@ async function processIncomingMessage(
       `Error processing incoming ${platform} message for ${phoneNumber}:`,
       error,
     );
-    await sendResponse(null, null, 'Извините, произошла ошибка при обработке вашего сообщения. Пожалуйста, попробуйте еще раз позже.', phoneNumber, platform, null, null);
   }
 }
 
@@ -163,8 +162,11 @@ async function extractMessageInfo(event, platform) {
 
   const { message } = event;
 
+  if (message.peerId.channelId) {
+    return {};
+  }
 
-  let chatId = message.peerId ? message.peerId.userId.toString() : null;
+  let chatId = message.peerId.userId ? message.peerId.userId.toString() : null;
 
   let messageType = 'text';
   let messageText = message.text || '';

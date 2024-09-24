@@ -189,7 +189,7 @@ class EnhancedMemory {
     });
 
     const summarizePrompt = ChatPromptTemplate.fromTemplate(
-      'Summarize the following conversation history in a concise manner, capturing the main points and context. Keep your summary under 2000 tokens:\n\n{history}'
+      'Summarize the following conversation history in a concise manner, capturing the main points and context. Use language of the last message. Keep your summary under 2000 tokens:\n\n{history}'
     );
 
     const chain = summarizePrompt.pipe(llm).pipe(new StringOutputParser());
