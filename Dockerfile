@@ -4,7 +4,7 @@ FROM node:20-alpine
 WORKDIR /app
 
 # Копируем package.json и yarn.lock (если есть)
-COPY package.json package.json
+COPY package.json ./
 
 # Устанавливаем зависимости
 RUN yarn install
@@ -19,6 +19,6 @@ EXPOSE 3000
 RUN npx prisma generate
 
 # Запускаем приложение
-CMD ["sh", "-c", "npx prisma migrate deploy && node ./index.js"]
+CMD ["npm", "start"]
 # # Применяем Prisma миграции
 # CMD ["npx", "prisma", "migrate", "deploy"]

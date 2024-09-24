@@ -365,15 +365,6 @@ model Message {
   dialog            Dialog   @relation(fields: [dialogId], references: [id])
   dialogId          Int
   userRequest       String
-  assistantResponse String
-  createdAt         DateTime @default(now()) // добавить статус NEW / GENERATED / DELIVERING / SENT / ERROR
-}
-
-model Message {
-  id                Int      @id @default(autoincrement())
-  dialog            Dialog   @relation(fields: [dialogId], references: [id])
-  dialogId          Int
-  userRequest       String
   assistantResponse String?
   status            String
   createdAt         DateTime @default(now())
