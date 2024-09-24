@@ -122,7 +122,7 @@ async function startMessageQueueWorker() {
 
   const startWorker = () => {
     const workerPath = path.resolve(__dirname, 'workers/messageQueueWorker.js');
-    logger.info(`Starting worker from path: ${workerPath}`);
+    lo
     const worker = new Worker(path.resolve(__dirname, workerPath));
 
     worker.on('error', (error) => {
@@ -309,7 +309,7 @@ async function main() {
     // await processUnfinishedTasks();
 
     // Запуск воркера очереди сообщений
-    await startMessageQueueWorker();
+    // await startMessageQueueWorker();
   } catch (error) {
     logger.error('Error in main function:', error);
     throw error;

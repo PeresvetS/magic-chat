@@ -15,7 +15,7 @@ async function processMessage(lead, senderId, message, phoneNumber, campaign) {
     // Сохраняем входящее сообщение в БД
     logger.info(`Saving message for lead ${lead.id} , userId ${campaign.userId}`);
 
-    const incomingMessage = await messageService.saveMessage(lead.id, campaign.userId, message, '', 'new');
+   // const incomingMessage = await messageService.saveMessage(lead.id, campaign.userId, message, '', 'new');
 
     logger.info(`Processing message for phone number ${phoneNumber}: ${message}`);
 
@@ -31,9 +31,9 @@ async function processMessage(lead, senderId, message, phoneNumber, campaign) {
     );
 
     // Обновляем сообщение в БД
-    await messageService.updateMessage(incomingMessage.id, {
-      status: 'response_generated',
-    });
+    // await messageService.updateMessage(incomingMessage.id, {
+    //   status: 'response_generated',
+    // });
 
     logger.info(`Response generated for ${senderId}: ${response}`);
     logger.debug(`Token count for ${senderId}: ${tokenCount}`);

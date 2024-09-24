@@ -1,5 +1,6 @@
 // src/services/llm/promptService.js
 
+const { log } = require('winston');
 const logger = require('../../../utils/logger');
 const { leadProfileService } = require('../../leads');
 const knowledgeBaseServiceFactory = require('../knowledgeBase/knowledgeBaseServiceFactory');
@@ -34,7 +35,7 @@ async function generateUserPrompt(lead, campaign, userMessage, memory) {
 
     // Добавляем недавнюю историю разговоров
     if (history.length > 0) {
-      prompt += `Recent conversation:\n${history.map(m => `${m._getType()}: ${m.content}`).join('\n')}\n\n`;
+      prompt += `Recent conversation: ${history.map(m => `${m._getType()}: ${m.content}`).join(' ')}\n\n`;
     }
 
     // Добавляем релевантную информацию из векторного хранилища
@@ -50,21 +51,23 @@ async function generateUserPrompt(lead, campaign, userMessage, memory) {
     // Добавляем текущее время
     prompt += `Current time: ${time}\n\n`;
 
+    // Добавляем текущее сообщение пользователя
+    prompt += `Current Human's question: ${userMessage}\n\n:`;
+
     // Добавляем информацию из базы знаний, если она есть
     if (campaign.knowledgeBaseId) {
+      logger.info(`Adding knowledge base for campaign ${campaign.id}`);
       const knowledgeBaseService = knowledgeBaseServiceFactory.getInstanceForCampaign(campaign.id);
       const knowledgeBase = await knowledgeBaseService.getKnowledgeBaseByCampaignId();
       if (knowledgeBase) {
+        logger.info(`Getting relevant knowledge for campaign ${campaign.id}`);
         const relevantKnowledge = await knowledgeBaseService.getRelevantKnowledge(knowledgeBase.id, userMessage);
         if (relevantKnowledge) {
           prompt += `\n\nRelevant knowledge:\n${relevantKnowledge}\n`;
         }
       }
 
-          // Добавляем текущее сообщение пользователя
-    prompt += `Human's question: ${userMessage}\nAI:`;
-
-    }
+    } 
 
     return prompt;
   } catch (error) {

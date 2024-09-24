@@ -173,8 +173,6 @@ class EnhancedMemory {
       if (countTokens(summary) > 2000) {
         summary = await this.truncateSummary(summary, 2000);
       }
-
-      logger.info(`Loaded memory variables for lead: ${this.leadId}`);
       return { history, summary, vectorHistory };
     } catch (error) {
       logger.error(`Error loading memory variables: ${error.message}`);
