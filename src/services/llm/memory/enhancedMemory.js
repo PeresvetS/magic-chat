@@ -67,9 +67,10 @@ class EnhancedMemory {
       // Save to database
       await messageService.saveMessage(
         this.leadId, 
+        this.userId,
         input[this.inputKey], 
         output[this.outputKey],
-        this.userId
+        'new'
       );
 
       if (this.vectorStore) {

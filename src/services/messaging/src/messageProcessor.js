@@ -3,25 +3,21 @@
 const logger = require('../../../utils/logger');
 const llmService = require('../../llm/llmService');
 const { leadService } = require('../../leads/src/leadService');
+const messageService= require('../../dialog/messageService');
 const { saveMessageStats } = require('../../stats/statsService');
 const { campaignsMailingService } = require('../../campaign');
 const {
   getPendingConversationStates,
 } = require('../../conversation/conversationState');
-const { messageRepo } = require('../../../db');
-const { log } = require('winston');
 
 async function processMessage(lead, senderId, message, phoneNumber, campaign) {
   try {
     // Сохраняем входящее сообщение в БД
-    logger.info(`Saving message for lead ${lead.dialogId}`);
-    const incomingMessage = await messageRepo.saveMessage(lead.dialogId, message, {
-      status: 'new',
-    });
+    logger.info(`Saving message for lead ${lead.id} , userId ${campaign.userId}`);
+
+    const incomingMessage = await messageService.saveMessage(lead.id, campaign.userId, message, '', 'new');
 
     logger.info(`Processing message for phone number ${phoneNumber}: ${message}`);
-    logger.debug(`Lead info: ${JSON.stringify(lead)}`);
-    logger.debug(`Campaign info: ${JSON.stringify(campaign)}`);
 
     if (!campaign.prompt) {
       logger.warn(`No prompt provided for processing message from ${senderId}`);
@@ -35,8 +31,7 @@ async function processMessage(lead, senderId, message, phoneNumber, campaign) {
     );
 
     // Обновляем сообщение в БД
-    await messageRepo.updateMessage(incomingMessage.id, {
-      assistantResponse: response,
+    await messageService.updateMessage(incomingMessage.id, {
       status: 'response_generated',
     });
 

@@ -199,10 +199,10 @@ class AgentChain {
           : JSON.stringify(finalResponse);
 
       // Сохраняем контекст
-      await this.memory.saveContext(
-        { input: concatenatedMessage },
-        { output: responseString },
-      );
+      // await this.memory.saveContext(
+      //   { input: concatenatedMessage },
+      //   { output: responseString },
+      // );
 
       this.updateTokenCount(concatenatedMessage, responseString);
 

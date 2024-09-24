@@ -10,11 +10,11 @@ const { WhatsAppSessionService } = require('../../whatsapp');
 const { getPhoneNumberInfo, updatePhoneNumberStats } =
   require('../../phone/src/phoneNumberService');
 const { retryOperation } = require('../../../utils/messageUtils');
+const messageService = require('../../dialog/messageService');
 const TelegramBotStateManager = require('../../telegram/managers/botStateManager');
 const WhatsAppBotStateManager = require('../../whatsapp/managers/botStateManager');
 const WABABotStateManager = require('../../waba/managers/botStateManager');
 const RabbitMQQueueService = require('../../queue/rabbitMQQueueService');
-const { messageRepo } = require('../../../db');
 
 async function sendMessage(
   leadId,
@@ -105,7 +105,7 @@ async function sendResponse(leadId, response, senderPhoneNumber, platform, campa
     }
     
     // Обновляем статус сообщения
-    await messageRepo.updateMessage(incomingMessage.id, {
+    await messageService.updateMessage(incomingMessage.id, {
       status: 'queued_for_sending',
     });
 
@@ -261,12 +261,12 @@ async function sendQueuedMessages() {
       await RabbitMQQueueService.markAsCompleted(queueItem, result);
 
       // Обновляем статус сообщения в БД
-      const dbMessage = await messageRepo.findMessageByCampaignAndRecipient(
+      const dbMessage = await messageService.findMessageByCampaignAndRecipient(
         campaignId,
         leadId
       );
       if (dbMessage) {
-        await messageRepo.updateMessage(dbMessage.id, {
+        await messageService.updateMessage(dbMessage.id, {
           status: 'sent',
         });
       }

@@ -3,9 +3,9 @@
 const { messageRepo } = require('../../db');
 const logger = require('../../utils/logger');
 
-async function saveMessage(dialogId, userRequest, data) {
+async function saveMessage(leadId, userId, userRequest, assistantResponse = '', status) {
   try {
-    return await messageRepo.saveMessage(dialogId, userRequest, data);
+    return await messageRepo.saveMessage(leadId, userId, userRequest, assistantResponse, status);
   } catch (error) {
     logger.error(`Error in messageService.saveMessage: ${error.message}`);
     throw error;
@@ -30,8 +30,28 @@ async function getAllMessages(leadId) {
   }
 }
 
+async function updateMessage(messageId, data) {
+  try {
+    return await messageRepo.updateMessage(messageId, data);
+  } catch (error) {
+    logger.error(`Error in messageService.updateMessage: ${error.message}`);
+    throw error;
+  }
+}
+
+async function findMessageByCampaignAndRecipient(campaignId, leadId) {
+  try {
+    return await messageRepo.findMessageByCampaignAndRecipient(campaignId, leadId);
+  } catch (error) {
+    logger.error(`Error in messageService.findMessageByCampaignAndRecipient: ${error.message}`);
+    throw error;
+  }
+}
+
 module.exports = {
   saveMessage,
   getRecentMessages,
   getAllMessages,
+  updateMessage,
+  findMessageByCampaignAndRecipient,
 };
