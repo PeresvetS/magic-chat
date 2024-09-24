@@ -120,6 +120,7 @@ class RabbitMQQueueService {
         await this.connect();
       }
 
+
       await this.channel.consume(this.queues[queueName], async (message) => {
         if (message !== null) {
           const messageId = message.content.toString();
@@ -133,6 +134,8 @@ class RabbitMQQueueService {
 
           // Передаём queueItem и сообщение в коллбэк для обработки
           await onMessageCallback(queueItem, message);
+          queueItem.ackFunction = () => this.channel.ack(message);
+          queueItem.nackFunction = () => this.channel.nack(message, false, false);
         }
       }, { noAck: false });
 
@@ -153,9 +156,14 @@ class RabbitMQQueueService {
       if (updatedItem.status !== 'completed') {
         logger.warn(`Failed to mark queue item ${queueItem.id} as completed`);
       }
+      if (queueItem.ackFunction && typeof queueItem.ackFunction === 'function') {
+        queueItem.ackFunction(); // Acknowledge the message
+      } else {
+        logger.warn('No ackFunction available for queue item:', queueItem);
+      }
       logger.info(`Queue item ${queueItem.id} marked as completed`);
     } catch (error) {
-      logger.error('Ошибка при подтверждении сообщения:', error);
+      logger.error('Error acknowledging message:', error);
       throw error;
     }
   }
@@ -166,30 +174,35 @@ class RabbitMQQueueService {
         logger.error('Invalid queue item or missing id:', queueItem);
         return;
       }
-
-      const updatedItem = await rabbitMQQueueRepo.updateQueueItem(
-        queueItem.id,
-        {
-          status: 'failed',
-          errorMessage,
-          retryCount: (queueItem.retryCount || 0) + 1,
-          updatedAt: new Date(),
-        },
-      );
-
+  
+      const updatedItem = await rabbitMQQueueRepo.updateQueueItem(queueItem.id, {
+        status: 'failed',
+        errorMessage,
+        retryCount: (queueItem.retryCount || 0) + 1,
+        updatedAt: new Date(),
+      });
+  
       if (updatedItem.retryCount >= 5) {
         logger.warn(
           `Queue item ${queueItem.id} has reached maximum retry attempts. Removing from queue.`,
         );
-        queueItem.ackFunction(); // Удаляем из очереди
+        if (queueItem.ackFunction && typeof queueItem.ackFunction === 'function') {
+          queueItem.ackFunction(); // Acknowledge to remove from queue
+        } else {
+          logger.warn('No ackFunction available for queue item:', queueItem);
+        }
       } else {
-        queueItem.nackFunction(); // Возвращаем в очередь для повторной попытки
+        if (queueItem.nackFunction && typeof queueItem.nackFunction === 'function') {
+          queueItem.nackFunction(); // Return to queue for retry
+        } else {
+          logger.warn('No nackFunction available for queue item:', queueItem);
+        }
         logger.info(
           `Message marked as failed and returned to queue. Retry attempt: ${updatedItem.retryCount}`,
         );
       }
     } catch (error) {
-      logger.error('Ошибка при обработке неудачного сообщения:', error);
+      logger.error('Error handling failed message:', error);
     }
   }
 
