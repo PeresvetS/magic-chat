@@ -55,19 +55,20 @@ async function generateUserPrompt(lead, campaign, userMessage, memory) {
     prompt += `Current Human's question: ${userMessage}\n\n:`;
 
     // Добавляем информацию из базы знаний, если она есть
-    if (campaign.knowledgeBaseId) {
-      logger.info(`Adding knowledge base for campaign ${campaign.id}`);
-      const knowledgeBaseService = knowledgeBaseServiceFactory.getInstanceForCampaign(campaign.id);
-      const knowledgeBase = await knowledgeBaseService.getKnowledgeBaseByCampaignId();
-      if (knowledgeBase) {
-        logger.info(`Getting relevant knowledge for campaign ${campaign.id}`);
-        const relevantKnowledge = await knowledgeBaseService.getRelevantKnowledge(knowledgeBase.id, userMessage);
-        if (relevantKnowledge) {
-          prompt += `\n\nRelevant knowledge:\n${relevantKnowledge}\n`;
-        }
+    const knowledgeBaseService = knowledgeBaseServiceFactory.getInstanceForCampaign(campaign.id);
+    const knowledgeBase = await knowledgeBaseService.getKnowledgeBaseByCampaignId();
+    if (knowledgeBase) {
+      logger.info(`Getting relevant knowledge for campaign ${campaign.id}`);
+      const relevantKnowledge = await knowledgeBaseService.getRelevantKnowledge(campaign.id, userMessage);
+      if (relevantKnowledge && relevantKnowledge.length > 0) {
+        
+        const formattedKnowledge = relevantKnowledge.map(k => {
+          logger.info(`Knowledge: ${k.pageContent}`);
+          return `\n\n${k.pageContent}`;
+        }).join('\n');
+        prompt += `\n\nRelevant knowledge:\n${formattedKnowledge}\n`;
       }
-
-    } 
+    }
 
     return prompt;
   } catch (error) {

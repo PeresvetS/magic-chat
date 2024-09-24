@@ -66,19 +66,21 @@ class KnowledgeBaseService {
     }
   }
 
-  async getRelevantKnowledge(campaignId, query, maxBlocks) {
+  async getRelevantKnowledge(campaignId, query, maxBlocks = 5) {
     if (!this.campaignId) {
       throw new Error('Campaign ID is not set');
     }
 
     try {
-      const knowledgeBases =
-        await knowledgeBaseRepo.findByCampaignId(campaignId);
-      const pineconeIndex = this.pinecone.Index(config.PINECONE_INDEX);
+      logger.info(`Fetching knowledge bases for campaign: ${campaignId}`);
+      const knowledgeBases = await knowledgeBaseRepo.findByCampaignId(campaignId);
+      logger.info(`Found ${knowledgeBases.length} knowledge bases for campaign: ${campaignId}`);
 
+      const pineconeIndex = this.pinecone.Index(config.PINECONE_INDEX);
       let allResults = [];
 
       for (const kb of knowledgeBases) {
+        logger.info(`Searching in knowledge base: ${kb.id} with pineconeId: ${kb.pineconeId}`);
         const vectorStore = await PineconeStore.fromExistingIndex(
           this.embeddings,
           {
@@ -88,6 +90,7 @@ class KnowledgeBaseService {
         );
 
         const results = await vectorStore.similaritySearch(query, maxBlocks);
+        logger.info(`Found ${results.length} results in knowledge base: ${kb.id}`);
         allResults = allResults.concat(results);
       }
 
