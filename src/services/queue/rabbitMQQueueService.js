@@ -11,8 +11,8 @@ class RabbitMQQueueService {
     this.connection = null;
     this.channel = null;
     this.queues = {
-      incoming: rabbitMQ.incomingQueue,
-      outgoing: rabbitMQ.outgoingQueue
+      mailing: rabbitMQ.mailingQueue || 'mailing',
+      messaging: rabbitMQ.messagingQueue || 'messaging',
     };
   }
 
@@ -23,8 +23,8 @@ class RabbitMQQueueService {
         heartbeat: rabbitMQ.heartbeat,
       });
       this.channel = await this.connection.createChannel();
-      await this.channel.assertQueue(this.queues.incoming, { durable: true });
-      await this.channel.assertQueue(this.queues.outgoing, { durable: true });
+      await this.channel.assertQueue(this.queues.mailing, { durable: true });
+      await this.channel.assertQueue(this.queues.messaging, { durable: true });
       await this.channel.prefetch(rabbitMQ.prefetch);
     } catch (error) {
       logger.error('Ошибка подключения к RabbitMQ:', error);

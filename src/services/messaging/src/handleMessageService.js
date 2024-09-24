@@ -120,7 +120,7 @@ async function processIncomingMessage(
 
     if (response) {
       logger.info(`Sending response to user ${senderId}: ${response}`);
-      await sendResponse(senderId, response, phoneNumber, platform, activeCampaign); // добавить сохранение инфо, что ответ отправлен
+      await sendResponse(lead.id, response, phoneNumber, platform, activeCampaign); // добавить сохранение инфо, что ответ отправлен
     } else {
       logger.warn(
         `No response generated for ${platform} message from ${senderId}`,

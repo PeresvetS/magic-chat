@@ -21,7 +21,7 @@ async function processQueue(initialQueueItem = null) {
 
   while (true) {
     if (!queueItem) {
-      queueItem = await RabbitMQQueueService.dequeue('outgoing'); // ?
+      queueItem = await RabbitMQQueueService.dequeue('mailing'); // ?
     }
 
     if (!queueItem) {
@@ -138,13 +138,14 @@ async function processSingleQueueItem(queueItem) {
       );
       if (newSenderPhoneNumber) {
         logger.info(`Switching to new phone number ${newSenderPhoneNumber} for campaign ${queueItem.campaignId}, platform ${queueItem.platform}`);
-        await RabbitMQQueueService.enqueue(
-          queueItem.campaignId,
-          queueItem.message,
-          queueItem.recipientPhoneNumber,
-          queueItem.platform,
-          newSenderPhoneNumber,
-        );
+        await RabbitMQQueueService.enqueue('mailing', {
+          campaignId: queueItem.campaignId,
+          message: queueItem.message,
+          recipientPhoneNumber: queueItem.recipientPhoneNumber,
+          platform: queueItem.platform,
+          senderPhoneNumber: newSenderPhoneNumber,
+        });
+
         await RabbitMQQueueService.updateQueueItemStatus(queueItem.id, 'requeued', { message: 'Requeued with new sender phone number' });
         return { success: true, message: 'Requeued with new sender phone number' };
       } else {

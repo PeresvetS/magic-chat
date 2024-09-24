@@ -27,7 +27,7 @@ model User {
   bitrixIntegration BitrixIntegration?
   amoCrmIntegration AmoCrmIntegration?
   leads             Lead[]
-  leadsDBs          LeadsDB[] // Добавьте эту строку
+  leadsDBs          LeadsDB[]
   openaiApiKey      String?
 }
 

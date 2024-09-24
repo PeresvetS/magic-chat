@@ -83,13 +83,13 @@ class MessageDistributionService {
           logger.info(
             `Enqueuing message for ${platform} with campaignId ${campaignId}, sender ${senderPhoneNumber}`,
           );
-          const queueItem = await RabbitMQQueueService.enqueue(
+          const queueItem = await RabbitMQQueueService.enqueue('mailing', {
             campaignId,
             message,
-            strPhoneNumber,
+            recipientPhoneNumber: strPhoneNumber,
             platform,
             senderPhoneNumber,
-          );
+          });
           results[platform] = { queueItemId: queueItem.id, status: 'queued' };
           logger.info(`Message queued for ${platform}: ${queueItem.id}`);
         } catch (error) {
@@ -104,13 +104,13 @@ class MessageDistributionService {
           );
           if (senderPhoneNumber) {
             try {
-              const queueItem = await RabbitMQQueueService.enqueue(
+              const queueItem = await RabbitMQQueueService.enqueue('mailing', {
                 campaignId,
                 message,
-                strPhoneNumber,
+                recipientPhoneNumber: strPhoneNumber,
                 platform,
                 senderPhoneNumber,
-              );
+              });
               results[platform] = { queueItemId: queueItem.id, status: 'queued' };
               logger.info(`Message queued for ${platform} with new sender number: ${queueItem.id}`);
             } catch (retryError) {

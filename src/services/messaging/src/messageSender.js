@@ -95,7 +95,7 @@ async function sendResponse(leadId, response, senderPhoneNumber, platform, campa
     const sentences = response.split(/\n+/);
     
     for (const sentence of sentences) {
-      await RabbitMQQueueService.enqueue('outgoing', {
+      await RabbitMQQueueService.enqueue('messaging', {
         campaignId: campaign.id,
         message: sentence,
         leadId: Number(leadId),
@@ -221,7 +221,7 @@ async function handleSendMessageError(
 
 async function sendQueuedMessages() {
   while (true) {
-    const queueItem = await RabbitMQQueueService.dequeue('outgoing');
+    const queueItem = await RabbitMQQueueService.dequeue('messaging');
     if (!queueItem) {
       // Если очередь пуста, ждем немного и проверяем снова
       await new Promise(resolve => setTimeout(resolve, 1000));
