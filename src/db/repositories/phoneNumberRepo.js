@@ -147,10 +147,9 @@ async function removePhoneNumber(phoneNumber, platform) {
           where: { id: phoneNumberRecord.whatsappAccount.id },
         });
       }
-      // Раскомментируйте, если есть таблица whatsappSession
-      // await prisma.whatsappSession.deleteMany({
-      //   where: { phoneNumber },
-      // });
+      await prisma.whatsappSession.deleteMany({
+        where: { phoneNumber },
+      });
     }
 
     if (platform === 'waba' || platform === 'all') {
