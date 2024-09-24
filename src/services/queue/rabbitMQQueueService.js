@@ -26,6 +26,7 @@ class RabbitMQQueueService {
       await this.channel.assertQueue(this.queues.mailing, { durable: true });
       await this.channel.assertQueue(this.queues.messaging, { durable: true });
       await this.channel.prefetch(rabbitMQ.prefetch);
+      logger.info('Connected to RabbitMQ');
     } catch (error) {
       logger.error('Ошибка подключения к RabbitMQ:', error);
       throw error;
@@ -40,6 +41,7 @@ class RabbitMQQueueService {
       if (this.connection) {
         await this.connection.close();
       }
+      logger.info('Disconnected from RabbitMQ');
     } catch (error) { 
       logger.error('Ошибка отключения от RabbitMQ:', error);
       throw error;
@@ -88,8 +90,56 @@ class RabbitMQQueueService {
         return null;
       }
 
+      const messageId = message.content.toString();
+      const queueItem = await this.getQueueItem(parseInt(messageId, 10));
+
+      if (!queueItem) {
+        logger.warn(`Queue item with id ${messageId} not found in DB`);
+        this.channel.ack(message); // Acknowledge message to remove it from the queue
+        return null;
+      }
+
+      // Attach ack and nack functions for later use
+      queueItem.ackFunction = () => this.channel.ack(message);
+      queueItem.nackFunction = () => this.channel.nack(message);
+
+      return queueItem;
     } catch (error) {
-      logger.error(`Ошибка извлечения элемента из очереди ${queueName}:`, error);
+      logger.error(`Error dequeuing item from queue ${queueName}:`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * Новый метод для событийно-ориентированного потребления сообщений
+   * @param {string} queueName - Название очереди
+   * @param {function} onMessageCallback - Функция-обработчик сообщения
+   */
+  async startConsuming(queueName, onMessageCallback) {
+    try {
+      if (!this.channel) {
+        await this.connect();
+      }
+
+      await this.channel.consume(this.queues[queueName], async (message) => {
+        if (message !== null) {
+          const messageId = message.content.toString();
+          const queueItem = await this.getQueueItem(parseInt(messageId, 10));
+
+          if (!queueItem) {
+            logger.warn(`Queue item with id ${messageId} not found in DB`);
+            this.channel.ack(message); // Убираем сообщение из очереди
+            return;
+          }
+
+          // Передаём queueItem и сообщение в коллбэк для обработки
+          await onMessageCallback(queueItem, message);
+        }
+      }, { noAck: false });
+
+      logger.info(`Started consuming messages from ${queueName} queue`);
+    } catch (error) {
+      logger.error(`Error starting consumer for queue ${queueName}:`, error);
       throw error;
     }
   }
