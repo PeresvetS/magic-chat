@@ -51,9 +51,6 @@ async function generateUserPrompt(lead, campaign, userMessage, memory) {
     // Добавляем текущее время
     prompt += `Current time: ${time}\n\n`;
 
-    // Добавляем текущее сообщение пользователя
-    prompt += `Current Human's question: ${userMessage}\n\n:`;
-
     // Добавляем информацию из базы знаний, если она есть
     const knowledgeBaseService = knowledgeBaseServiceFactory.getInstanceForCampaign(campaign.id);
     const knowledgeBase = await knowledgeBaseService.getKnowledgeBaseByCampaignId();
@@ -69,6 +66,9 @@ async function generateUserPrompt(lead, campaign, userMessage, memory) {
         prompt += `\n\nRelevant knowledge:\n${formattedKnowledge}\n`;
       }
     }
+
+    // Добавляем текущее сообщение пользователя
+    prompt += `Current Human's question: ${userMessage}\n\n:`;
 
     return prompt;
   } catch (error) {

@@ -15,6 +15,7 @@ const TelegramBotStateManager = require('../../telegram/managers/botStateManager
 const WhatsAppBotStateManager = require('../../whatsapp/managers/botStateManager');
 const WABABotStateManager = require('../../waba/managers/botStateManager');
 const RabbitMQQueueService = require('../../queue/rabbitMQQueueService');
+const { Logform } = require('winston');
 
 async function sendMessage(
   senderId,
@@ -118,7 +119,7 @@ async function sendResponse(
           platform,
           BotStateManager,
         );
-        logger.info(`Message sent to ${senderId},   : ${JSON.stringify(result)}`);
+        logger.info(`Message sent to ${senderId}, result: ${JSON.stringify(result)}`);
         BotStateManager.resetOfflineTimer(phoneNumber, senderId);
 
         await new Promise((resolve) =>
