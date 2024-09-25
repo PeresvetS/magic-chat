@@ -62,8 +62,6 @@ async function processMessage(senderId, textToProcess, phoneNumber, campaign, pl
       campaign,
     );
 
-    logger.info(`Response: ${response}`);
-
     // Обновляем сообщение в БД
     // await messageService.updateMessage(incomingMessage.id, {
     //   status: 'response_generated',

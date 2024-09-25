@@ -282,7 +282,9 @@ class BotStateManager {
           break;
       }
 
-      await this.handleTypingState(phoneNumber, userId);
+      if (userState.preOnlineComplete) {
+        await this.handleTypingState(phoneNumber, userId);
+      }
 
       // Ждем завершения setPreOnline с таймаутом
       const startTime = Date.now();

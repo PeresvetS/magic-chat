@@ -75,15 +75,15 @@ class EnhancedMemory {
 
       if (this.vectorStore) {
         // Save to vector store
-        await this.vectorStore.addDocuments([
-          {
-            pageContent: this.cleanText(`Human: ${input[this.inputKey]}\nAI: ${output[this.outputKey]}`),
-            metadata: {
-              leadId: this.leadId,
-              timestamp: new Date().toISOString(),
-            },
-          },
-        ]);
+        // await this.vectorStore.addDocuments([
+        //   {
+        //     pageContent: this.cleanText(`Human: ${input[this.inputKey]}\nAI: ${output[this.outputKey]}`),
+        //     metadata: {
+        //       leadId: this.leadId,
+        //       timestamp: new Date().toISOString(),
+        //     },
+        //   },
+        // ]);
       }
 
       logger.info(`Saved context for lead: ${this.leadId}`);

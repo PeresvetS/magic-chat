@@ -3,16 +3,28 @@
 const logger = require('../../utils/logger');
 const { safeStringify } = require('../../utils/helpers');
 const {
-  changeLeadStatusPositiveTool,
-  changeLeadStatusNegativeTool,
-  updateLeadFieldTool,
+  changeLeadStatusPositive,
+  changeLeadStatusNegative,
+  updateAddress,
+  updateBusinessType,
+  updateGenerationMethod,
+  updateMainPains,
+  updateLocation,
+  updateInterests,
+  updateField,
 } = require('./tools/llmTools');
 const AgentChain = require('./agents/agentChain');
 
 const tools = [
-  changeLeadStatusPositiveTool,
-  changeLeadStatusNegativeTool,
-  updateLeadFieldTool,
+  changeLeadStatusPositive,
+  changeLeadStatusNegative,
+  updateAddress,
+  updateBusinessType,
+  updateGenerationMethod,
+  updateMainPains,
+  updateLocation,
+  updateInterests,
+  updateField,
 ];
 
 const agentChains = new Map();

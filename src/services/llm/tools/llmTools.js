@@ -8,7 +8,7 @@ const { leadProfileService } = require('../../leads');
 const bitrixService = require('../../crm/src/bitrixService');
 const { sendNotification } = require('../../notification/notificationService');
 
-const changeLeadStatusPositiveTool = tool(
+const changeLeadStatusPositive = tool(
   async ({ lead, campaign, messages }) => {
     try {
       const updatedProfile = await leadProfileService.updateLeadProfileField(lead.id, 'status', 'PROCESSED_POSITIVE');
@@ -55,7 +55,7 @@ const changeLeadStatusPositiveTool = tool(
   }
 );
 
-const changeLeadStatusNegativeTool = tool(
+const changeLeadStatusNegative = tool(
   async ({ lead }) => {
     try {
       const updatedProfile = await leadProfileService.updateLeadProfileField(lead.id, 'status', 'PROCESSED_NEGATIVE');
@@ -77,7 +77,7 @@ const changeLeadStatusNegativeTool = tool(
   }
 );
 
-const updateLeadAddressTool = tool(
+const updateAddress = tool(
   async ({ lead, address }) => {
     return JSON.stringify(await leadProfileService.updateLeadProfileField(lead.id, 'address', address));
   },
@@ -91,7 +91,7 @@ const updateLeadAddressTool = tool(
   }
 );
 
-const updateLeadBusinessTypeTool = tool(
+const updateBusinessType = tool(
   async ({ lead, businessType }) => {
     return JSON.stringify(await leadProfileService.updateLeadProfileField(lead.id, 'businessType', businessType));
   },
@@ -105,7 +105,7 @@ const updateLeadBusinessTypeTool = tool(
   }
 );
 
-const updateLeadGenerationMethodTool = tool(
+const updateGenerationMethod = tool(
   async ({ lead, method }) => {
     return JSON.stringify(await leadProfileService.updateLeadProfileField(lead.id, 'leadGenerationMethod', method));
   },
@@ -119,7 +119,7 @@ const updateLeadGenerationMethodTool = tool(
   }
 );
 
-const updateLeadMainPainsTool = tool(
+const updateMainPains = tool(
   async ({ lead, pains }) => {
     return JSON.stringify(await leadProfileService.updateLeadProfileField(lead.id, 'mainPains', pains));
   },
@@ -133,7 +133,7 @@ const updateLeadMainPainsTool = tool(
   }
 );
 
-const updateLeadLocationTool = tool(
+const updateLocation = tool(
   async ({ lead, location }) => {
     return JSON.stringify(await leadProfileService.updateLeadProfileField(lead.id, 'location', location));
   },
@@ -147,7 +147,7 @@ const updateLeadLocationTool = tool(
   }
 );
 
-const updateLeadInterestsTool = tool(
+const updateInterests = tool(
   async ({ lead, interests }) => {
     return JSON.stringify(await leadProfileService.updateLeadProfileField(lead.id, 'interests', interests));
   },
@@ -161,7 +161,7 @@ const updateLeadInterestsTool = tool(
   }
 );
 
-const updateLeadFieldTool = tool(
+const updateField = tool(
   async ({ lead, fieldName, value }) => {
     return JSON.stringify(await leadProfileService.updateLeadProfileField(lead.id, fieldName, value));
   },
