@@ -7,6 +7,8 @@ const CheckerFactory = require('./CheckerFactory');
 const { leadService } = require('../../leads/src/leadService');
 const { phoneNumberService } = require('../../phone');
 
+const validPlatforms = ['telegram', 'whatsapp', 'waba', 'tgwa', 'tgwaba'];
+
 class MessagingPlatformChecker {
   constructor(campaignId) {
     this.campaignId = campaignId;
@@ -109,7 +111,7 @@ class MessagingPlatformChecker {
 
     logger.info(`Choosing messaging platform for ${phoneNumberToCheck} with priority ${platformPriority}`);
 
-    if (!platformPriority || !/^[twa]+$/.test(platformPriority)) {
+    if (!platformPriority || !validPlatforms.includes(platformPriority)) {
       logger.warn('Invalid priority platform, getting from DB');
       platformPriority = await getPlatformPriority(this.campaignId);
     }

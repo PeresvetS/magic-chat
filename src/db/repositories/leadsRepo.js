@@ -259,6 +259,27 @@ async function getLeadsFromLeadsDB(leadsDBId, status) {
   }
 }
 
+async function updateLeadStatusByPhone(phone, newStatus) {
+  try {
+    const lead = await prisma.lead.findFirst({
+      where: { phone },
+    });
+
+    if (!lead) {
+      logger.warn(`Lead with phone ${phone} not found`);
+      return null;
+    }
+
+    return await prisma.lead.update({
+      where: { id: lead.id },
+      data: { status: newStatus },
+    });
+  } catch (error) {
+    logger.error('Error updating lead status by phone:', error);
+    throw error;
+  }
+}
+
 async function updateLeadStatus(leadId, newStatus) {
   try {
     return await prisma.lead.update({
@@ -436,6 +457,7 @@ module.exports = {
   getLeadByIdentifier,
   updateLeadMessageInfo,
   attachLeadsDBToCampaign,
+  updateLeadStatusByPhone,
   getOrCreatetLeadByPhone,
   getLeadByWhatsappChatId,
   getLeadByTelegramChatId,

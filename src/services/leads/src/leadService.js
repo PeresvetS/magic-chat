@@ -347,6 +347,22 @@ async function updateLeadStatus(leadId, newStatus) {
   }
 }
 
+async function updateLeadStatusByPhone(phone, newStatus) {
+  try {
+    const formattedPhone = formatPhoneNumber(phone);
+    const updatedLead = await leadsRepo.updateLeadStatusByPhone(formattedPhone, newStatus);
+    if (!updatedLead) {
+      logger.warn(`Lead with phone ${formattedPhone} not found`);
+      return null;
+    }
+    logger.info(`Updated status for lead with phone ${formattedPhone} to ${newStatus}`);
+    return updatedLead;
+  } catch (error) {
+    logger.error('Error updating lead status by phone:', error);
+    throw error;
+  }
+}
+
 async function updateLeadStatusByName(telegramId, leadsDBName, leadId, newStatus) {
   try {
     const leadsDB = await getLeadsDBByName(telegramId, leadsDBName);
@@ -571,6 +587,7 @@ module.exports = {
   getLeadsFromLeadsDBByName,
   setDefaultLeadsDBByName,
   addLeadToCRM,
+  updateLeadStatusByPhone,
   updateLeadTelegramChatId,
   updateLeadWhatsappChatId,
   getLeadByTelegramChatId,

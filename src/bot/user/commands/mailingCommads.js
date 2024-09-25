@@ -7,13 +7,13 @@ const {
 } = require('../utils/userState');
 const {
   checkMailingStatus,
-  checkBulkDistributionStatus,
 } = require('../utils/mailingStatusChecker');
 const { leadService } = require('../../../services/leads');
 const { campaignsMailingService } = require('../../../services/campaign');
 const { distributionService } = require('../../../services/mailing');
 const logger = require('../../../utils/logger');
 const { delay } = require('../../../utils/helpers');
+const BulkDistributionChecker = require('../../../services/mailing/checkers/bulkDistributionChecker');
 
 async function getCampaignByName(name, bot, chatId) {
   try {
@@ -37,6 +37,10 @@ function getStatusName(status) {
   switch (status) {
     case 'NEW':
       return 'Не обработаны';
+    case 'SENT_MESSAGE':
+      return 'Отправлено сообщение';
+    case 'STARTED_CONVERSATION':
+      return 'Начата переписка';
     case 'UNAVAILABLE':
       return 'Недоступны';
     case 'PROCESSED_NEGATIVE':
@@ -229,7 +233,7 @@ module.exports = {
       if (!campaignName || !phoneNumber) {
         bot.sendMessage(
           msg.chat.id,
-          'Пожалуйста, укажите название кампании и номер телефона. Например: /send_manual_mc МояКампания +79123456789',
+          'Пожалуйста, укажите название кампании и номе телефона. Например: /send_manual_mc МояКампания +79123456789',
         );
         return;
       }
@@ -599,14 +603,14 @@ module.exports = {
     }
   },
 
-  '/send_mc_to_leads ([^\\s]+) (NEW|UNAVAILABLE|PROCESSED_NEGATIVE|PROCESSED_POSITIVE)':
+  '/send_mc_to_leads ([^\\s]+) (NEW|SENT_MESSAGE|STARTED_CONVERSATION|UNAVAILABLE|PROCESSED_NEGATIVE|PROCESSED_POSITIVE)':
     async (bot, msg, match) => {
       const [, campaignName, status] = match;
 
       if (!campaignName || !status) {
         bot.sendMessage(
           msg.chat.id,
-          'Пожалуйста, укажите название кампании и с��атус лидов. Например: /send_mc_to_leads МояКампания NEW',
+          'Пожалуйста, укажите название кампании и сатус лидов. Например: /send_mc_to_leads МояКампания NEW',
         );
         return;
       }
@@ -697,13 +701,8 @@ module.exports = {
           'Начинаем процесс отправки сообщений. Вы будете получать обновления о ходе отправки.',
         );
 
-        // Запускаем асинхронный процесс проверки статуса отправки
-        checkBulkDistributionStatus(
-          bot,
-          msg.chat.id,
-          results.details,
-          campaign.id,
-        );
+        const checker = new BulkDistributionChecker(bot, msg.chat.id, results.details, campaign.id);
+        checker.start();
       } catch (error) {
         logger.error('Error in send_mc_to_leads:', error);
         bot.sendMessage(

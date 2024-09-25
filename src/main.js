@@ -95,23 +95,13 @@ async function processUnfinishedTasks() {
 let isProcessingQueue = false;
 
 async function startMessageQueueProcessing() {
-  if (isProcessingQueue) {
-    logger.info('Message queue processing is already running');
-    return;
-  }
-  isProcessingQueue = true;
-
-  while (true) {
+  await RabbitMQQueueService.startConsuming('mailing', async (queueItem) => {
     try {
-      await messageQuequeService.processQueue();
-      // Добавляем задержку между проверками очереди
-      await new Promise((resolve) => setTimeout(resolve, 5000)); // 5 секунд
+      await messageQuequeService.processSingleQueueItem(queueItem);
     } catch (error) {
-      logger.error('Error processing message queue:', error);
-      // Добавляем задержку в случае ошибки
-      await new Promise((resolve) => setTimeout(resolve, 10000)); // 10 секунд
+      logger.error(`Error processing queue item ${queueItem.id}:`, error);
     }
-  }
+  });
 }
 
 async function startMessageQueueWorker() {
@@ -152,7 +142,7 @@ async function startMessageQueueWorker() {
       setTimeout(startWorker, delay);
     } else {
       console.error('Max retry attempts reached. Worker will not be restarted.');
-      // Здесь можно добавить код для уведомления разработчиков или администраторов
+      // Здесь можно добавить од для уведомления разработчиков или администраторов
     }
   };
 
@@ -214,10 +204,7 @@ async function main() {
 
     // Запуск постоянной обработки очереди сообщений
     logger.info('Starting continuous message queue processing...');
-    startMessageQueueProcessing().catch((error) => {
-      logger.error('Error in message queue processing loop:', error);
-    });
-
+    await startMessageQueueProcessing();
     logger.info('Message queue processed');
 
     // Настройка Express

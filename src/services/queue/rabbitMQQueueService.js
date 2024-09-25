@@ -48,6 +48,16 @@ class RabbitMQQueueService {
     }
   }
 
+  async reconnect() {
+    try {
+      await this.disconnect();
+      await this.connect();
+    } catch (error) {
+      logger.error('Failed to reconnect to RabbitMQ:', error);
+      throw error;
+    }
+  }
+
   async enqueue(queueName, data) {
     logger.info(`Enqueuing item to ${queueName} queue`);
     try {
@@ -57,11 +67,15 @@ class RabbitMQQueueService {
 
       await this.channel.assertQueue(this.queues[queueName], { durable: true });
 
+      // Log the data being enqueued
+      logger.debug(`Enqueueing data: ${JSON.stringify(data)}`);
+
       const queueItem = await rabbitMQQueueRepo.createQueueItem({
         ...data,
         status: 'pending',
       });
 
+      // Send only the ID to the queue
       this.channel.sendToQueue(
         this.queues[queueName],
         Buffer.from(queueItem.id.toString()),
@@ -73,15 +87,22 @@ class RabbitMQQueueService {
       );
       return queueItem;
     } catch (error) {
-      logger.error(`Ошибка добавления элемента в очередь ${queueName}:`, error);
+      logger.error(`Error adding item to queue ${queueName}:`, error);
+      // Log additional details about the error
+      if (error instanceof SyntaxError) {
+        logger.error('JSON parsing error. Invalid data format.');
+      }
+      if (error.code) {
+        logger.error(`Error code: ${error.code}`);
+      }
       throw error;
     }
   }
 
   async dequeue(queueName) {
     try {
-      if (!this.channel) {
-        await this.connect();
+      if (!this.isChannelOpen()) {
+        await this.reconnect();
       }
 
       const message = await this.channel.get(this.queues[queueName], { noAck: false });
@@ -94,77 +115,102 @@ class RabbitMQQueueService {
 
       if (!queueItem) {
         logger.warn(`Queue item with id ${messageId} not found in DB`);
-        this.channel.ack(message); // Acknowledge message to remove it from the queue
+        await this.channel.ack(message);
         return null;
       }
 
-      // Attach ack and nack functions for later use
-      queueItem.ackFunction = () => this.channel.ack(message);
-      queueItem.nackFunction = () => this.channel.nack(message);
+      const channelRef = this.channel;
+      queueItem.ackFunction = async () => {
+        try {
+          if (this.isChannelOpen() && channelRef === this.channel) {
+            await channelRef.ack(message);
+            logger.info(`Message ${messageId} acknowledged successfully`);
+          } else {
+            logger.warn('Channel closed or changed, skipping ack');
+          }
+        } catch (error) {
+          logger.error(`Error acknowledging message ${messageId}:`, error);
+        }
+      };
+      queueItem.nackFunction = async () => {
+        try {
+          if (this.isChannelOpen() && channelRef === this.channel) {
+            await channelRef.nack(message);
+            logger.info(`Message ${messageId} negative acknowledged successfully`);
+          } else {
+            logger.warn('Channel closed or changed, skipping nack');
+          }
+        } catch (error) {
+          logger.error(`Error negative acknowledging message ${messageId}:`, error);
+        }
+      };
 
       return queueItem;
     } catch (error) {
       logger.error(`Error dequeuing item from queue ${queueName}:`, error);
+      if (error.code === 'ECONNRESET' || error.message.includes('channel closed')) {
+        await this.reconnect();
+      }
       throw error;
     }
   }
 
   /**
-   * Новый метод для событийно-ориентированного потребления сообщений
+   * Новый метод для событино-ориентированного потребления сообщений
    * @param {string} queueName - Название очереди
    * @param {function} onMessageCallback - Функция-обработчик сообщения
    */
   async startConsuming(queueName, onMessageCallback) {
     try {
-      if (!this.channel) {
-        await this.connect();
-      }
+      await this.channel.prefetch(1);
+      await this.channel.consume(queueName, async (msg) => {
+        if (msg === null) {
+          return;
+        }
+        
+        const messageId = msg.content.toString();
+        const queueItem = await this.getQueueItem(parseInt(messageId, 10));
 
+        if (!queueItem) {
+          logger.warn(`Queue item with id ${messageId} not found in DB`);
+          await this.channel.ack(msg);
+          return;
+        }
 
-      await this.channel.consume(this.queues[queueName], async (message) => {
-        if (message !== null) {
-          const messageId = message.content.toString();
-          const queueItem = await this.getQueueItem(parseInt(messageId, 10));
+        // Проверяем, не обрабатывается ли уже это сообщение
+        if (queueItem.status === 'processing') {
+          logger.warn(`Queue item ${messageId} is already being processed. Skipping.`);
+          await this.channel.ack(msg);
+          return;
+        }
 
-          if (!queueItem) {
-            logger.warn(`Queue item with id ${messageId} not found in DB`);
-            this.channel.ack(message); // Убираем сообщение из очереди
-            return;
-          }
+        // Помечаем сообщение как обрабатываемое
+        await this.updateQueueItemStatus(queueItem.id, 'processing');
 
-          // Передаём queueItem и сообщение в коллбэк для обработки
-          await onMessageCallback(queueItem, message);
-          queueItem.ackFunction = () => this.channel.ack(message);
-          queueItem.nackFunction = () => this.channel.nack(message, false, false);
+        try {
+          await onMessageCallback(queueItem);
+          await this.updateQueueItemStatus(queueItem.id, 'completed');
+          await this.channel.ack(msg);
+        } catch (error) {
+          logger.error(`Error processing message: ${error.message}`);
+          await this.updateQueueItemStatus(queueItem.id, 'failed', { error: error.message });
+          await this.channel.nack(msg, false, true);
         }
       }, { noAck: false });
-
-      logger.info(`Started consuming messages from ${queueName} queue`);
+      
+      logger.info(`Started consuming messages from queue: ${queueName}`);
     } catch (error) {
-      logger.error(`Error starting consumer for queue ${queueName}:`, error);
+      logger.error(`Error starting to consume messages from queue ${queueName}:`, error);
       throw error;
     }
   }
 
   async markAsCompleted(queueItem, result) {
     try {
-      const updatedItem = await rabbitMQQueueRepo.updateQueueItem(queueItem.id, {
-        status: 'completed',
-        result: JSON.stringify(result),
-        updatedAt: new Date(),
-      });
-      if (updatedItem.status !== 'completed') {
-        logger.warn(`Failed to mark queue item ${queueItem.id} as completed`);
-      }
-      if (queueItem.ackFunction && typeof queueItem.ackFunction === 'function') {
-        queueItem.ackFunction(); // Acknowledge the message
-      } else {
-        logger.warn('No ackFunction available for queue item:', queueItem);
-      }
+      await this.updateQueueItemStatus(queueItem.id, 'completed', result);
       logger.info(`Queue item ${queueItem.id} marked as completed`);
     } catch (error) {
-      logger.error('Error acknowledging message:', error);
-      throw error;
+      logger.error(`Error marking queue item ${queueItem.id} as completed:`, error);
     }
   }
 
@@ -257,6 +303,18 @@ class RabbitMQQueueService {
       logger.error(`Error updating queue item ${id} status:`, error);
       throw error;
     }
+  }
+
+  isChannelOpen() {
+    return this.channel && this.channel.connection && this.channel.connection.stream && !this.channel.connection.stream.destroyed;
+  }
+
+  isConnected() {
+    return this.connection !== null && 
+           this.channel !== null && 
+           this.connection.connection !== null &&
+           this.connection.connection.stream !== null &&
+           !this.connection.connection.stream.destroyed;
   }
 }
 

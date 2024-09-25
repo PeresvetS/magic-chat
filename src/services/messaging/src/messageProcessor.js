@@ -131,11 +131,14 @@ async function getLeadIdByChatId(chatId, platform) {
 }
 
 async function getOrCreateLeadIdByChatId(chatId, platform, userId) {
+
   const lead = await getLeadIdByChatId(chatId, platform);
   if (!lead) {
     logger.info(`Lead not found for ${platform} chat ID ${chatId}`);
     const newLead = await leadService.createLead(platform, chatId, userId);
     return newLead;
+  } else if (lead.leadStatus === 'NEW' || lead.leadStatus === 'SENT_MESSAGE') {
+    await leadService.updateLeadStatus(lead.id, 'STARTED_CONVERSATION');
   }
   return lead;
 }

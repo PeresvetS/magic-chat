@@ -278,10 +278,29 @@ class TelegramSessionService {
     if (this.sessions.has(phoneNumber)) {
       const client = this.sessions.get(phoneNumber);
       try {
+        // Remove event handlers
+        if (this.eventHandlers.has(phoneNumber)) {
+          const handler = this.eventHandlers.get(phoneNumber);
+          client.removeEventHandler(handler);
+          this.eventHandlers.delete(phoneNumber);
+        }
+
+        // Disconnect the client
         await client.disconnect();
+
+        // Clear the update loop
+        if (client._updateLoop) {
+          clearInterval(client._updateLoop);
+          client._updateLoop = null;
+        }
+
+        // Remove the session from the cache
         this.sessions.delete(phoneNumber);
+
+        // Remove the session from the database
         await telegramSessionsRepo.deleteSession(phoneNumber);
-        logger.info(`Session for ${phoneNumber} has been disconnected.`);
+
+        logger.info(`Session for ${phoneNumber} has been fully disconnected and removed.`);
       } catch (error) {
         logger.error(`Error disconnecting session for ${phoneNumber}:`, error);
       }
