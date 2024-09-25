@@ -2,16 +2,48 @@
 
 const logger = require('../../../utils/logger');
 const llmService = require('../../llm/llmService');
-const { leadService } = require('../../leads/src/leadService');
-const messageService= require('../../dialog/messageService');
+const leadService = require('../../leads/src/leadService');
 const { saveMessageStats } = require('../../stats/statsService');
 const { campaignsMailingService } = require('../../campaign');
 const {
   getPendingConversationStates,
 } = require('../../conversation/conversationState');
+const { safeStringify } = require('../../../utils/helpers')
+const TelegramBotStateManager = require('../../telegram/managers/botStateManager');
+const WhatsAppBotStateManager = require('../../whatsapp/managers/botStateManager');
+const WABABotStateManager = require('../../waba/managers/botStateManager');
 
-async function processMessage(lead, senderId, message, phoneNumber, campaign) {
+async function processMessage(senderId, textToProcess, phoneNumber, campaign, platform) {
   try {
+
+    const BotStateManager = platform === 'telegram' ? TelegramBotStateManager :
+    platform === 'whatsapp' ? WhatsAppBotStateManager :
+    platform === 'waba' ? WABABotStateManager : null; 
+
+    logger.info(
+      `BotStateManager for ${platform}: ${BotStateManager ? 'Loaded' : 'Not loaded'}`,
+    );
+
+    const message = await BotStateManager.handleIncomingMessage(
+      phoneNumber,
+      senderId,
+      textToProcess,
+    );
+
+    if (message === null) {
+      return;
+    }
+
+    logger.info(`Combined message: ${message}`);
+
+    const lead = await getOrCreateLeadIdByChatId(
+      senderId,
+      platform,
+      campaign.userId,
+    );
+    logger.info(`Lead: ${JSON.stringify(lead)}`);
+
+
     // Сохраняем входящее сообщение в БД
     logger.info(`Saving message for lead ${lead.id} , userId ${campaign.userId}`);
 
@@ -30,6 +62,8 @@ async function processMessage(lead, senderId, message, phoneNumber, campaign) {
       campaign,
     );
 
+    logger.info(`Response: ${response}`);
+
     // Обновляем сообщение в БД
     // await messageService.updateMessage(incomingMessage.id, {
     //   status: 'response_generated',
@@ -42,7 +76,7 @@ async function processMessage(lead, senderId, message, phoneNumber, campaign) {
     // await saveDialogToFile(senderId, message, response);
 
     // return { response, messageId: incomingMessage.id };
-    return { response, messageId: null };
+    return { response: response, messageId: null, leadId: lead.id };
   } catch (error) {
     logger.error(`Error in processMessage for ${senderId}:`, error);
     throw error;
@@ -74,6 +108,38 @@ async function processPendingMessages() {
   } catch (error) {
     logger.error('Error processing pending messages:', error);
   }
+}
+
+
+async function getLeadIdByChatId(chatId, platform) {
+  try {
+    let lead;
+    switch (platform) {
+      case 'whatsapp':
+      case 'waba':
+        lead = await leadService.getLeadByWhatsappChatId(chatId);
+        break;
+      case 'telegram':
+        lead = await leadService.getLeadByTelegramChatId(chatId);
+        break;
+      default:
+        throw new Error(`Unsupported platform: ${platform}`);
+    }
+    return lead || null;
+  } catch (error) {
+    logger.error('Error getting lead ID by chat ID:', error);
+    return null;
+  }
+}
+
+async function getOrCreateLeadIdByChatId(chatId, platform, userId) {
+  const lead = await getLeadIdByChatId(chatId, platform);
+  if (!lead) {
+    logger.info(`Lead not found for ${platform} chat ID ${chatId}`);
+    const newLead = await leadService.createLead(platform, chatId, userId);
+    return newLead;
+  }
+  return lead;
 }
 
 module.exports = { processMessage, processPendingMessages };

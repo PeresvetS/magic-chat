@@ -29,6 +29,7 @@ const commandModules = [
 function createAdminBot() {
   const bot = new TelegramBot(config.ADMIN_BOT_TOKEN, { polling: false });
   let isRunning = false;
+  let isRestarting = false;
   let pollingError = null;
   let restartAttempts = 0;
   const maxRestartAttempts = 5;
@@ -45,15 +46,9 @@ function createAdminBot() {
         logger.warn(
           `Admin bot: Another instance is running. Attempting to restart... (Attempt ${restartAttempts}/${maxRestartAttempts})`,
         );
-        setTimeout(async () => {
-          try {
-            await stop();
-            await new Promise(resolve => setTimeout(resolve, 5000));
-            logger.info('Admin bot restarted successfully');
-          } catch (e) {
-            logger.error('Error restarting Admin bot:', e);
-          }
-        }, 5000);
+        setTimeout(restart, 5000 * restartAttempts); // Увеличиваем задержку с каждой попыткой
+      } else {
+        logger.error('Max restart attempts reached. Manual intervention required.');
       }
     }
   }
@@ -137,18 +132,24 @@ function createAdminBot() {
   bot.on('polling_error', handlePollingError);
 
   async function launch() {
-    if (isRunning) {
-      logger.warn('Admin bot is already running');
+    if (isRunning || isRestarting) {
+      logger.warn('Admin bot is already running or restarting');
       return;
     }
     logger.info('Starting Admin bot polling');
     try {
-      await bot.startPolling({ restart: true, polling: true });
+      isRestarting = true;
+      await stop(); // Всегда останавливаем перед запуском
+      await new Promise(resolve => setTimeout(resolve, 5000)); // Увеличенная задержка
+      await bot.startPolling({ restart: false, polling: true });
       isRunning = true;
+      isRestarting = false;
       pollingError = null;
+      restartAttempts = 0;
       logger.info('Admin bot polling started successfully');
     } catch (error) {
       logger.error('Error starting Admin bot polling:', error);
+      isRestarting = false;
       throw error;
     }
   }
@@ -170,11 +171,27 @@ function createAdminBot() {
   }
 
   async function restart() {
+    if (isRestarting) {
+      logger.warn('Admin bot is already restarting');
+      return;
+    }
     logger.info('Restarting Admin bot');
-    await stop();
-    await new Promise((resolve) => setTimeout(resolve, 1000));
-    await launch();
-    logger.info('Admin bot restarted successfully');
+    isRestarting = true;
+    try {
+      await stop();
+      await new Promise((resolve) => setTimeout(resolve, 5000));
+      await launch();
+      logger.info('Admin bot restarted successfully');
+    } catch (error) {
+      logger.error('Error during Admin bot restart:', error);
+    } finally {
+      isRestarting = false;
+    }
+  }
+
+  function resetErrorState() {
+    pollingError = null;
+    restartAttempts = 0;
   }
 
   return {
@@ -184,6 +201,7 @@ function createAdminBot() {
     restart,
     isRunning: () => isRunning,
     getPollingError: () => pollingError,
+    resetErrorState,
   };
 }
 

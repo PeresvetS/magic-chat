@@ -34,22 +34,21 @@ app.use(requestLogger);
 app.use('/api', webhookRouter);
 
 async function checkAndRestartBot(bot, botType) {
-  if (!bot.isRunning()) {
-    logger.warn(`${botType} bot is not running. Attempting to restart...`);
-    try {
+  try {
+    if (!bot.isRunning()) {
+      logger.warn(`${botType} bot is not running. Attempting to restart...`);
+      await bot.stop();
+      await new Promise(resolve => setTimeout(resolve, 5000));
       await bot.restart();
       logger.info(`${botType} bot restarted successfully`);
-    } catch (error) {
-      logger.error(`Error restarting ${botType} bot:`, error);
-    }
-  } else if (bot.getPollingError()) {
-    logger.warn(`${botType} bot has a polling error. Attempting to restart...`);
-    try {
+    } else if (bot.getPollingError()) {
+      logger.warn(`${botType} bot has a polling error. Attempting to restart...`);
       await bot.restart();
       logger.info(`${botType} bot restarted successfully`);
-    } catch (error) {
-      logger.error(`Error restarting ${botType} bot:`, error);
     }
+  } catch (error) {
+    logger.error(`Error restarting ${botType} bot:`, error);
+    // Не позволяем ошибке "всплыть" выше
   }
 }
 
@@ -197,12 +196,16 @@ async function main() {
 
     // Инициализация ботов
     logger.info('Initializing bots...');
-    await Promise.all([
-      retryOperation(async () => adminBot.launch(), 3, 5000),
-      retryOperation(async () => userBot.launch(), 3, 5000),
-      retryOperation(async () => notificationBot.launch(), 3, 5000),
-    ]);
-    logger.info('Bots initialized and polling started');
+    try {
+      await Promise.all([
+        retryOperation(async () => userBot.launch(), 3, 5000),
+        retryOperation(async () => notificationBot.launch(), 3, 5000),
+        retryOperation(async () => adminBot.launch(), 3, 5000),
+      ]);
+      logger.info('Bots initialized and polling started');
+    } catch (error) {
+      logger.error('Error initializing bots:', error);
+    }
 
     // Обработка незавершенных задач при запуске
     logger.info('Processing unfinished tasks...');
@@ -226,6 +229,13 @@ async function main() {
     const port = config.PORT || 3000;
     const server = app.listen(port, () => {
       logger.info(`Server is running on port ${port}`);
+    }).on('error', (error) => {
+      if (error.code === 'EADDRINUSE') {
+        logger.error(`Port ${port} is already in use. Please choose a different port or stop the process using this port.`);
+      } else {
+        logger.error('Error starting server:', error);
+      }
+      // process.exit(1);
     });
 
     // Запуск периодической проверки состояния ботов
@@ -258,7 +268,7 @@ async function main() {
         TelegramSessionService.disconnectAllSessions().catch((error) =>
           logger.error('Error disconnecting Telegram sessions:', error),
         ),
-        RabbitMQQueueService.disconnect(), // Добавьте метод отключения от RabbitMQ
+        RabbitMQQueueService.disconnect(), // Доавьте метод отключения от RabbitMQ
         ...Array.from(WhatsAppSessionService.clients.keys()).map(
           (phoneNumber) =>
             WhatsAppSessionService.disconnectSession(phoneNumber).catch(
@@ -308,7 +318,7 @@ async function main() {
     // Process unfinished tasks before starting the server
     // await processUnfinishedTasks();
 
-    // Запуск воркера очереди сообщений
+    // Запуск воркера череди сообщений
     // await startMessageQueueWorker();
   } catch (error) {
     logger.error('Error in main function:', error);

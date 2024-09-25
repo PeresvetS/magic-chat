@@ -177,13 +177,13 @@ const updateLeadFieldTool = tool(
 );
 
 module.exports = {
-  changeLeadStatusPositiveTool,
-  changeLeadStatusNegativeTool,
-  updateLeadAddressTool,
-  updateLeadBusinessTypeTool,
-  updateLeadGenerationMethodTool,
-  updateLeadMainPainsTool,
-  updateLeadLocationTool,
-  updateLeadInterestsTool,
-  updateLeadFieldTool,
+  changeLeadStatusPositive,
+  changeLeadStatusNegative,
+  updateAddress,
+  updateBusinessType,
+  updateGenerationMethod,
+  updateMainPains,
+  updateLocation,
+  updateInterests,
+  updateField,
 };

@@ -4,7 +4,6 @@ const { Api } = require('telegram/tl');
 
 const logger = require('../../../utils/logger');
 const { WABASessionService } = require('../../waba');
-const { TelegramSessionService } = require('../../telegram');
 const { safeStringify } = require('../../../utils/helpers');
 const { WhatsAppSessionService } = require('../../whatsapp');
 const { getPhoneNumberInfo, updatePhoneNumberStats } =
@@ -15,7 +14,6 @@ const TelegramBotStateManager = require('../../telegram/managers/botStateManager
 const WhatsAppBotStateManager = require('../../whatsapp/managers/botStateManager');
 const WABABotStateManager = require('../../waba/managers/botStateManager');
 const RabbitMQQueueService = require('../../queue/rabbitMQQueueService');
-const { Logform } = require('winston');
 
 async function sendMessage(
   senderId,
@@ -202,17 +200,6 @@ async function handleSendMessageError(
         );
         await new Promise((resolve) => setTimeout(resolve, seconds * 1000));
         return sendMessage(senderId, message, phoneNumber, platform);
-      }
-
-      if (error.message.includes('AUTH_KEY_UNREGISTERED')) {
-        logger.info(
-          `Attempting to reauthorize Telegram session for ${senderPhoneNumber}`,
-        );
-        await TelegramSessionService.reauthorizeSession(senderPhoneNumber);
-        logger.info(
-          `Telegram session reauthorized for ${senderPhoneNumber}, retrying message send`,
-        );
-        return sendMessage(senderId, message, senderPhoneNumber, platform);
       }
       break;
 

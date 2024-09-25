@@ -332,7 +332,22 @@ class TelegramSessionService {
         date: event.date,
         senderId: event.senderId,
       })}`);
-      await processIncomingMessage(phoneNumber, event, 'telegram');
+      try {
+        await processIncomingMessage(phoneNumber, event, 'telegram', client);
+      } catch (error) {
+        logger.error(`Error processing incoming message for ${phoneNumber}:`, error);
+
+        if (error.message.includes('AUTH_KEY_UNREGISTERED')) {
+          logger.info(
+            `Attempting to reauthorize Telegram session for ${senderPhoneNumber}`,
+          );
+          await this.reauthorizeSession(senderPhoneNumber);
+          logger.info(
+            `Telegram session reauthorized for ${senderPhoneNumber}, retrying message send`,
+          );
+          return sendMessage(senderId, message, senderPhoneNumber, platform);
+        }
+      }
     };
 
     // Добавляем новый обработчик к клиенту

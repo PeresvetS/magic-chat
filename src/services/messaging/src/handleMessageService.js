@@ -3,24 +3,20 @@
 const logger = require('../../../utils/logger');
 const { sendResponse } = require('./messageSender');
 const { processMessage } = require('./messageProcessor');
-const { leadService } = require('../../leads');
 const { getActiveCampaignForPhoneNumber } =
   require('../../campaign').campaignsMailingService;
 const voiceService = require('../../voice/voiceService');
-const fileService = require('./fileService');
-const { safeStringify } = require('../../../utils/helpers');
+const fileService = require('./fileService');;
 const { Api } = require('telegram/tl');
 const fs = require('fs').promises;
 const path = require('path');
 const os = require('os');
-const TelegramBotStateManager = require('../../telegram/managers/botStateManager');
-const WhatsAppBotStateManager = require('../../whatsapp/managers/botStateManager');
-const WABABotStateManager = require('../../waba/managers/botStateManager');
 
 async function processIncomingMessage(
   phoneNumber,
   event,
   platform = 'telegram',
+  client,
 ) {
   try {
 
@@ -56,7 +52,7 @@ async function processIncomingMessage(
         if (platform === 'telegram') {
           localFilePath = await fileService.downloadTelegramVoiceMessage(message);
         } else {
-          localFilePath = await fileService.getFileUrl(filePath, platform, phoneNumber, message);
+          localFilePath = await fileService.getFileUrl(filePath, platform, phoneNumber, message, client);
         }
         
         logger.info(`Got file path: ${localFilePath}`);
@@ -81,46 +77,20 @@ async function processIncomingMessage(
       );
       return;
     } 
-
-    const BotStateManager = platform === 'telegram' ? TelegramBotStateManager :
-    platform === 'whatsapp' ? WhatsAppBotStateManager :
-    platform === 'waba' ? WABABotStateManager : null; 
-
-    logger.info(
-      `BotStateManager for ${platform}: ${BotStateManager ? 'Loaded' : 'Not loaded'}`,
-    );
-
-    const combinedMessage = await BotStateManager.handleIncomingMessage(
-      phoneNumber,
+    
+    const { response, messageId, leadId } = await processMessage(
       senderId,
       textToProcess,
-    );
-
-    if (combinedMessage === null) {
-      return;
-    }
-
-    logger.info(`Combined message: ${combinedMessage}`);
-
-    const lead = await getOrCreateLeadIdByChatId(
-      senderId,
-      platform,
-      activeCampaign.userId,
-    );
-    logger.info(`Lead: ${JSON.stringify(lead)}`);
-
-    const { response, messageId } = await processMessage(
-      lead,
-      senderId,
-      combinedMessage,
       phoneNumber,
       activeCampaign,
+      platform,
     );
     logger.info(`Generated response: ${response}`);
 
+
     if (response) {
       logger.info(`Sending response to user ${senderId}: ${response}`);
-      await sendResponse(lead.id, senderId, response, phoneNumber, platform, activeCampaign, messageId); // добавить сохранение инфо, что ответ отправлен
+      await sendResponse(leadId, senderId, response, phoneNumber, platform, activeCampaign, messageId); // добавить сохранение инфо, что ответ отправлен
     } else {
       logger.warn(
         `No response generated for ${platform} message from ${senderId}`,
@@ -193,37 +163,6 @@ async function extractMessageInfo(event, platform) {
   logger.info(`Extracted message info: chatId=${chatId}, messageType=${messageType}, filePath=${filePath}`);
 
   return { senderId: chatId, messageText, messageType, filePath, message };
-}
-
-async function getLeadIdByChatId(chatId, platform) {
-  try {
-    let lead;
-    switch (platform) {
-      case 'whatsapp':
-      case 'waba':
-        lead = await leadService.getLeadByWhatsappChatId(chatId);
-        break;
-      case 'telegram':
-        lead = await leadService.getLeadByTelegramChatId(chatId);
-        break;
-      default:
-        throw new Error(`Unsupported platform: ${platform}`);
-    }
-    return lead || null;
-  } catch (error) {
-    logger.error('Error getting lead ID by chat ID:', error);
-    return null;
-  }
-}
-
-async function getOrCreateLeadIdByChatId(chatId, platform, userId) {
-  const lead = await getLeadIdByChatId(chatId, platform);
-  if (!lead) {
-    logger.info(`Lead not found for ${platform} chat ID ${chatId}`);
-    const newLead = await leadService.createLead(platform, chatId, userId);
-    return newLead;
-  }
-  return lead;
 }
 
 module.exports = { processIncomingMessage };

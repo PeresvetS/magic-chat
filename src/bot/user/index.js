@@ -9,7 +9,7 @@ const { getUserState } = require('./utils/userState');
 const { TelegramSessionService } = require('../../services/telegram');
 const { WhatsAppSessionService } = require('../../services/whatsapp');
 const { setPhoneAuthenticated } =
-  require('../../services/phone').phoneNumberService;
+  require('../../services/phone/src/PhoneNumberService');
 const PhoneNumberManagerService = require('../../services/phone/src/PhoneNumberManagerService');
 const wabaCommands = require('./commands/wabaCommands');
 const helpCommands = require('./commands/helpCommands');

@@ -8,7 +8,6 @@ const os = require('os');
 const logger = require('../../../utils/logger');
 const WABASessionService = require('../../waba/services/WABASessionService');
 const WhatsAppMainSessionService = require('../../whatsapp/services/WhatsAppMainSessionService');
-const { TelegramSessionService } = require('../../telegram');
 const { Api } = require('telegram');
 
 async function processFile(ctx, filePath) {
@@ -25,7 +24,7 @@ async function processFile(ctx, filePath) {
     }
 }
 
-async function getFileUrl(filePath, platform, phoneNumber, message) {
+async function getFileUrl(filePath, platform, phoneNumber, message, client) {
   if (!filePath) {
     logger.error(`File ID is undefined for platform: ${platform}, phoneNumber: ${phoneNumber}`);
     throw new Error('File ID is undefined');
@@ -45,7 +44,7 @@ async function getFileUrl(filePath, platform, phoneNumber, message) {
   }
 }
 
-async function getTelegramFileUrl(message) {
+async function getTelegramFileUrl(message, client) {
     logger.info(`Getting Telegram file for message: ${JSON.stringify(message)}`);
 
     try {

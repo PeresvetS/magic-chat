@@ -33,9 +33,9 @@ const wabaSessionsRepo = {
 
   async deleteSession(phoneNumber) {
     try {
-      await prisma.wABASession.delete({
-        where: { phoneNumber },
-      });
+      // await prisma.wABASession.delete({
+      //   where: { phoneNumber },
+      // });
       logger.info(`WABA session deleted for: ${phoneNumber}`);
     } catch (error) {
       logger.error('Error deleting WABA session from database', error);
