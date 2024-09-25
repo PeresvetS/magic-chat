@@ -6,6 +6,10 @@ const LeadsService = require('../../leads/src/LeadsService');
 const { TelegramSessionService } = require('../../telegram');
 const { WhatsAppSessionService } = require('../../whatsapp');
 const { phoneNumberRepo, campaignsMailingRepo, dialogRepo } = require('../../../db');
+const whapi = require('@api/whapi');
+const config = require('../../../config');
+
+whapi.auth(config.WHAPI_TOKEN);
 
 class MessageSenderService {
   constructor() {
@@ -59,16 +63,6 @@ class MessageSenderService {
     }
   }
 
-  async initializeWhatsApp(phoneSenderNumber) {
-    try {
-      const client = await WhatsAppSessionService.createOrGetSession(phoneSenderNumber);
-      return client;
-    } catch (error) {
-      logger.error(`Error initializing WhatsApp client for ${phoneSenderNumber}:`, error);
-      throw error;
-    }
-  }
-  
   async sendTelegramMessage(campaignId, senderPhoneNumber, recipientPhoneNumber, message) {
     logger.info(`Отправка сообщения с ID кампании ${campaignId} от ${senderPhoneNumber} к ${recipientPhoneNumber}`);
     try {
@@ -152,28 +146,37 @@ class MessageSenderService {
     }
   }
 
-  async sendWhatsAppMessage(campaignId, senderPhoneNumber, recipientPhoneNumber, message) {
-    logger.info(`Отправка сообщения с ID кампании ${campaignId} от ${senderPhoneNumber} к ${recipientPhoneNumber}`);
+  async sendWhatsAppMessage({
+    campaignId,
+    senderPhoneNumber,
+    recipientPhoneNumber,
+    message,
+  }) {
+    logger.info(
+      `Отправка сообщения WhatsApp с ID кампании ${campaignId} от ${senderPhoneNumber} к ${recipientPhoneNumber}`,
+    );
     try {
       const userId = await this.getCampaigUserId(campaignId);
       logger.info(`Отправка рассылки от пользователя ID с ${userId}`);
-  
+
       if (!await this.checkDailyLimit(senderPhoneNumber, 'whatsapp')) {
         logger.warn(`Достигнут дневной лимит WhatsApp для номера телефона: ${senderPhoneNumber}`);
         return { success: false, error: 'DAILY_LIMIT_REACHED' };
       }
-  
-      const client = await WhatsAppSessionService.createOrGetSession(senderPhoneNumber);
-  
+
       await this.applyDelay('whatsapp');
-  
+
       const formattedNumber = this.formatPhoneNumber(recipientPhoneNumber);
       logger.info(`Форматированный номер для отправки WhatsApp: ${formattedNumber}`);
-  
-      const result = await client.sendMessage(formattedNumber, message);
-  
+
+      const result = await whapi.sendMessageText({
+        to: formattedNumber,
+        body: message,
+        typing_time: 0
+      });
+
       await this.updateOrCreateLeadChatId(campaignId, recipientPhoneNumber, result.id, 'whatsapp');
-  
+
       const isNewContact = await this.isNewContact(userId, formattedNumber, 'whatsapp');
       await this.updateMessageCount(senderPhoneNumber, isNewContact, 'whatsapp');
       await this.saveDialog(userId, formattedNumber, 'whatsapp', '', message, recipientPhoneNumber);
@@ -181,6 +184,11 @@ class MessageSenderService {
       return { success: true, messageId: result.id };
     } catch (error) {
       logger.error(`Ошибка отправки сообщения WhatsApp для кампании ${campaignId} на ${recipientPhoneNumber}:`, error);
+      if (error.message.includes('not_whatsapp')) {
+        return { success: false, error: 'RECIPIENT_NOT_ON_WHATSAPP' };
+      } else if (error.message.includes('blocked')) {
+        return { success: false, error: 'SENDER_BLOCKED' };
+      }
       return { success: false, error: error.message };
     }
   }
@@ -294,10 +302,18 @@ class MessageSenderService {
   }
 
   formatPhoneNumber(phoneNumber) {
-    // Удаляем все нецифровые символы
-    const cleaned = phoneNumber.replace(/\D/g, '');
-    // Добавляем "@c.us" в конец номера
-    return `${cleaned}@c.us`;
+    return phoneNumber.replace(/\D/g, '');
+  }
+
+  async checkWhatsAppChannelHealth() {
+    try {
+      const { data } = await whapi.checkHealth({ wakeup: true, channel_type: 'web' });
+      logger.info('WhatsApp channel health status:', data);
+      return data.status === 'healthy';
+    } catch (error) {
+      logger.error('Error checking WhatsApp channel health:', error);
+      return false;
+    }
   }
 }
 

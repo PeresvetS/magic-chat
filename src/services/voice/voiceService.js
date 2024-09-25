@@ -52,4 +52,5 @@ async function downloadFile(fileUrl) {
 
 module.exports = {
   transcribeAudio,
+  downloadFile
 };

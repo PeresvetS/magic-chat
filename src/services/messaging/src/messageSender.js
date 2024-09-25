@@ -15,7 +15,6 @@ const TelegramBotStateManager = require('../../telegram/managers/botStateManager
 const WhatsAppBotStateManager = require('../../whatsapp/managers/botStateManager');
 const WABABotStateManager = require('../../waba/managers/botStateManager');
 const RabbitMQQueueService = require('../../queue/rabbitMQQueueService');
-const { Logform } = require('winston');
 
 async function sendMessage(
   senderId,

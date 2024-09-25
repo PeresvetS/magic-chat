@@ -8,8 +8,30 @@ const { checkBitrixToken } = require('../middleware/checkApiTokens');
 const {
   processBitrixWebhook,
 } = require('../services/webhook/bitrixWebhookService');
+const { handleMessageService } = require('../../services/messaging');
 
 const router = express.Router();
+
+// В файле src/api/routes/webhooks.js
+router.post('/whatsapp/webhook', async (req, res) => {
+  try {
+    const { body } = req;
+    // Проверка подписи webhook, если это необходимо
+    
+    if (body.type === 'message') {
+      await handleMessageService.processIncomingMessage(
+        body.from,
+        body.body,
+        'whatsapp'
+      );
+    }
+    
+    res.status(200).send('OK');
+  } catch (error) {
+    logger.error('Error processing WhatsApp webhook:', error);
+    res.status(500).send('Internal Server Error');
+  }
+});
 
 router.post('/bitrix', checkBitrixToken, async (req, res) => {
   try {

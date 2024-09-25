@@ -81,4 +81,4 @@ class WABAChecker {
   }
 }
 
-module.exports = new WABAChecker();
+module.exports = WABAChecker;

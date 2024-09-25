@@ -3,19 +3,15 @@
 const { parsePhoneNumber } = require('libphonenumber-js');
 
 const logger = require('../../../utils/logger');
-const { WhatsAppMainSessionService } = require('../../whatsapp');
 const { parsePhoneNumber } = require('libphonenumber-js');
 const axios = require('axios');
+const config = require('../../../config');
 
 class WhatsAppChecker {
   constructor() {
-    this.whapiToken = process.env.WHAPI_TOKEN;
+    this.whapiToken = config.WHAPI_TOKEN;
   }
-
-  async initialize() {
-    logger.info('WhatsApp checker initialized');
-  }
-
+  
   formatPhoneNumber(phoneNumber) {
     try {
       const parsedNumber = parsePhoneNumber(phoneNumber, 'ID')
@@ -61,4 +57,4 @@ class WhatsAppChecker {
   }
 }
 
-module.exports = new WhatsAppChecker();
+module.exports = WhatsAppChecker;

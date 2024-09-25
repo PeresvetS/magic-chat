@@ -12,6 +12,8 @@
   "license": "ISC",
   "dependencies": {
     "@2bad/bitrix": "^2.5.1",
+    "@api/whapi": "file:.api/apis/whapi",
+    "@api/whapi-partner": "file:.api/apis/whapi-partner",
     "@langchain/community": "^0.3.1",
     "@langchain/core": "^0.3.1",
     "@langchain/openai": "^0.3.0",
@@ -31,7 +33,7 @@
     "groq-sdk": "^0.7.0",
     "input": "^1.0.1",
     "langchain": "^0.3.2",
-    "libphonenumber-js": "^1.11.7",
+    "libphonenumber-js": "^1.11.9",
     "lru-cache": "^11.0.0",
     "mammoth": "^1.8.0",
     "mime-types": "^2.1.35",

@@ -16,8 +16,6 @@ const {
   applyDelay,
 } = require('../../../utils/phoneHelpers');
 
-
-
 async function sendTelegramMessage({
   campaignId,
   senderPhoneNumber,
@@ -106,35 +104,29 @@ async function sendWhatsAppMessage({
   message,
 }) {
   logger.info(
-    `Отправка сообщения с ID кампании ${campaignId} от ${senderPhoneNumber} к ${recipientPhoneNumber}`,
+    `Отправка сообщения WhatsApp с ID кампании ${campaignId} от ${senderPhoneNumber} к ${recipientPhoneNumber}`,
   );
   try {
-    const userId = await getCampaigUserId(campaignId);
+    const userId = await this.getCampaigUserId(campaignId);
     logger.info(`Отправка рассылки от пользователя ID с ${userId}`);
 
-    if (!(await checkDailyPhoneNumberLimit(senderPhoneNumber, 'whatsapp'))) {
-      logger.warn(
-        `Достигнут дневной лимит WhatsApp для номера телефона: ${senderPhoneNumber}`,
-      );
+    if (!await this.checkDailyLimit(senderPhoneNumber, 'whatsapp')) {
+      logger.warn(`Достигнут дневной лимит WhatsApp для номера телефона: ${senderPhoneNumber}`);
       return { success: false, error: 'DAILY_LIMIT_REACHED' };
     }
 
-    const client =
-      await WhatsAppSessionService.createOrGetSession(senderPhoneNumber);
+    await this.applyDelay('whatsapp');
 
-    await applyDelay('whatsapp');
+    const formattedNumber = this.formatPhoneNumber(recipientPhoneNumber);
+    logger.info(`Форматированный номер для отправки WhatsApp: ${formattedNumber}`);
 
-    const formattedNumber = formatPhoneNumberForWhatsApp(recipientPhoneNumber);
-    logger.info(
-      `Форматированный номер для отправки WhatsApp: ${formattedNumber}`,
-    );
+    const result = await whapi.sendMessageText({
+      to: formattedNumber,
+      body: message,
+      typing_time: 0
+    });
 
-    const chat = await client.getChatById(formattedNumber);
-    if (!chat) {
-      await leadService.setLeadUnavailable(recipientPhoneNumber);
-      throw new Error(`Не удалось найти чат ${formattedNumber} в WhatsApp`);
-    }
-    const result = await chat.sendMessage(message);
+    await this.updateOrCreateLeadChatId(campaignId, recipientPhoneNumber, result.id, 'whatsapp');
 
     await leadService.updateOrCreateLeadChatId(
       campaignId,
@@ -143,7 +135,7 @@ async function sendWhatsAppMessage({
       'whatsapp',
     );
 
-    const isNewContact = await chetkIsNewContact(
+    const isNewContact = await chetkIsNewContact( // проверить
       userId,
       formattedNumber,
       'whatsapp',

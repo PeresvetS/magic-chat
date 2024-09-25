@@ -7,9 +7,10 @@ const path = require('path');
 const os = require('os');
 const logger = require('../../../utils/logger');
 const WABASessionService = require('../../waba/services/WABASessionService');
-const WhatsAppMainSessionService = require('../../whatsapp/services/WhatsAppMainSessionService');
+const WhatsAppSessionService = require('../../whatsapp/services/WhatsAppSessionService');
 const { TelegramSessionService } = require('../../telegram');
 const { Api } = require('telegram');
+const whapi = require('whapi'); // Assuming this is the correct import for whapi
 
 async function processFile(ctx, filePath) {
     try {
@@ -92,9 +93,8 @@ async function getTelegramFileUrl(message) {
 async function getWhatsAppFileUrl(filePath, phoneNumber) {
   logger.info(`Getting WhatsApp file URL for filePath: ${filePath}, phoneNumber: ${phoneNumber}`);
   try {
-    const mainClient = await WhatsAppMainSessionService.getMainClient();
-    const mediaMessage = await mainClient.downloadMedia(filePath);
-    const tempFilePath = await saveTemporaryFile(mediaMessage);
+    const { data } = await whapi.downloadMedia(filePath);
+    const tempFilePath = await saveTemporaryFile(data);
     const fileUrl = `file://${tempFilePath}`;
     logger.info(`Generated WhatsApp file URL: ${fileUrl}`);
     return fileUrl;

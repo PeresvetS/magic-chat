@@ -1,15 +1,14 @@
 // src/services/whatsapp/onlineStatusManager.js
 
-const axios = require('axios');
+const whapi = require('@api/whapi');
 const logger = require('../../../utils/logger');
-const { safeStringify } = require('../../../utils/helpers');
+const config = require('../../../config');
 
 class OnlineStatusManager {
     constructor() {
       this.onlineUsers = new Map();
       this.timeoutDuration = 20000; // 20 seconds
-      this.whapiToken = process.env.WHAPI_TOKEN;
-      logger.info('WhatsApp OnlineStatusManager initialized');
+      whapi.auth(config.WHAPI_TOKEN);
     }
   
     async setOnline(userId) {
@@ -21,20 +20,12 @@ class OnlineStatusManager {
         }
         this.onlineUsers.set(userId, setTimeout(() => this.setOffline(userId), this.timeoutDuration));
         
-        await axios.post('https://gate.whapi.cloud/presences/me', {
-          presence: 'online'
-        }, {
-          headers: {
-            'accept': 'application/json',
-            'content-type': 'application/json',
-            'authorization': `Bearer ${this.whapiToken}`
-          }
-        });
+        await whapi.sendMePresence({ presence: 'online' });
         
         logger.info(`Online status set for WhatsApp user ${userId}`);
         return true;
       } catch (error) {
-        logger.error(`Error setting online status for WhatsApp user ${userId}:`, safeStringify(error));
+        logger.error(`Error setting online status for WhatsApp user ${userId}:`, error);
         throw error;
       }
     }
@@ -44,30 +35,27 @@ class OnlineStatusManager {
         logger.info(`Setting offline status for WhatsApp user ${userId}`);
         this.onlineUsers.delete(userId);
         
-        await axios.post('https://gate.whapi.cloud/presences/me', {
-          presence: 'offline'
-        }, {
-          headers: {
-            'accept': 'application/json',
-            'content-type': 'application/json',
-            'authorization': `Bearer ${this.whapiToken}`
-          }
-        });
+        await whapi.sendMePresence({ presence: 'offline' });
         
         logger.info(`Offline status set for WhatsApp user ${userId}`);
       } catch (error) {
-        logger.error(`Error setting offline status for WhatsApp user ${userId}:`, safeStringify(error));
+        logger.error(`Error setting offline status for WhatsApp user ${userId}:`, error);
       }
     }
 
+    async typing(phoneNumber, userId) {
+      try {
+        await whapi.sendTypingOrRecordingPresence(userId, { presence: 'typing', delay: 5 });
+      } catch (error) {
+        logger.error(`Error setting typing status: ${error}`);
+      }
+    }
 
-  isOnline(userId) {
-    const isOnline = this.onlineUsers.has(userId);
-    logger.info(
-      `Checking online status for WhatsApp user ${userId}: ${isOnline}`,
-    );
-    return isOnline;
-  }
+    isOnline(userId) {
+      const isOnline = this.onlineUsers.has(userId);
+      logger.info(`Checking online status for WhatsApp user ${userId}: ${isOnline}`);
+      return isOnline;
+    }
 }
 
 module.exports = new OnlineStatusManager();

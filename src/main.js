@@ -19,7 +19,6 @@ const { WhatsAppSessionService } = require('./services/whatsapp');
 const { TelegramSessionService } = require('./services/telegram');
 const notificationBot = require('./bot/notification/notificationBot');
 const {
-  handleMessageService,
   processPendingMessages,
 } = require('./services/messaging');
 const RabbitMQQueueService = require('./services/queue/rabbitMQQueueService');
@@ -183,26 +182,9 @@ async function main() {
     );
 
     // Инициализация WhatsApp сессий
-    WhatsAppSessionService.onMessage(async (message, phoneNumber) => {
-      try {
-        await handleMessageService.processIncomingMessage(
-          phoneNumber,
-          message,
-          'whatsapp',
-        );
-      } catch (error) {
-        logger.error(`Error processing WhatsApp message: ${error.message}`);
-      }
-    });
-
-    // Инициализация ботов
-    logger.info('Initializing bots...');
-    await Promise.all([
-      retryOperation(async () => adminBot.launch(), 3, 5000),
-      retryOperation(async () => userBot.launch(), 3, 5000),
-      retryOperation(async () => notificationBot.launch(), 3, 5000),
-    ]);
-    logger.info('Bots initialized and polling started');
+    const webhookUrl = `${config.BASE_URL}/api/whatsapp/webhook`; // Убедитесь, что у вас есть BASE_URL в конфигурации
+    await WhatsAppSessionService.setupWebhooks(webhookUrl);
+    logger.info('WhatsApp webhooks set up successfully');
 
     // Обработка незавершенных задач при запуске
     logger.info('Processing unfinished tasks...');
@@ -260,16 +242,6 @@ async function main() {
         ),
         RabbitMQQueueService.disconnect(), // Добавьте метод отключения от RabbitMQ
         
-        ...Array.from(WhatsAppSessionService.clients.keys()).map(
-          (phoneNumber) =>
-            WhatsAppSessionService.disconnectSession(phoneNumber).catch(
-              (error) =>
-                logger.error(
-                  `Error disconnecting WhatsApp session for ${phoneNumber}:`,
-                  error,
-                ),
-            ),
-        ),
       ]);
 
       logger.info('All services stopped');
@@ -311,6 +283,14 @@ async function main() {
 
     // Запуск воркера очереди сообщений
     // await startMessageQueueWorker();
+
+    setInterval(async () => {   // ?
+      try {
+        await WhatsAppSessionService.checkChannelHealth();
+      } catch (error) {
+        logger.error('Error checking WhatsApp channel health:', error);
+      }
+    }, 15 * 60 * 1000); // Проверка каждые 15 минут
   } catch (error) {
     logger.error('Error in main function:', error);
     throw error;

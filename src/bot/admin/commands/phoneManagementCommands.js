@@ -1,9 +1,5 @@
 // src/bot/admin/commands/phoneManagementCommands.js
 
-const config = require('../../../config');
-const logger = require('../../../utils/logger');
-const { TelegramMainSessionService } = require('../../../services/telegram');
-const { WhatsAppMainSessionService } = require('../../../services/whatsapp');
 const { updatePhoneNumberStatus, setPhoneNumberLimit, getPhoneNumberInfo } =
   require('../../../services/phone').phoneNumberService;
 
@@ -79,92 +75,6 @@ module.exports = {
       bot.sendMessage(
         msg.chat.id,
         `Ошибка при получении информации о номере: ${error.message}`,
-      );
-    }
-  },
-
-  '/authorize_tg_main_phone': async (bot, msg) => {
-    try {
-      const mainPhoneNumber = config.MAIN_TG_PHONE_NUMBER;
-      if (!mainPhoneNumber) {
-        throw new Error('MAIN_TG_PHONE_NUMBER not set in configuration');
-      }
-
-      bot.sendMessage(
-        msg.chat.id,
-        `Начинаем процесс авторизации для номера ${mainPhoneNumber}. Следуйте инструкциям.`,
-      );
-
-      await TelegramMainSessionService.authorizeMainClient(
-        async () => {
-          await bot.sendMessage(
-            msg.chat.id,
-            'Введите код авторизации, полученный в Telegram:',
-          );
-          return new Promise((resolve) => {
-            bot.once('message', (codeMsg) => {
-              resolve(codeMsg.text.trim());
-            });
-          });
-        },
-        async () => {
-          await bot.sendMessage(
-            msg.chat.id,
-            'Введите пароль 2FA (если требуется):',
-          );
-          return new Promise((resolve) => {
-            bot.once('message', (passwordMsg) => {
-              resolve(passwordMsg.text.trim());
-            });
-          });
-        },
-      );
-
-      bot.sendMessage(
-        msg.chat.id,
-        `Основной номер ${mainPhoneNumber} успешно авторизован.`,
-      );
-    } catch (error) {
-      bot.sendMessage(
-        msg.chat.id,
-        `Ошибка при авторизации основного номера: ${error.message}`,
-      );
-    }
-  },
-
-  '/authorize_wa_main_phone': async (bot, msg) => {
-    try {
-      const mainPhoneNumber = config.MAIN_WA_PHONE_NUMBER;
-      if (!mainPhoneNumber) {
-        throw new Error('MAIN_WA_PHONE_NUMBER not set in configuration');
-      }
-
-      bot.sendMessage(
-        msg.chat.id,
-        `Начинаем процесс авторизации WhatsApp для номера ${mainPhoneNumber}. Следуйте инструкциям.`,
-      );
-
-      await WhatsAppMainSessionService.authorizeMainClient(
-        async (qrImageData) => {
-          await bot.sendPhoto(
-            msg.chat.id,
-            Buffer.from(qrImageData.split(',')[1], 'base64'),
-            {
-              caption:
-                'Отсканируйте этот QR-код в приложении WhatsApp для авторизации основного номера.',
-            },
-          );
-        },
-      );
-
-      bot.sendMessage(
-        msg.chat.id,
-        `Основной номер ${mainPhoneNumber} успешно авторизован в WhatsApp.`,
-      );
-    } catch (error) {
-      bot.sendMessage(
-        msg.chat.id,
-        `Ошибка при авторизации основного номера WhatsApp: ${error.message}`,
       );
     }
   },

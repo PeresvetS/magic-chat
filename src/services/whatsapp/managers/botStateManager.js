@@ -1,10 +1,10 @@
+const whapi = require('@api/whapi');
 const logger = require('../../../utils/logger');
-const { delay, safeStringify } = require('../../../utils/helpers');
+const { delay } = require('../../../utils/helpers');
 const OnlineStatusManager = require('./onlineStatusManager');
 const WhatsAppSessionService = require('../services/WhatsAppSessionService');
 const { RETRY_OPTIONS } = require('../../../config/constants');
-const { retryOperation } = require('../../../utils/messageUtils');
-const axios = require('axios');
+const config = require('../../../config');
 
 class BotStateManager {
   constructor() {
@@ -16,7 +16,7 @@ class BotStateManager {
     this.processingMessage = false;
     this.preOnlineComplete = new Map();
     this.lastMessageTimestamp = new Map();
-    this.whapiToken = process.env.WHAPI_TOKEN;
+    whapi.auth(config.WHAPI_TOKEN);
   }
 
   async getClient(phoneNumber) {
@@ -71,31 +71,9 @@ class BotStateManager {
 
   async markMessagesAsRead(phoneNumber, userId) {
     try {
-      await axios.put(`https://gate.whapi.cloud/messages/${userId}`, {}, {
-        headers: {
-          'accept': 'application/json',
-          'authorization': `Bearer ${this.whapiToken}`
-        }
-      });
+      await whapi.markMessageAsRead(userId);
     } catch (error) {
       logger.error(`Failed to mark WhatsApp messages as read: ${error}`);
-    }
-  }
-
-  async typing(phoneNumber, userId) {
-    try {
-      await axios.post(`https://gate.whapi.cloud/presences/${userId}`, {
-        presence: 'typing',
-        delay: 5
-      }, {
-        headers: {
-          'accept': 'application/json',
-          'content-type': 'application/json',
-          'authorization': `Bearer ${this.whapiToken}`
-        }
-      });
-    } catch (error) {
-      logger.error(`Error setting typing status: ${error}`);
     }
   }
 
@@ -107,7 +85,7 @@ class BotStateManager {
 
     while (elapsedTime < typingDuration) {
       try {
-        await this.typing(phoneNumber, userId);
+        await whapi.sendTypingOrRecordingPresence(userId, { presence: 'typing', delay: 5 });
         if (typingDuration > typingInterval) {
           await delay(typingInterval);
         }
@@ -225,14 +203,8 @@ class BotStateManager {
  
   async checkUserTyping(phoneNumber, userId) {
     try {
-      const response = await axios.get(`https://gate.whapi.cloud/presences/${userId}`, {
-        headers: {
-          'accept': 'application/json',
-          'authorization': `Bearer ${this.whapiToken}`
-        }
-      });
-      
-      const isTyping = response.data.presence === 'composing';
+      const { data } = await whapi.getPresence(userId);
+      const isTyping = data.presence === 'composing';
       logger.info(`User ${userId} typing status: ${isTyping}`);
       return isTyping;
     } catch (error) {
