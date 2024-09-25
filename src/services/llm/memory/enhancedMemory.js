@@ -1,13 +1,7 @@
 // src/services/llm/enhancedMemory.js
 
-const { VectorStoreRetrieverMemory } = require('langchain/memory');
-const { PineconeStore } = require('@langchain/pinecone');
-const { OpenAIEmbeddings } = require('@langchain/openai');
 const { Pinecone } = require('@pinecone-database/pinecone');
-const { ChatOpenAI } = require('@langchain/openai');
-const { ChatPromptTemplate } = require('@langchain/core/prompts');
-const { StringOutputParser } = require('@langchain/core/output_parsers');
-const { HumanMessage, AIMessage } = require('@langchain/core/messages');
+const OpenAI = require('openai');
 
 const { countTokens } = require('../../tokenizer/tokenizer');
 const messageService = require('../../dialog/messageService');
@@ -16,7 +10,7 @@ const logger = require('../../../utils/logger');
 
 class EnhancedMemory {
   constructor(args) {
-    this.pinecone = new Pinecone();
+    // this.pinecone = new Pinecone();
     this.openAIApiKey = args.openAIApiKey;
     this.pineconeIndex = args.pineconeIndex;
     this.leadId = args.leadId;
@@ -26,30 +20,16 @@ class EnhancedMemory {
     this.outputKey = 'output';
     this.userId = args.userId;
 
-    this.vectorStoreMemory = null;
+    this.openai = new OpenAI({ apiKey: this.openAIApiKey });
+    this.vectorIndex = null;
 
     this.initializePinecone();
   }
 
   async initializePinecone() {
     try {
-      const pineconeIndex = this.pinecone.Index(this.pineconeIndex);
-
-      this.vectorStore = await PineconeStore.fromExistingIndex(
-        new OpenAIEmbeddings({ openAIApiKey: this.openAIApiKey }),
-        { pineconeIndex },
-      );
-
-      this.vectorStoreMemory = new VectorStoreRetrieverMemory({
-        vectorStoreRetriever: this.vectorStore.asRetriever(),
-        inputKey: this.inputKey,
-        outputKey: this.outputKey,
-        memoryKey: 'history',
-      });
-
-      logger.info(
-        `Initialized Pinecone for lead: ${this.leadId}`,
-      );
+      // this.vectorIndex = this.pinecone.Index(this.pineconeIndex);
+      logger.info(`Initialized Pinecone for lead: ${this.leadId}`);
     } catch (error) {
       logger.error(`Error initializing Pinecone: ${error.message}`);
     }
@@ -73,18 +53,18 @@ class EnhancedMemory {
         'new'
       );
 
-      if (this.vectorStore) {
-        // Save to vector store
-        // await this.vectorStore.addDocuments([
-        //   {
-        //     pageContent: this.cleanText(`Human: ${input[this.inputKey]}\nAI: ${output[this.outputKey]}`),
-        //     metadata: {
-        //       leadId: this.leadId,
-        //       timestamp: new Date().toISOString(),
-        //     },
-        //   },
-        // ]);
-      }
+      // if (this.vectorIndex) {
+      //   // Save to vector store
+      //   const embedding = await this.getEmbedding(`Human: ${input[this.inputKey]}\nAI: ${output[this.outputKey]}`);
+      //   await this.vectorIndex.upsert([{
+      //     id: `${this.leadId}-${Date.now()}`,
+      //     values: embedding,
+      //     metadata: {
+      //       leadId: this.leadId,
+      //       timestamp: new Date().toISOString(),
+      //     },
+      //   }]);
+      // }
 
       logger.info(`Saved context for lead: ${this.leadId}`);
     } catch (error) {
@@ -150,16 +130,20 @@ class EnhancedMemory {
         if (totalTokens + messageTokens > this.maxTokens) {
           break;
         }
-        history.push(new HumanMessage(message.userRequest));
-        history.push(new AIMessage(message.assistantResponse));
+        history.push({ role: 'user', content: message.userRequest });
+        history.push({ role: 'assistant', content: message.assistantResponse });
         totalTokens += messageTokens;
       }
 
-      if (this.vectorStoreMemory) {
-        // const vectorStoreResult = await this.vectorStoreMemory.loadMemoryVariables(inputForMemory);
-        // vectorHistory = vectorStoreResult.history || [];
-        const vectorHistory = [];
-      }
+      // if (this.vectorIndex) {
+      //   const embedding = await this.getEmbedding(inputForMemory[this.inputKey]);
+      //   const queryResponse = await this.vectorIndex.query({
+      //     vector: embedding,
+      //     topK: 5,
+      //     includeMetadata: true,
+      //   });
+      //   vectorHistory = queryResponse.matches.map(match => match.metadata);
+      // }
 
       // Get all messages beyond the recent 10
       const allMessages = await messageService.getAllMessages(this.leadId);
@@ -181,25 +165,20 @@ class EnhancedMemory {
   }
 
   async summarizeHistory(messagesToSummarize) {
-    const llm = new ChatOpenAI({
-      modelName: this.summaryModelName,
-      temperature: 0,
-      maxTokens: 2000,
-      openAIApiKey: this.openAIApiKey,
-    });
-
-    const summarizePrompt = ChatPromptTemplate.fromTemplate(
-      'Summarize the following conversation history in a concise manner, capturing the main points and context. Use language of the last message. Keep your summary under 2000 tokens:\n\n{history}'
-    );
-
-    const chain = summarizePrompt.pipe(llm).pipe(new StringOutputParser());
-
-    const history = messagesToSummarize
-      .map(m => `Human: ${m.userRequest}\nAI: ${m.assistantResponse}`)
-      .join('\n\n');
+    const messages = [
+      { role: 'system', content: 'Summarize the following conversation history in a concise manner, capturing the main points and context. Use language of the last message. Keep your summary under 2000 tokens:' },
+      { role: 'user', content: messagesToSummarize.map(m => `Human: ${m.userRequest}\nAI: ${m.assistantResponse}`).join('\n\n') }
+    ];
 
     try {
-      const summary = await chain.invoke({ history });
+      const response = await this.openai.chat.completions.create({
+        model: this.summaryModelName,
+        messages: messages,
+        temperature: 0,
+        max_tokens: 2000,
+      });
+
+      const summary = response.choices[0].message.content;
       logger.info(`Generated summary for lead: ${this.leadId}`);
       return summary;
     } catch (error) {
@@ -228,33 +207,12 @@ class EnhancedMemory {
     return `${truncated}...`;
   }
 
-  async getContextString(userMessage) {
-    try {
-      let contextString = `Human: ${userMessage}\nAI:`;
-      const { history, summary, vectorHistory } = await this.loadMemoryVariables({
-        [this.inputKey]: userMessage,
-      });
-
-      const historyString = Array.isArray(history)
-        ? history.map((m) => `${m._getType()}: ${m.content}`).join('\n')
-        : '';
-
-      if (historyString !== '') {
-        contextString = `Recent conversation:\n${historyString}\n\n${contextString}`;
-      }
-
-      if (summary !== '') {
-        contextString = `Summary: ${summary}\n\n${contextString}`;
-      }
-
-      if (vectorHistory !== '') {
-        contextString = `Relevant from vector store history: ${vectorHistory}\n\n${contextString}`;
-      }
-      return contextString;
-    } catch (error) {
-      logger.error(`Error getting context string: ${error.message}`);
-      return `Human: ${userMessage}\nAI:`;
-    }
+  async getEmbedding(text) {
+    const response = await this.openai.embeddings.create({
+      model: 'text-embedding-ada-002',
+      input: text,
+    });
+    return response.data[0].embedding;
   }
 }
 

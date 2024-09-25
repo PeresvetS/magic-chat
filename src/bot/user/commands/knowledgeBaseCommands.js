@@ -11,6 +11,7 @@ const {
   getUserState,
   clearUserState,
 } = require('../utils/userState');
+const {knowledgeBaseRepo} = require('../../../db');
 const { getCampaignByName } = require('../../../services/campaign/src/campaignsMailingService');
 
 module.exports = {
@@ -57,6 +58,8 @@ module.exports = {
     }
   },
 
+  
+
   '/add_kb_document ([^\\s]+)': async (bot, msg, match) => {
     const [, kbName] = match;
     if (!kbName) {
@@ -67,19 +70,30 @@ module.exports = {
       return;
     }
     try {
-      const userState = getUserState(userId);
-      const knowledgeBase =
-        await knowledgeBaseServiceFactory.getInstanceForCampaign(parseInt(userState.campaignId)).getKnowledgeBaseByName(kbName);
+      const userId = msg.from.id;
+      
+      // Получаем базу знаний по имени
+      const knowledgeBase = await knowledgeBaseRepo.findByName(kbName);
+      
       if (!knowledgeBase) {
         bot.sendMessage(msg.chat.id, `База знаний "${kbName}" не найдена.`);
         return;
       }
 
-      setUserState(msg.from.id, {
+      // Получаем campaignId из базы знаний
+      const campaignId = knowledgeBase.campaignId;
+
+      // Создаем экземпляр KnowledgeBaseService для этой кампании
+      const knowledgeBaseService = knowledgeBaseServiceFactory.getInstanceForCampaign(campaignId);
+
+      // Устанавливаем состояние пользователя
+      setUserState(userId, {
         action: 'add_kb_document',
         kbId: knowledgeBase.id,
         kbName,
+        campaignId,
       });
+      
       bot.sendMessage(
         msg.chat.id,
         `Пожалуйста, отправьте документ для добавления в базу знаний "${kbName}"`,

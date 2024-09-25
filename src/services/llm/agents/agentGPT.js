@@ -1,6 +1,6 @@
 // src/services/llm/agents/agentChain.js
 
-const { Configuration, OpenAIApi } = require('openai');
+const OpenAI = require('openai');
 
 const { countTokens } = require('../../tokenizer/tokenizer');
 const logger = require('../../../utils/logger');
@@ -37,7 +37,7 @@ class AgentGPT {
     });
 
     this.tools = tools;
-    this.openai = new OpenAIApi(new Configuration({ apiKey: this.openaiApiKey }));
+    this.openai = new OpenAI({ apiKey: this.openaiApiKey });
   }
 
   async run(userMessage) {
@@ -80,17 +80,14 @@ class AgentGPT {
 
       const response = await this.openai.chat.completions.create({
         model: this.campaign.modelName || 'gpt-4o-mini',
-        messages: messages.map(msg => ({
-          role: msg.role,
-          content: typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content)
-        })),
+        messages: messages,
         temperature: 0.5,
       });
 
       let responseText = response.choices[0].message.content;
 
-      if (response.data.choices[0].message.function_call) {
-        const functionCall = response.data.choices[0].message.function_call;
+      if (response.choices[0].message.function_call) {
+        const functionCall = response.choices[0].message.function_call;
         const tool = this.tools.find(t => t.name === functionCall.name);
         if (tool) {
           const result = await tool.invoke(JSON.parse(functionCall.arguments));
