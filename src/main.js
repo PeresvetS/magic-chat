@@ -6,18 +6,18 @@ const express = require('express');
 const bodyParser = require('body-parser');
 
 const config = require('./config');
-const userBot = require('./bot/user');
-const adminBot = require('./bot/admin');
+const userBot = require('./bots/telegram/user');
+const adminBot = require('./bots/telegram/admin');
 const { Worker } = require('worker_threads');
 const logger = require('./utils/logger');
 const { retryOperation } = require('./utils/helpers');
 const webhookRouter = require('./api/routes/webhooks');
 const { phoneNumberService } = require('./services/phone');
 const { messageQuequeService } = require('./services/mailing');
-const requestLogger = require('./api/middleware/requestLogger');
+const requestLogger = require('./api/middlewares/requestLogger');
 const { WhatsAppSessionService } = require('./services/whatsapp');
 const { TelegramSessionService } = require('./services/telegram');
-const notificationBot = require('./bot/notification/notificationBot');
+const notificationBot = require('./bots/telegram/notification');
 const {
   handleMessageService,
   processPendingMessages,

@@ -2,7 +2,7 @@
 
 const logger = require('../../utils/logger');
 const { getUserByTgId } = require('../../db/repositories/userRepo');
-const notificationBot = require('../../bot/notification/notificationBot');
+const notificationBot = require('../../bots/telegram/notification');
 
 async function sendNotification(updatedLead, campaign, lead, messages) {
   const recentMessages = messages.slice(-6);

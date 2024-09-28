@@ -1,11 +1,11 @@
 // src/bot/admin/commands/phoneManagementCommands.js
 
-const config = require('../../../config');
-const logger = require('../../../utils/logger');
-const { TelegramMainSessionService } = require('../../../services/telegram');
-const { WhatsAppMainSessionService } = require('../../../services/whatsapp');
+const config = require('../../../../config');
+const logger = require('../../../../utils/logger');
+const { TelegramMainSessionService } = require('../../../../services/telegram');
+const { WhatsAppMainSessionService } = require('../../../../services/whatsapp');
 const { updatePhoneNumberStatus, setPhoneNumberLimit, getPhoneNumberInfo } =
-  require('../../../services/phone').phoneNumberService;
+    require('../../../../services/phone').phoneNumberService;
 
 module.exports = {
   '/ban_phone ([+]?[0-9]+) (temporary|permanent)': async (bot, msg, match) => {

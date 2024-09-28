@@ -4,15 +4,15 @@ const fs = require('fs');
 const path = require('path');
 const axios = require('axios');
 
-const logger = require('../../../utils/logger');
-const knowledgeBaseServiceFactory = require('../../../services/llm/knowledgeBase/knowledgeBaseServiceFactory');
+const logger = require('../../../../utils/logger');
+const knowledgeBaseServiceFactory = require('../../../../services/llm/knowledgeBase/knowledgeBaseServiceFactory');
 const {
   setUserState,
   getUserState,
   clearUserState,
 } = require('../utils/userState');
-const {knowledgeBaseRepo} = require('../../../db');
-const { getCampaignByName } = require('../../../services/campaign/src/campaignsMailingService');
+const {knowledgeBaseRepo} = require('../../../../db');
+const { getCampaignByName } = require('../../../../services/campaign/src/campaignsMailingService');
 
 module.exports = {
   '/create_kb ([^\\s]+) ([^\\s]+)': async (bot, msg, match) => {

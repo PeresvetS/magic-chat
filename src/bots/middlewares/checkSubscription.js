@@ -1,8 +1,8 @@
-// src/middleware/checkSubscription.js
+// src/bots/middlewares/checkSubscription.js
 
-const logger = require('../utils/logger');
+const logger = require('../../utils/logger');
 const { checkUserSubscription } =
-  require('../services/user').subscriptionService;
+  require('../../services/user').subscriptionService;
 
 async function checkSubscription(userId) {
   try {

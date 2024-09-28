@@ -1,16 +1,16 @@
-// src/bot/user/index.js
+// src/bots/telegram/user/index.js
 
 const TelegramBot = require('node-telegram-bot-api');
 
-const config = require('../../config');
-const logger = require('../../utils/logger');
-const { getUserInfo } = require('../../services/user/src/userService');
+const config = require('../../../config');
+const logger = require('../../../utils/logger');
+const { getUserInfo } = require('../../../services/user/src/userService');
 const { getUserState } = require('./utils/userState');
-const { TelegramSessionService } = require('../../services/telegram');
-const { WhatsAppSessionService } = require('../../services/whatsapp');
+const { TelegramSessionService } = require('../../../services/telegram');
+const { WhatsAppSessionService } = require('../../../services/whatsapp');
 const { setPhoneAuthenticated } =
-  require('../../services/phone/src/phoneNumberService');
-const PhoneNumberManagerService = require('../../services/phone/src/PhoneNumberManagerService');
+  require('../../../services/phone/src/phoneNumberService');
+const PhoneNumberManagerService = require('../../../services/phone/src/PhoneNumberManagerService');
 const wabaCommands = require('./commands/wabaCommands');
 const helpCommands = require('./commands/helpCommands');
 const phoneCommands = require('./commands/phoneCommands');

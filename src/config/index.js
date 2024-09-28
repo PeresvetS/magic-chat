@@ -1,6 +1,6 @@
 // src/config/index.js
 
-require('dotenv').config();
+require('dotenv').config({path: './config/.env'});
 const logger = require('../utils/logger');
 
 const config = {

@@ -1,6 +1,6 @@
 // src/bot/admin/commands/limitCommands.js
 
-const { setLimit, getLimits } = require('../../../services/user').limitService;
+const { setLimit, getLimits } = require('../../../../services/user').limitService;
 
 module.exports = {
   '/set_limit ([\\w\\.]+) (parsing|phones|campaigns|contacts|leads) (\\d+)':

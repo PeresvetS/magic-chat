@@ -1,7 +1,7 @@
-// src/middleware/adminCheck.js
+// src/bots/middlewares/adminCheck.js
 
-const config = require('../config');
-const logger = require('../utils/logger');
+const config = require('../../config');
+const logger = require('../../utils/logger');
 
 async function isAdmin(userId) {
   logger.info(`Allowed admins: ${JSON.stringify(config.ALLOWED_ADMINS)}`);

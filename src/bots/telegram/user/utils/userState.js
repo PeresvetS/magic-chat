@@ -1,6 +1,6 @@
 // src/bot/user/utils/userState.js
 
-const logger = require('../../../utils/logger');
+const logger = require('../../../../utils/logger');
 
 const userStates = {};
 

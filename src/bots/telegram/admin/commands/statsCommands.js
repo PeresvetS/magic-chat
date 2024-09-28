@@ -1,6 +1,6 @@
 // src/bot/admin/commands/statsCommands.js
 
-const { getGlobalStats } = require('../../../services/stats/statsService');
+const { getGlobalStats } = require('../../../../services/stats/statsService');
 
 module.exports = {
   '/global_stats': async (bot, msg) => {

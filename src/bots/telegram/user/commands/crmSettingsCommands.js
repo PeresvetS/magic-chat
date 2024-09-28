@@ -1,7 +1,7 @@
-// src/bot/user/commands/crmSettingsCommands.js
+  // src/bot/user/commands/crmSettingsCommands.js
 
-const { bitrixService, amoCrmService } = require('../../../services/crm');
-const logger = require('../../../utils/logger');
+const { bitrixService, amoCrmService } = require('../../../../services/crm');
+const logger = require('../../../../utils/logger');
 
 module.exports = {
   '/set_bitrix_webhook (https:\\/\\/.{10,})': async (bot, msg, match) => {

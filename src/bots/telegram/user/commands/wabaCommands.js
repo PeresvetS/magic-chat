@@ -1,8 +1,8 @@
 // src/bot/user/commands/wabaCommands.js
 
-const logger = require('../../../utils/logger');
-const WABAAccountService = require('../../../services/waba/services/WABAAccountService');
-const WABASessionService = require('../../../services/waba/services/WABASessionService');
+const logger = require('../../../../utils/logger');
+const WABAAccountService = require('../../../../services/waba/services/WABAAccountService');
+const WABASessionService = require('../../../../services/waba/services/WABASessionService');
 
 module.exports = {
   '/add_waba_account ([+]?[0-9]+) (.+)': async (bot, msg, match) => {

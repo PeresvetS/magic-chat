@@ -1,8 +1,8 @@
 // src/bot/user/commands/promptCommands.js
 
-const logger = require('../../../utils/logger');
-const { promptService } = require('../../../services/prompt');
-const { userService } = require('../../../services/user');
+const logger = require('../../../../utils/logger');
+const { promptService } = require('../../../../services/prompt');
+const { userService } = require('../../../../services/user');
 const {
   setUserState,
   getUserState,

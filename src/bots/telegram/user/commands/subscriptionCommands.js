@@ -1,9 +1,9 @@
 // src/bot/user/commands/subscriptionCommands.js
 
 const { getUserSubscriptionInfo } =
-  require('../../../services/user/src/subscriptionService');
-const { getUserByTgId } = require('../../../services/user/src/userService');
-const logger = require('../../../utils/logger');
+  require('../../../../services/user/src/subscriptionService');
+const { getUserByTgId } = require('../../../../services/user/src/userService');
+const logger = require('../../../../utils/logger');
 
 module.exports = {
   '/check_subscription': async (bot, msg, match) => {

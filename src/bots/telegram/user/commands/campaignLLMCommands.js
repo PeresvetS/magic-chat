@@ -1,10 +1,10 @@
 // src/bot/user/commands/campagnLLMCommands.js
 
-const { campaignsLLMService } = require('../../../services/campaign');
+const { campaignsLLMService } = require('../../../../services/campaign');
 const { getCampaignByName } =
-  require('../../../services/campaign').campaignsMailingService;
-const logger = require('../../../utils/logger');
-const promptService = require('../../../services/prompt/promptService');
+  require('../../../../services/campaign').campaignsMailingService;
+const logger = require('../../../../utils/logger');
+const promptService = require('../../../../services/prompt/promptService');
 
 module.exports = {
   '/set_campaign_openai_key ([^\\s]+) (.+)': async (bot, msg, match) => {

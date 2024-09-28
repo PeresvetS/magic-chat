@@ -1,9 +1,9 @@
-// src/bot/notification/notificationBot.js
+// src/bots/telegram/notification/index.js
 
 const TelegramBot = require('node-telegram-bot-api');
 
-const config = require('../../config');
-const logger = require('../../utils/logger');
+const config = require('../../../config');
+const logger = require('../../../utils/logger');
 
 function createNotificationBot() {
   const bot = new TelegramBot(config.NOTIFICATION_BOT_TOKEN, {

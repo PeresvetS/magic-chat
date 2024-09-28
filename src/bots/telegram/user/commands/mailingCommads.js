@@ -8,12 +8,12 @@ const {
 const {
   checkMailingStatus,
 } = require('../utils/mailingStatusChecker');
-const { leadService } = require('../../../services/leads');
-const { campaignsMailingService } = require('../../../services/campaign');
-const { distributionService } = require('../../../services/mailing');
-const logger = require('../../../utils/logger');
-const { delay } = require('../../../utils/helpers');
-const BulkDistributionChecker = require('../../../services/mailing/checkers/bulkDistributionChecker');
+const { leadService } = require('../../../../services/leads');
+const { campaignsMailingService } = require('../../../../services/campaign');
+const { distributionService } = require('../../../../services/mailing');
+const logger = require('../../../../utils/logger');
+const { delay } = require('../../../../utils/helpers');
+const BulkDistributionChecker = require('../../../../services/mailing/checkers/bulkDistributionChecker');
 
 async function getCampaignByName(name, bot, chatId) {
   try {

@@ -4,7 +4,7 @@ const express = require('express');
 
 const logger = require('../../utils/logger');
 const { safeStringify } = require('../../utils/helpers');
-const { checkBitrixToken } = require('../middleware/checkApiTokens');
+const { checkBitrixToken } = require('../middlewares/checkApiTokens');
 const {
   processBitrixWebhook,
 } = require('../services/webhook/bitrixWebhookService');

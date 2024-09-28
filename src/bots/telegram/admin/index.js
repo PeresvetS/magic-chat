@@ -1,11 +1,10 @@
-// src/bot/admin/index.js
+// src/bots/telegram/admin/index.js
 
 const TelegramBot = require('node-telegram-bot-api');
 
-const config = require('../../config');
-const logger = require('../../utils/logger');
-const { isAdmin } = require('../../middleware/adminCheck');
-const { TelegramSessionService } = require('../../services/telegram');
+const config = require('../../../config');
+const logger = require('../../../utils/logger');
+const { isAdmin } = require('../../middlewares/adminCheck');
 
 // Импорт командных модулей
 const helpCommands = require('./commands/helpCommands');

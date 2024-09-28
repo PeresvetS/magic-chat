@@ -1,8 +1,8 @@
 // src/bot/user/commands/leadsCommands.js
 
-const logger = require('../../../utils/logger');
-const leadService = require('../../../services/leads/src/leadService');
-const { processExcelFile } = require('../../../services/leads/src/xlsProcessor');
+const logger = require('../../../../utils/logger');
+const leadService = require('../../../../services/leads/src/leadService');
+const { processExcelFile } = require('../../../../services/leads/src/xlsProcessor');
 const {
   setUserState,
   getUserState,

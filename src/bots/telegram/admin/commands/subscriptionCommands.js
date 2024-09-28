@@ -1,13 +1,13 @@
 // src/bot/admin/commands/subscriptionCommands.js
 
-const logger = require('../../../utils/logger');
-const { safeStringify } = require('../../../utils/helpers');
+const logger = require('../../../../utils/logger');
+const { safeStringify } = require('../../../../utils/helpers');
 const {
   getUserSubscriptionInfo,
   addUserSubscription,
   updateUserSubscription,
-} = require('../../../services/user/src/subscriptionService');
-const { getUserByIdentifier } = require('../../../services/user/src/userService');
+} = require('../../../../services/user/src/subscriptionService');
+const { getUserByIdentifier } = require('../../../../services/user/src/userService');
 
 module.exports = {
   '/add_subscription ([\\w\\.@]+) (\\d+) (days|months) (repeat|once)': async (

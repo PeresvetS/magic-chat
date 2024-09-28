@@ -1,8 +1,6 @@
 // src/bot/user/utils/mailingStatusChecker.js
 
-const { distributionService } = require('../../../services/mailing');
-const logger = require('../../../utils/logger');
-const { safeStringify } = require('../../../utils/helpers');
+const { distributionService } = require('../../../../services/mailing');
 
 async function checkMailingStatus(bot, msg, initialResult, phoneNumber) {
   const maxAttempts = 10;

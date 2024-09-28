@@ -1,7 +1,7 @@
 // src/admin/commands/crmSettingsCommands.js
 
-const logger = require('../../../utils/logger');
-const { bitrixService, amoCrmService } = require('../../../services/crm');
+const logger = require('../../../../utils/logger');
+const { bitrixService, amoCrmService } = require('../../../../services/crm');
 
 module.exports = {
   '/get_crm_info': async (bot, msg) => {

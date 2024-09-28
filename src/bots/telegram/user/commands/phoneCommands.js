@@ -6,12 +6,12 @@ const {
   setPhoneNumberLimit,
   getPhoneNumberInfo,
   getUserPhoneNumbers,
-} = require('../../../services/phone/src/phoneNumberService');
-const { getUserByTgId } = require('../../../services/user/src/userService');
-const { WABASessionService } = require('../../../services/waba');
-const { TelegramSessionService } = require('../../../services/telegram');
-const { WhatsAppSessionService } = require('../../../services/whatsapp');
-const logger = require('../../../utils/logger');
+} = require('../../../../services/phone/src/phoneNumberService');
+const { getUserByTgId } = require('../../../../services/user/src/userService');
+const { WABASessionService } = require('../../../../services/waba');
+const { TelegramSessionService } = require('../../../../services/telegram');
+const { WhatsAppSessionService } = require('../../../../services/whatsapp');
+const logger = require('../../../../utils/logger');
 
 module.exports = {
   '/add_phone (telegram|whatsapp|waba) ([+]?[0-9]+)': async (
