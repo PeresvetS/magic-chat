@@ -20,5 +20,3 @@ RUN npx prisma generate
 
 # Запускаем приложение
 CMD ["npm", "start"]
-# # Применяем Prisma миграции
-# CMD ["npx", "prisma", "migrate", "deploy"]
