@@ -35,12 +35,18 @@ services:
       - "3000:3000"
     env_file:
       - config/.env
+    environment:
+      - DATABASE_URL=postgresql://admin:postgres@db:5432/magic_chat
+      - RABBITMQ_URL=amqp://rabbitmq:5672
     depends_on:
-      - rabbitmq
-      - db
+      rabbitmq:
+        condition: service_healthy
+      db:
+        condition: service_started
     networks:
       - app-network
     command: /bin/sh -c "npx prisma migrate deploy && npm start"
+
 
 #  ngrok:
 #    image: wernight/ngrok
