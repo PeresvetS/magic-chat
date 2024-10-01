@@ -42,7 +42,15 @@ class AgentGPT {
 
   async run(userMessage) {
     return new Promise((resolve, reject) => {
-      this.messageQueue.push({ userMessage, resolve, reject });
+      this.messageQueue.push({ 
+        userMessage, 
+        resolve, 
+        reject,
+        contextInfo: {
+          lead: this.lead,
+          campaign: this.campaign
+        }
+      });
 
       if (this.debounceTimer) {
         clearTimeout(this.debounceTimer);
@@ -90,7 +98,14 @@ class AgentGPT {
         const functionCall = response.choices[0].message.function_call;
         const tool = this.tools.find(t => t.name === functionCall.name);
         if (tool) {
-          const result = await tool.invoke(JSON.parse(functionCall.arguments));
+          const args = JSON.parse(functionCall.arguments);
+          // Добавляем контекстную информацию к аргументам
+          const fullArgs = {
+            ...args,
+            lead: this.lead,
+            campaign: this.campaign
+          };
+          const result = await tool.invoke(fullArgs);
           responseText += `\nTool ${functionCall.name} result: ${result}`;
         }
       }

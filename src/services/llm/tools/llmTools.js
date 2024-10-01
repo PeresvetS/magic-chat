@@ -48,84 +48,80 @@ async function changeLeadStatusNegative(args) {
 
 async function updateAddress(args) {
   const { lead, address } = args;
+  logger.info(`Updating lead ${lead.id} address to ${address}`);
   return safeStringify(await leadProfileService.updateLeadProfileField(lead.id, 'address', address));
 }
 
 async function updateBusinessType(args) {
   const { lead, businessType } = args;
+  logger.info(`Updating lead ${lead.id} business type to ${businessType}`);
   return safeStringify(await leadProfileService.updateLeadProfileField(lead.id, 'businessType', businessType));
 }
 
 async function updateGenerationMethod(args) {
   const { lead, method } = args;
+  logger.info(`Updating lead ${lead.id} generation method to ${method}`);
   return safeStringify(await leadProfileService.updateLeadProfileField(lead.id, 'leadGenerationMethod', method));
 }
 
 async function updateMainPains(args) {
   const { lead, pains } = args;
+  logger.info(`Updating lead ${lead.id} main pains to ${pains}`);
   return safeStringify(await leadProfileService.updateLeadProfileField(lead.id, 'mainPains', pains));
 }
 
 async function updateLocation(args) {
   const { lead, location } = args;
+  logger.info(`Updating lead ${lead.id} location to ${location}`);
   return safeStringify(await leadProfileService.updateLeadProfileField(lead.id, 'location', location));
 }
 
 async function updateInterests(args) {
   const { lead, interests } = args;
+  logger.info(`Updating lead ${lead.id} interests to ${interests}`);
   return safeStringify(await leadProfileService.updateLeadProfileField(lead.id, 'interests', interests));
-}
-
-async function updateField(args) {
-  const { lead, fieldName, value } = args;
-  return safeStringify(await leadProfileService.updateLeadProfileField(lead.id, fieldName, value));
 }
 
 const tools = [
   {
     name: "change_lead_status_positive",
-    description: "Change the lead status to positive",
+    description: "Изменить статус лида на положительный, если клиент заинтересован в продукте или услуге.",
     function: changeLeadStatusPositive,
   },
   {
     name: "change_lead_status_negative",
-    description: "Change the lead status to negative",
+    description: "Изменить статус лида на отрицательный, если клиент не заинтересован или отказался от дальнейшего общения.",
     function: changeLeadStatusNegative,
   },
   {
     name: "update_lead_address",
-    description: "Update the lead's address",
+    description: "Обновить адрес лида. Передай полный адрес клиента в параметре 'address'.",
     function: updateAddress,
   },
   {
     name: "update_lead_business_type",
-    description: "Update the lead's business type",
+    description: "Обновить тип бизнеса лида. Передай сферу деятельности или тип бизнеса клиента в параметре 'businessType'.",
     function: updateBusinessType,
   },
   {
     name: "update_lead_generation_method",
-    description: "Update the lead's generation method",
+    description: "Обновить метод генерации лида. Передай информацию о том, как клиент привлекает своих клиентов, в параметре 'method'.",
     function: updateGenerationMethod,
   },
   {
     name: "update_lead_main_pains",
-    description: "Update the lead's main pains",
+    description: "Обновить основные проблемы лида. Передай основные боли или проблемы клиента в параметре 'pains'.",
     function: updateMainPains,
   },
   {
     name: "update_lead_location",
-    description: "Update the lead's location",
+    description: "Обновить местоположение лида. Передай город или регион, где клиент ведет бизнес, в параметре 'location'.",
     function: updateLocation,
   },
   {
     name: "update_lead_interests",
-    description: "Update the lead's interests",
+    description: "Обновить интересы лида. Передай профессиональные интересы или хобби клиента в параметре 'interests'.",
     function: updateInterests,
-  },
-  {
-    name: "update_lead_field",
-    description: "Update a specific field of the lead's profile",
-    function: updateField,
   },
 ];
 

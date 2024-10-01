@@ -5,7 +5,6 @@
 make app-build
 # start the app
 make app
-
 # check code style
 make app-lint
 ```

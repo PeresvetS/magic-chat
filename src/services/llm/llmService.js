@@ -11,7 +11,6 @@ const {
   updateMainPains,
   updateLocation,
   updateInterests,
-  updateField,
 } = require('./tools/llmTools');
 const AgentGPT = require('./agents/agentGPT');
 
@@ -24,7 +23,6 @@ const tools = [
   updateMainPains,
   updateLocation,
   updateInterests,
-  updateField,
 ];
 
 const agentGPTs = new Map();
