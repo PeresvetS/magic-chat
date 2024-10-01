@@ -358,7 +358,9 @@ async function setPhoneNumberLimit(
 async function getPhoneNumberInfo(phoneNumber) {
   try {
     return await prisma.phoneNumber.findUnique({
-      where: { phoneNumber },
+      where: {
+        phoneNumber: phoneNumber, // Make sure to use the parameter here
+      },
       include: {
         telegramAccount: true,
         whatsappAccount: true,

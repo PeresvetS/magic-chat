@@ -36,20 +36,21 @@ class PhoneNumberManagerService {
     let currentIndex = rotationState ? rotationState.currentIndex : 0;
     logger.info(`Starting rotation for campaign ${campaignId}, platform ${platform} from index ${currentIndex}`);
 
-    let attempts = 0;
-    while (attempts < phoneNumbers.length) {
-      const phoneNumber = phoneNumbers[currentIndex];
-      currentIndex = (currentIndex + 1) % phoneNumbers.length;
+    // let attempts = 0;
+    // while (attempts < phoneNumbers.length) {
+    //   const phoneNumber = phoneNumbers[currentIndex];
+    //   currentIndex = (currentIndex + 1) % phoneNumbers.length;
 
-      logger.debug(`Checking phone number ${phoneNumber} for availability`);
-      if (await this.isPhoneNumberAvailable(phoneNumber, platform)) {
-        await phoneNumberRotationRepo.updateRotationState(campaign.userId, campaignId, platform, currentIndex);
-        logger.info(`Selected phone number ${phoneNumber} for campaign ${campaignId}, platform ${platform}`);
-        return phoneNumber;
-      }
+    //   logger.debug(`Checking phone number ${phoneNumber} for availability`);
+    //   // if (await this.isPhoneNumberAvailable(phoneNumber, platform)) {
+    //   //   await phoneNumberRotationRepo.updateRotationState(campaign.userId, campaignId, platform, currentIndex);
+    //   //   logger.info(`Selected phone number ${phoneNumber} for campaign ${campaignId}, platform ${platform}`);
+    //   //   return phoneNumber;
+    //   // }
 
-      attempts++;
-    }
+    //   attempts++;
+    // }
+    return phoneNumbers[0];
 
     logger.error(`No available phone numbers for platform ${platform} in campaign ${campaignId} after ${attempts} attempts`);
     return null;
