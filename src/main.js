@@ -1,4 +1,6 @@
 // src/main.js
+/* https://github.com/langchain-ai/langchainjs/issues/2815 */
+global.ReadableStream = require('web-streams-polyfill').ReadableStream;
 
 const path = require('path');
 const cron = require('node-cron');
@@ -23,6 +25,7 @@ const {
   processPendingMessages,
 } = require('./services/messaging');
 const RabbitMQQueueService = require('./services/queue/rabbitMQQueueService');
+const { delay } = require('./utils/helpers');
 
 let isProcessingUnfinishedTasks = false;
 
@@ -154,12 +157,17 @@ async function main() {
     logger.info('Main function started');
 
     // Инициализация RabbitMQ
-    try {
-      await RabbitMQQueueService.connect();
-      logger.info('Successfully connected to RabbitMQ');
-    } catch (error) {
-      logger.error('Failed to connect to RabbitMQ:', error);
-      // Возможно, стоит добавить повторные попытки подключения или завершить процесс
+    isConnectedToRabbit = false;
+    while (!isConnectedToRabbit) {
+      try {
+        await RabbitMQQueueService.connect();
+        logger.info('Successfully connected to RabbitMQ');
+        isConnectedToRabbit = true;
+      } catch (error) {
+        logger.error('Failed to connect to RabbitMQ:', error);
+        await delay(1000)
+        logger.info("Reconnect to MQ")
+      }
     }
 
     // Инициализация сессий Telegram
