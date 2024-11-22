@@ -15,19 +15,19 @@ const WABABotStateManager = require('../../waba/managers/botStateManager');
 
 async function processMessage(senderId, textToProcess, phoneNumber, campaign, platform) {
   try {
-
     const BotStateManager = platform === 'telegram' ? TelegramBotStateManager :
-    platform === 'whatsapp' ? WhatsAppBotStateManager :
-    platform === 'waba' ? WABABotStateManager : null; 
+      platform === 'whatsapp' ? WhatsAppBotStateManager :
+      platform === 'waba' ? WABABotStateManager : null;
 
     logger.info(
-      `BotStateManager for ${platform}: ${BotStateManager ? 'Loaded' : 'Not loaded'}`,
+      `Processing message for ${platform}, campaign ${campaign.id}`,
     );
 
     const message = await BotStateManager.handleIncomingMessage(
       phoneNumber,
       senderId,
       textToProcess,
+      campaign.id
     );
 
     if (message === null) {
@@ -76,7 +76,7 @@ async function processMessage(senderId, textToProcess, phoneNumber, campaign, pl
     // return { response, messageId: incomingMessage.id };
     return { response: response, messageId: null, leadId: lead.id };
   } catch (error) {
-    logger.error(`Error in processMessage for ${senderId}:`, error);
+    logger.error(`Error in processMessage for ${senderId}, campaign ${campaign.id}:`, error);
     throw error;
   }
 }

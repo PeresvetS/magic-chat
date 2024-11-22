@@ -11,15 +11,21 @@ const { retryOperation } = require('../../../utils/messageUtils');
 
 class BotStateManager {
   constructor() {
-    this.userStates = new Map();
+    this.campaignStates = new Map();
     this.peerCache = new Map();
     this.onlineStatusManager = OnlineStatusManager;
     logger.info('BotStateManager initialized');
   }
 
-  getUserState(userId) {
-    if (!this.userStates.has(userId)) {
-      this.userStates.set(userId, {
+  getUserState(userId, campaignId) {
+    if (!this.campaignStates.has(campaignId)) {
+      this.campaignStates.set(campaignId, new Map());
+    }
+    
+    const campaignUsers = this.campaignStates.get(campaignId);
+    
+    if (!campaignUsers.has(userId)) {
+      campaignUsers.set(userId, {
         state: 'offline',
         newMessage: true,
         messageBuffer: [],
@@ -27,12 +33,12 @@ class BotStateManager {
         isSendingResponse: false,
         shouldInterruptResponse: false,
         debounceTimer: null,
-        lastMessageTimestamp: 0, // Ensure this is initialized
+        lastMessageTimestamp: 0,
         preOnlineComplete: false,
         offlineTimer: null,
       });
     }
-    return this.userStates.get(userId);
+    return campaignUsers.get(userId);
   }
 
   async getSession(phoneNumber) {
@@ -46,8 +52,8 @@ class BotStateManager {
     return session;
   }
 
-  async setOffline(phoneNumber, userId) {
-    const userState = this.getUserState(userId);
+  async setOffline(phoneNumber, userId, campaignId) {
+    const userState = this.getUserState(userId, campaignId);
     userState.state = 'offline';
     userState.newMessage = true;
     clearTimeout(userState.typingTimer);
@@ -57,8 +63,8 @@ class BotStateManager {
     logger.info(`Bot set to offline for user ${userId}`);
   }
 
-  async setPreOnline(phoneNumber, userId) {
-    const userState = this.getUserState(userId);
+  async setPreOnline(phoneNumber, userId, campaignId) {
+    const userState = this.getUserState(userId, campaignId);
     userState.state = 'pre-online';
     userState.preOnlineComplete = false;
     if (userState.newMessage) {
@@ -73,33 +79,33 @@ class BotStateManager {
     userState.preOnlineComplete = true;
   }
 
-  async setOnline(phoneNumber, userId) {
-    const userState = this.getUserState(userId);
+  async setOnline(phoneNumber, userId, campaignId) {
+    const userState = this.getUserState(userId, campaignId);
     userState.state = 'online';
     if (userState.newMessage) {
     }
     const session = await this.getSession(phoneNumber);
     await this.onlineStatusManager.setOnline(userId, session);
     await this.markMessagesAsRead(phoneNumber, userId);
-    this.resetOfflineTimer(phoneNumber, userId);
+    this.resetOfflineTimer(phoneNumber, userId, campaignId);
     logger.info(`Bot set to online for user ${userId}`);
   }
 
-  async setTyping(phoneNumber, userId) {
-    const userState = this.getUserState(userId);
+  async setTyping(phoneNumber, userId, campaignId) {
+    const userState = this.getUserState(userId, campaignId);
     userState.state = 'typing';
     clearTimeout(userState.offlineTimer);
     await this.markMessagesAsRead(phoneNumber, userId);
     await this.simulateTyping(phoneNumber, userId);
   }
 
-  resetOfflineTimer(phoneNumber, userId) {
-    const userState = this.getUserState(userId);
+  resetOfflineTimer(phoneNumber, userId, campaignId) {
+    const userState = this.getUserState(userId, campaignId);
     clearTimeout(userState.offlineTimer);
     userState.offlineTimer = setTimeout(
-      () => this.setOffline(phoneNumber, userId),
+      () => this.setOffline(phoneNumber, userId, campaignId),
       Math.random() * 10000 + 20000,
-    ); // 20-30 seconds
+    );
   }
 
   async markMessagesAsRead(phoneNumber, userId) {
@@ -159,9 +165,9 @@ class BotStateManager {
     }
   }
 
-  async getCorrectPeer(phoneNumber, userId) {
+  async getCorrectPeer(phoneNumber, userId, campaignId) {
     try {
-      const cacheKey = `${phoneNumber}_${userId}`;
+      const cacheKey = `${campaignId}_${phoneNumber}_${userId}`;
 
       if (this.peerCache.has(cacheKey)) {
         logger.info('Peer is reused from cache');
@@ -220,31 +226,22 @@ class BotStateManager {
       }
       throw new Error(`Could not find entity for userId ${userId}`);
     } catch (error) {
-      logger.error(`Error in getCorrectPeer: ${error.message}`);
-      if (
-        error.message.includes('AUTH_KEY_UNREGISTERED') ||
-        error.message === 'Session is not connected'
-      ) {
-        logger.info(`Attempting to reauthorize session for ${phoneNumber}`);
-        await sessionManager.reauthorizeSession(phoneNumber);
-        return this.getCorrectPeer(phoneNumber, userId);
-      }
+      logger.error(`Error in getCorrectPeer for campaign ${campaignId}:`, error);
       throw error;
     }
   }
 
-  hasNewMessageSince(userId, timestamp) {
-    const userState = this.getUserState(userId);
-    logger.info(`Checking if new message since ${timestamp} for user ${userId} with last message timestamp ${userState.lastMessageTimestamp}`);
-    return userState.lastMessageTimestamp > timestamp; // Ensure correct comparison
+  hasNewMessageSince(userId, timestamp, campaignId) {
+    const userState = this.getUserState(userId, campaignId);
+    return userState.lastMessageTimestamp > timestamp;
   }
 
-  async handleIncomingMessage(phoneNumber, userId, message) {
+  async handleIncomingMessage(phoneNumber, userId, message, campaignId) {
     logger.info(
-      `Начало обработки сообщения для пользователя ${userId}: ${message}`,
+      `Начало обработки сообщения для пользователя ${userId} компании ${campaignId}: ${message}`,
     );
 
-    const userState = this.getUserState(userId);
+    const userState = this.getUserState(userId, campaignId);
 
     userState.messageBuffer.push(message);
 
@@ -266,13 +263,13 @@ class BotStateManager {
       status = 'pre-online';
     }
 
-    this.resetOfflineTimer(phoneNumber, userId);
+    this.resetOfflineTimer(phoneNumber, userId, campaignId);
 
     try {
       switch (status) {
         case 'offline':
         case 'pre-online':
-          await retryOperation(() => this.setPreOnline(phoneNumber, userId));
+          await retryOperation(() => this.setPreOnline(phoneNumber, userId, campaignId));
           break;
         case 'online':
         case 'typing':

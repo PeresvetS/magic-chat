@@ -21,6 +21,7 @@ async function sendMessage(
   senderPhoneNumber,
   platform,
   BotStateManager,
+  campaignId,
 ) {
   try {
     logger.info(
@@ -46,6 +47,7 @@ async function sendMessage(
         const { peer, session } = await BotStateManager.getCorrectPeer(
           senderPhoneNumber,
           senderId,
+          campaignId,
         );
         result = await retryOperation(() =>
           session.invoke(
@@ -82,8 +84,10 @@ async function sendResponse(
   phoneNumber,
   platform = 'telegram',
   messageId = null,
+  activeCampaign,
 ) {
   try {
+    const { id: campaignId } = activeCampaign;
     logger.info(
       `Starting sendResponse for ${platform} user ${senderId} from ${phoneNumber}`,
     );
@@ -102,9 +106,9 @@ async function sendResponse(
       const startTime = Date.now();
 
       for (const sentence of sentences) {
-        await BotStateManager.setTyping(phoneNumber, senderId);
+        await BotStateManager.setTyping(phoneNumber, senderId, campaignId);
 
-        if (BotStateManager.hasNewMessageSince(senderId, startTime)) {
+        if (BotStateManager.hasNewMessageSince(senderId, startTime, campaignId)) {
           logger.info(`Response interrupted for user ${userId}`);
           resolve();
           return;
@@ -116,9 +120,10 @@ async function sendResponse(
           phoneNumber,
           platform,
           BotStateManager,
-        );
+          campaignId,
+          );
         logger.info(`Message sent to ${senderId}, result: ${JSON.stringify(result)}`);
-        BotStateManager.resetOfflineTimer(phoneNumber, senderId);
+        BotStateManager.resetOfflineTimer(phoneNumber, senderId, campaignId);
 
         await new Promise((resolve) =>
           setTimeout(resolve, Math.random() * 2000 + 1000),
@@ -257,9 +262,9 @@ async function sendQueuedMessages() {
 
       const startTime = Date.now();
 
-      await BotStateManager.setTyping(senderPhoneNumber, senderId);
+      await BotStateManager.setTyping(senderPhoneNumber, senderId, companyId);
 
-      if (BotStateManager.hasNewMessageSince(senderId, startTime)) {
+      if (BotStateManager.hasNewMessageSince(senderId, startTime, companyId)) {
         logger.info(`Response interrupted for user ${senderId}`);
         continue;
       }
