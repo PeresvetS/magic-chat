@@ -38,9 +38,11 @@ class AgentGPT {
 
     this.tools = tools;
     this.openai = new OpenAI({ apiKey: this.openaiApiKey });
+    this.lastUsed = Date.now();
   }
 
   async run(userMessage) {
+    this.lastUsed = Date.now();
     return new Promise((resolve, reject) => {
       this.messageQueue.push({ 
         userMessage, 
