@@ -1,7 +1,7 @@
 // src/services/mailing/checkers/TelegramChecker.js
 
 const logger = require('../../../utils/logger');
-const { TelegramSessionService } = require('../../telegram');
+const TelegramSessionService = require('../../telegram/services/telegramSessionService');
 const PhoneNumberRotationService = require('../../phone/src/PhoneNumberRotationService');
 const { safeStringify } = require('../../../utils/helpers');
 
@@ -11,6 +11,7 @@ class TelegramChecker {
     this.sessionStubs = new Map();
     this.lastUsedTime = new Map();
     this.phoneNumberRotationService = null;
+    this.telegramService = new TelegramSessionService();
   }
 
   async initialize(campaignId) {
@@ -33,7 +34,7 @@ class TelegramChecker {
     }
 
     if (this.sessionStubs.has(phoneNumber)) {
-      const client = await TelegramSessionService.getOrCreateSession(phoneNumber);
+      const client = await this.telegramService.getOrCreateSession(phoneNumber);
       if (!client) {
         throw new Error(`Failed to get Telegram client for phone number ${phoneNumber}`);
       }
@@ -61,7 +62,7 @@ class TelegramChecker {
       await client.getDialogs({limit: 1});
       logger.info('Entity cache updated');
 
-      const user = await TelegramSessionService.findUserByPhoneNumber(phoneNumberToCheck, client);
+      const user = await this.telegramService.findUserByPhoneNumber(phoneNumberToCheck, client);
       
       return user !== null;
     } catch (error) {

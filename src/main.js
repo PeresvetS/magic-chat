@@ -16,7 +16,7 @@ const { phoneNumberService } = require('./services/phone');
 const { messageQuequeService } = require('./services/mailing');
 const requestLogger = require('./api/middlewares/requestLogger');
 const { WhatsAppSessionService } = require('./services/whatsapp');
-const { TelegramSessionService } = require('./services/telegram');
+const TelegramSessionService = require('./services/telegram/services/telegramSessionService');
 const notificationBot = require('./bots/telegram/notification');
 const {
   handleMessageService,
@@ -241,30 +241,13 @@ async function main() {
       });
 
       await Promise.all([
-        adminBot
-          .stop()
-          .catch((error) => logger.error('Error stopping admin bot:', error)),
-        userBot
-          .stop()
-          .catch((error) => logger.error('Error stopping user bot:', error)),
-        notificationBot
-          .stop()
-          .catch((error) =>
-            logger.error('Error stopping notification bot:', error),
-          ),
-        TelegramSessionService.disconnectAllSessions().catch((error) =>
-          logger.error('Error disconnecting Telegram sessions:', error),
-        ),
-        RabbitMQQueueService.disconnect(), // Доавьте метод отключения от RabbitMQ
+        adminBot.stop(),
+        userBot.stop(),
+        notificationBot.stop(),
+        RabbitMQQueueService.disconnect(),
         ...Array.from(WhatsAppSessionService.clients.keys()).map(
           (phoneNumber) =>
-            WhatsAppSessionService.disconnectSession(phoneNumber).catch(
-              (error) =>
-                logger.error(
-                  `Error disconnecting WhatsApp session for ${phoneNumber}:`,
-                  error,
-                ),
-            ),
+            WhatsAppSessionService.disconnectSession(phoneNumber)
         ),
       ]);
 

@@ -3,7 +3,7 @@
 const logger = require('../../../utils/logger');
 const { WABASessionService } = require('../../waba');
 const { leadService } = require('../../leads/src/leadService');
-const { TelegramSessionService } = require('../../telegram');
+const TelegramSessionService = require('../../telegram/services/telegramSessionService');
 const { WhatsAppSessionService } = require('../../whatsapp');
 const {
   getCampaigUserId,
@@ -26,10 +26,16 @@ async function sendTelegramMessage({
 }) {
   try {
     await applyDelay('telegram');
-    const result = await TelegramSessionService.sendTelegramMessage(recipientPhoneNumber, senderPhoneNumber, campaignId, message);
+    const telegramService = new TelegramSessionService();
+    const result = await telegramService.sendTelegramMessage(
+      recipientPhoneNumber, 
+      senderPhoneNumber, 
+      campaignId, 
+      message
+    );
     return { success: true, messageId: result.id, status: 'completed' };
   } catch (error) {
-    logger.error(`Error sending Telegram message for campaign ${campaignId} to ${recipientPhoneNumber}:`, error);
+    logger.error(`Error sending Telegram message for campaign ${campaignId}:`, error);
     return { success: false, error: error.message, status: 'failed' };
   }
 }

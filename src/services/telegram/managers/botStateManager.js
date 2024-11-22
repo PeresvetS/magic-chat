@@ -10,11 +10,12 @@ const { RETRY_OPTIONS } = require('../../../config/constants');
 const { retryOperation } = require('../../../utils/messageUtils');
 
 class BotStateManager {
-  constructor() {
+  constructor(phoneNumber) {
+    this.phoneNumber = phoneNumber;
     this.campaignStates = new Map();
     this.peerCache = new Map();
     this.onlineStatusManager = OnlineStatusManager;
-    logger.info('BotStateManager initialized');
+    logger.info(`BotStateManager initialized for phone ${phoneNumber}`);
   }
 
   getUserState(userId, campaignId) {
@@ -363,4 +364,4 @@ class BotStateManager {
   }
 }
 
-module.exports = new BotStateManager();
+module.exports = BotStateManager;

@@ -9,6 +9,7 @@ const logger = require('../../../utils/logger');
 const WABASessionService = require('../../waba/services/WABASessionService');
 const WhatsAppMainSessionService = require('../../whatsapp/services/WhatsAppMainSessionService');
 const { Api } = require('telegram');
+const TelegramSessionService = require('../../telegram/services/telegramSessionService');
 
 async function processFile(ctx, filePath) {
     try {
@@ -48,7 +49,8 @@ async function getTelegramFileUrl(message, client) {
     logger.info(`Getting Telegram file for message: ${JSON.stringify(message)}`);
 
     try {
-        const client = await TelegramSessionService.getOrCreateSession(message.peerId.userId);
+        const telegramService = new TelegramSessionService();
+        const client = await telegramService.getOrCreateSession(message.peerId.userId);
         logger.info('Got main client');
 
         if (!message.media || !message.media.document) {
@@ -133,7 +135,8 @@ async function downloadTelegramVoiceMessage(message) {
         throw new Error('Document is not an audio file');
       }
   
-      const client = await TelegramSessionService.getOrCreateSession(message.peerId.userId);
+      const telegramService = new TelegramSessionService();
+      const client = await telegramService.getOrCreateSession(message.peerId.userId);
       
       const tempDir = path.join(__dirname, '..', '..', '..', '..', 'temp', 'voice');
       await fs.mkdir(tempDir, { recursive: true });

@@ -9,21 +9,22 @@ const {
   getPendingConversationStates,
 } = require('../../conversation/conversationState');
 const { safeStringify } = require('../../../utils/helpers')
-const TelegramBotStateManager = require('../../telegram/managers/botStateManager');
-const WhatsAppBotStateManager = require('../../whatsapp/managers/botStateManager');
-const WABABotStateManager = require('../../waba/managers/botStateManager');
+const telegramSessionService = require('../../telegram/services/telegramSessionService');
 
 async function processMessage(senderId, textToProcess, phoneNumber, campaign, platform) {
   try {
-    const BotStateManager = platform === 'telegram' ? TelegramBotStateManager :
-      platform === 'whatsapp' ? WhatsAppBotStateManager :
-      platform === 'waba' ? WABABotStateManager : null;
+    let botStateManager;
+    if (platform === 'telegram') {
+      botStateManager = telegramSessionService.getBotStateManager(phoneNumber);
+    } else if (platform === 'whatsapp') {
+      // ... аналогично для других платформ
+    }
 
     logger.info(
-      `Processing message for ${platform}, campaign ${campaign.id}`,
+      `Processing message for ${platform}, campaign ${campaign.id}, phone ${phoneNumber}`,
     );
 
-    const message = await BotStateManager.handleIncomingMessage(
+    const message = await botStateManager.handleIncomingMessage(
       phoneNumber,
       senderId,
       textToProcess,
@@ -76,7 +77,7 @@ async function processMessage(senderId, textToProcess, phoneNumber, campaign, pl
     // return { response, messageId: incomingMessage.id };
     return { response: response, messageId: null, leadId: lead.id };
   } catch (error) {
-    logger.error(`Error in processMessage for ${senderId}, campaign ${campaign.id}:`, error);
+    logger.error(`Error in processMessage:`, error);
     throw error;
   }
 }

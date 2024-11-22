@@ -14,6 +14,7 @@ const TelegramBotStateManager = require('../../telegram/managers/botStateManager
 const WhatsAppBotStateManager = require('../../whatsapp/managers/botStateManager');
 const WABABotStateManager = require('../../waba/managers/botStateManager');
 const RabbitMQQueueService = require('../../queue/rabbitMQQueueService');
+const telegramSessionService = require('../../telegram/services/telegramSessionService');
 
 async function sendMessage(
   senderId,
@@ -87,6 +88,13 @@ async function sendResponse(
   activeCampaign,
 ) {
   try {
+    let botStateManager;
+    if (platform === 'telegram') {
+      botStateManager = telegramSessionService.getBotStateManager(phoneNumber);
+    } else if (platform === 'whatsapp') {
+      // ... аналогично для других платформ
+    }
+
     const { id: campaignId } = activeCampaign;
     logger.info(
       `Starting sendResponse for ${platform} user ${senderId} from ${phoneNumber}`,
@@ -95,9 +103,6 @@ async function sendResponse(
       logger.warn(`Attempted to send empty ${platform} response to ${senderId}`);
       return;
     }
-    const BotStateManager = platform === 'telegram' ? TelegramBotStateManager :
-    platform === 'whatsapp' ? WhatsAppBotStateManager :
-    platform === 'waba' ? WABABotStateManager : null; 
 
     await validatePhoneNumber(phoneNumber);
     const sentences = response.split(/\n+/);
@@ -106,9 +111,9 @@ async function sendResponse(
       const startTime = Date.now();
 
       for (const sentence of sentences) {
-        await BotStateManager.setTyping(phoneNumber, senderId, campaignId);
+        await botStateManager.setTyping(phoneNumber, senderId, campaignId);
 
-        if (BotStateManager.hasNewMessageSince(senderId, startTime, campaignId)) {
+        if (botStateManager.hasNewMessageSince(senderId, startTime, campaignId)) {
           logger.info(`Response interrupted for user ${userId}`);
           resolve();
           return;
@@ -119,18 +124,18 @@ async function sendResponse(
           sentence,
           phoneNumber,
           platform,
-          BotStateManager,
+          botStateManager,
           campaignId,
           );
         logger.info(`Message sent to ${senderId}, result: ${JSON.stringify(result)}`);
-        BotStateManager.resetOfflineTimer(phoneNumber, senderId, campaignId);
+        botStateManager.resetOfflineTimer(phoneNumber, senderId, campaignId);
 
         await new Promise((resolve) =>
           setTimeout(resolve, Math.random() * 2000 + 1000),
         );
       }
 
-      await BotStateManager.setOnline(phoneNumber, senderId);
+      await botStateManager.setOnline(phoneNumber, senderId);
       resolve();
     });
 

@@ -14,6 +14,7 @@ const authTelegramService = require('./authTelegramService');
 const telegramMailingService = require('./telegramMailingService');
 const { processIncomingMessage } = require('../../messaging').handleMessageService;
 const { LRUCache } = require('lru-cache');
+const BotStateManager = require('../managers/botStateManager');
 
 class TelegramSessionService {
   constructor() {
@@ -22,12 +23,21 @@ class TelegramSessionService {
       ttl: 1000 * 60 * 60 * 24, // Время жизни сессии в кэше (24 часа)
     });
     this.eventHandlers = new Map(); // Добавляем новую Map для хранения обработчиков событий
+    this.botStateManagers = new Map(); // Добавляем Map для хранения менеджеров состояний
     this.startConnectionCheck();
     this.startAuthorizationCheck();
     this.connectionCheckInterval = null;
     this.authorizationCheckInterval = null;
     this.MAX_RETRIES = 3;
     this.RETRY_DELAY = 5000;
+  }
+
+  getBotStateManager(phoneNumber, campaignId) {
+    const key = `${phoneNumber}_${campaignId}`;
+    if (!this.botStateManagers.has(key)) {
+      this.botStateManagers.set(key, new BotStateManager(phoneNumber));
+    }
+    return this.botStateManagers.get(key);
   }
 
   async maintainConnection(client, phoneNumber) {
@@ -338,23 +348,20 @@ class TelegramSessionService {
     return telegramMailingService.sendTelegramMessage(recipientPhoneNumber, senderPhoneNumber, campaignId, message, client);
   }
 
-  addEventHandlers(client, phoneNumber) {
-    // Удаляем предыдущий обработчик, если он существует
-    if (this.eventHandlers.has(phoneNumber)) {
-      client.removeEventHandler(this.eventHandlers.get(phoneNumber));
+  async addEventHandlers(client, phoneNumber, campaignId) {
+    const botStateManager = this.getBotStateManager(phoneNumber, campaignId);
+    const key = `${phoneNumber}_${campaignId}`;
+
+    if (this.eventHandlers.has(key)) {
+      client.removeEventHandler(this.eventHandlers.get(key));
     }
 
-    // Создаем новый обработчик
     const handler = async (event) => {
-      logger.info(`Received new message event for ${phoneNumber}: ${JSON.stringify({
-        message: event.message,
-        date: event.date,
-        senderId: event.senderId,
-      })}`);
+      logger.info(`Received new message event for ${phoneNumber} campaign ${campaignId}`);
       try {
-        await processIncomingMessage(phoneNumber, event, 'telegram', client);
+        await processIncomingMessage(phoneNumber, event, 'telegram', client, campaignId);
       } catch (error) {
-        logger.error(`Error processing incoming message for ${phoneNumber}:`, error);
+        logger.error(`Error processing message for ${phoneNumber}, campaign ${campaignId}:`, error);
 
         if (error.message.includes('AUTH_KEY_UNREGISTERED')) {
           logger.info(
@@ -369,18 +376,10 @@ class TelegramSessionService {
       }
     };
 
-    // Добавляем новый обработчик к клиенту
     client.addEventHandler(handler, new NewMessage({}));
-
-    // Сохраняем обработчик в Map
-    this.eventHandlers.set(phoneNumber, handler);
-
-    logger.info(`Event handlers added for client with phone number ${phoneNumber}`);
+    this.eventHandlers.set(key, handler);
   }
 
 }
 
-const telegramSessionService = new TelegramSessionService();
-sessionManager.setTelegramSessionService(telegramSessionService);
-
-module.exports = telegramSessionService;
+module.exports = TelegramSessionService;
