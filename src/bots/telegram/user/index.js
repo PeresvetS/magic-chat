@@ -322,4 +322,4 @@ function createUserBot() {
   };
 }
 
-module.exports = createUserBot();
+module.exports = createUserBot;
