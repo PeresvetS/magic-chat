@@ -6,7 +6,7 @@ const config = require('../../../config');
 const logger = require('../../../utils/logger');
 const { getUserInfo } = require('../../../services/user/src/userService');
 const { getUserState } = require('./utils/userState');
-const { TelegramSessionService } = require('../../../services/telegram/services/telegramSessionService');
+const TelegramSessionService = require('../../../services/telegram/services/telegramSessionService');
 const { WhatsAppSessionService } = require('../../../services/whatsapp');
 const { setPhoneAuthenticated } =
   require('../../../services/phone/src/phoneNumberService');
