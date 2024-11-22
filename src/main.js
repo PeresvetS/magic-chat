@@ -13,18 +13,23 @@ const logger = require('./utils/logger');
 const { retryOperation } = require('./utils/helpers');
 const webhookRouter = require('./api/routes/webhooks');
 const { phoneNumberService } = require('./services/phone');
-const { messageQuequeService } = require('./services/mailing');
+const { 
+  messageQuequeService,
+} = require('./services/mailing/services/messageQuequeService');
+const { processPendingMessages } = require('./services/messaging');
+const { RabbitMQQueueService } = require('./services/queue/rabbitMQQueueService');
 const requestLogger = require('./api/middlewares/requestLogger');
 const { WhatsAppSessionService } = require('./services/whatsapp');
 const TelegramSessionService = require('./services/telegram/services/telegramSessionService');
+
+// Создаем экземпляры сервисов
+const rabbitMQService = new RabbitMQQueueService();
+const telegramService = new TelegramSessionService();
 
 // Создаем экземпляры ботов при запуске приложения
 const userBot = createUserBot();
 const adminBot = createAdminBot();
 const notificationBot = createNotificationBot();
-
-// Создаем экземпляр TelegramSessionService
-const telegramService = new TelegramSessionService();
 
 let isProcessingUnfinishedTasks = false;
 
@@ -74,7 +79,7 @@ async function processUnfinishedTasks() {
   try {
     await processPendingMessages();
 
-    const unprocessedItems = await RabbitMQQueueService.getUnprocessedItems();
+    const unprocessedItems = await rabbitMQService.getUnprocessedItems();
     for (const item of unprocessedItems) {
       if (item && item.id && item.campaignId) {
         logger.info(
@@ -97,7 +102,7 @@ async function processUnfinishedTasks() {
 let isProcessingQueue = false;
 
 async function startMessageQueueProcessing() {
-  await RabbitMQQueueService.startConsuming('mailing', async (queueItem) => {
+  await rabbitMQService.startConsuming('mailing', async (queueItem) => {
     try {
       await messageQuequeService.processSingleQueueItem(queueItem);
     } catch (error) {
@@ -157,7 +162,7 @@ async function main() {
 
     // Инициализация RabbitMQ
     try {
-      await RabbitMQQueueService.connect();
+      await rabbitMQService.connect();
       logger.info('Successfully connected to RabbitMQ');
     } catch (error) {
       logger.error('Failed to connect to RabbitMQ:', error);
@@ -248,7 +253,7 @@ async function main() {
         adminBot.stop(),
         userBot.stop(),
         notificationBot.stop(),
-        RabbitMQQueueService.disconnect(),
+        rabbitMQService.disconnect(),
         telegramService.disconnect(),
         ...Array.from(WhatsAppSessionService.clients.keys()).map(
           (phoneNumber) =>

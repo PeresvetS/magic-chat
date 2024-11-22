@@ -318,4 +318,4 @@ class RabbitMQQueueService {
   }
 }
 
-module.exports = new RabbitMQQueueService();
+module.exports = { RabbitMQQueueService };
