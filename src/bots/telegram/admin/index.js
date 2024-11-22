@@ -204,4 +204,5 @@ function createAdminBot() {
   };
 }
 
-module.exports = createAdminBot();
+// Экспортируем функцию создания бота вместо готового экземпляра
+module.exports = createAdminBot;

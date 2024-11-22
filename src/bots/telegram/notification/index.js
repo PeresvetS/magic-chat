@@ -93,4 +93,4 @@ function createNotificationBot() {
   };
 }
 
-module.exports = createNotificationBot();
+module.exports = createNotificationBot;

@@ -19,17 +19,99 @@ const BotStateManager = require('../managers/botStateManager');
 class TelegramSessionService {
   constructor() {
     this.sessions = new LRUCache({
-      max: 1000, // Максимальное количество сессий в памяти
-      ttl: 1000 * 60 * 60 * 24, // Время жизни сессии в кэше (24 часа)
+      max: 1000,
+      ttl: 1000 * 60 * 60 * 24,
     });
-    this.eventHandlers = new Map(); // Добавляем новую Map для хранения обработчиков событий
-    this.botStateManagers = new Map(); // Добавляем Map для хранения менеджеров состояний
-    this.startConnectionCheck();
-    this.startAuthorizationCheck();
+    this.eventHandlers = new Map();
+    this.botStateManagers = new Map();
     this.connectionCheckInterval = null;
     this.authorizationCheckInterval = null;
     this.MAX_RETRIES = 3;
     this.RETRY_DELAY = 5000;
+  }
+
+  async initialize() {
+    try {
+      logger.info('Initializing TelegramSessionService...');
+      
+      // Инициализируем все сессии
+      await this.initializeSessions();
+      
+      // Запускаем проверки только после инициализации
+      this.startConnectionCheck();
+      this.startAuthorizationCheck();
+      
+      logger.info('TelegramSessionService initialized successfully');
+    } catch (error) {
+      logger.error('Error initializing TelegramSessionService:', error);
+      throw error;
+    }
+  }
+
+  startConnectionCheck() {
+    if (this.connectionCheckInterval) {
+      clearInterval(this.connectionCheckInterval);
+    }
+    
+    this.connectionCheckInterval = setInterval(async () => {
+      for (const [phoneNumber, client] of this.sessions.entries()) {
+        try {
+          if (!client.connected) {
+            logger.warn(`Connection lost for ${phoneNumber}, attempting to reconnect...`);
+            await this.maintainConnection(client, phoneNumber);
+          }
+        } catch (error) {
+          logger.error(`Error checking connection for ${phoneNumber}:`, error);
+        }
+      }
+    }, 30000); // Проверка каждые 30 секунд
+  }
+
+  startAuthorizationCheck() {
+    if (this.authorizationCheckInterval) {
+      clearInterval(this.authorizationCheckInterval);
+    }
+
+    this.authorizationCheckInterval = setInterval(async () => {
+      for (const [phoneNumber, client] of this.sessions.entries()) {
+        try {
+          const isAuthorized = await authTelegramService.checkAuthorization(client);
+          if (!isAuthorized) {
+            logger.warn(`Authorization expired for ${phoneNumber}, attempting to reauthorize...`);
+            await this.reauthorizeSession(phoneNumber, this.MAX_RETRIES, this.RETRY_DELAY);
+          }
+        } catch (error) {
+          logger.error(`Error checking authorization for ${phoneNumber}:`, error);
+        }
+      }
+    }, 300000); // Проверка каждые 5 минут
+  }
+
+  async disconnect() {
+    try {
+      logger.info('Disconnecting TelegramSessionService...');
+      
+      // Очищаем интервалы
+      if (this.connectionCheckInterval) {
+        clearInterval(this.connectionCheckInterval);
+      }
+      if (this.authorizationCheckInterval) {
+        clearInterval(this.authorizationCheckInterval);
+      }
+
+      // Отключаем все сессии
+      await this.disconnectAllSessions();
+      
+      // Очищаем все коллекции
+      this.sessions.clear();
+      this.eventHandlers.clear();
+      this.botStateManagers.clear();
+      
+      logger.info('TelegramSessionService disconnected successfully');
+    } catch (error) {
+      logger.error('Error disconnecting TelegramSessionService:', error);
+      throw error;
+    }
   }
 
   getBotStateManager(phoneNumber, campaignId) {
@@ -156,50 +238,6 @@ class TelegramSessionService {
       logger.error(`Error getting or creating session for ${phoneNumber}:`, error);
       throw error;
     }
-  }
-
-  startConnectionCheck() {
-    setInterval(async () => {
-      for (const [phoneNumber, client] of this.sessions.entries()) {
-        try {
-          if (!client.connected) {
-            logger.warn(
-              `Client for ${phoneNumber} is not connected. Attempting to reconnect...`,
-            );
-            await client.connect();
-            logger.info(`Successfully reconnected client for ${phoneNumber}`);
-            this.addEventHandlers(client, phoneNumber); // Добавляем обработчики событий
-          }
-        } catch (error) {
-          logger.error(`Error reconnecting client for ${phoneNumber}:`, error);
-        }
-      }
-    }, 60000); // Проверка каждую минуту
-  }
-
-  startAuthorizationCheck() {
-    setInterval(async () => {
-      for (const [phoneNumber, session] of this.sessions.entries()) {
-        try {
-          const isAuthorized = await authTelegramService.checkAuthorization(session);
-          if (!isAuthorized) {
-            logger.warn(
-              `Session for ${phoneNumber} is not authorized. Attempting to reauthorize...`,
-            );
-            await this.reauthorizeSession(
-              phoneNumber,
-              this.MAX_RETRIES,
-              this.RETRY_DELAY,
-            );
-          }
-        } catch (error) {
-          logger.error(
-            `Error checking authorization for ${phoneNumber}:`,
-            error,
-          );
-        }
-      }
-    }, 300000); // Проверка каждые 5 минут
   }
 
   async createSession(phoneNumber) {

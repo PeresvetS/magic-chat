@@ -6,9 +6,9 @@ const express = require('express');
 const bodyParser = require('body-parser');
 
 const config = require('./config');
-const userBot = require('./bots/telegram/user');
-const adminBot = require('./bots/telegram/admin');
-const { Worker } = require('worker_threads');
+const createUserBot = require('./bots/telegram/user');
+const createAdminBot = require('./bots/telegram/admin');
+const createNotificationBot = require('./bots/telegram/notification');
 const logger = require('./utils/logger');
 const { retryOperation } = require('./utils/helpers');
 const webhookRouter = require('./api/routes/webhooks');
@@ -17,12 +17,14 @@ const { messageQuequeService } = require('./services/mailing');
 const requestLogger = require('./api/middlewares/requestLogger');
 const { WhatsAppSessionService } = require('./services/whatsapp');
 const TelegramSessionService = require('./services/telegram/services/telegramSessionService');
-const notificationBot = require('./bots/telegram/notification');
-const {
-  handleMessageService,
-  processPendingMessages,
-} = require('./services/messaging');
-const RabbitMQQueueService = require('./services/queue/rabbitMQQueueService');
+
+// Создаем экземпляры ботов при запуске приложения
+const userBot = createUserBot();
+const adminBot = createAdminBot();
+const notificationBot = createNotificationBot();
+
+// Создаем экземпляр TelegramSessionService
+const telegramService = new TelegramSessionService();
 
 let isProcessingUnfinishedTasks = false;
 
@@ -165,10 +167,12 @@ async function main() {
     // Инициализация сессий Telegram
     await retryOperation(
       async () => {
-        await TelegramSessionService.initializeSessions();
+        await telegramService.initialize();
       },
       3,
       5000,
+      null,
+      logger
     );
 
     // Инициализация WhatsApp сессий
@@ -245,6 +249,7 @@ async function main() {
         userBot.stop(),
         notificationBot.stop(),
         RabbitMQQueueService.disconnect(),
+        telegramService.disconnect(),
         ...Array.from(WhatsAppSessionService.clients.keys()).map(
           (phoneNumber) =>
             WhatsAppSessionService.disconnectSession(phoneNumber)

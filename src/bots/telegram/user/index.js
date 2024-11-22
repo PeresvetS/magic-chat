@@ -6,7 +6,7 @@ const config = require('../../../config');
 const logger = require('../../../utils/logger');
 const { getUserInfo } = require('../../../services/user/src/userService');
 const { getUserState } = require('./utils/userState');
-const { TelegramSessionService } = require('../../../services/telegram');
+const { TelegramSessionService } = require('../../../services/telegram/services/telegramSessionService');
 const { WhatsAppSessionService } = require('../../../services/whatsapp');
 const { setPhoneAuthenticated } =
   require('../../../services/phone/src/phoneNumberService');
@@ -35,12 +35,87 @@ const commandModules = [
   wabaCommands,
 ];
 
+async function handleTelegramAuth(bot, query, phoneNumber, authType) {
+  try {
+    const telegramService = new TelegramSessionService();
+    let client;
+    
+    if (authType === 'code') {
+      client = await telegramService.authenticateSession(
+        phoneNumber,
+        bot,
+        query.message.chat.id,
+      );
+    } else if (authType === 'qr') {
+      client = await telegramService.generateQRCode(
+        phoneNumber,
+        bot,
+        query.message.chat.id,
+      );
+    }
+    
+    if (client) {
+      await setPhoneAuthenticated(phoneNumber, 'telegram', true);
+      bot.sendMessage(
+        query.message.chat.id,
+        `Номер телефона ${phoneNumber} успешно аутентифицирован в Telegram.`,
+      );
+    }
+  } catch (error) {
+    if (error.message === 'PHONE_NUMBER_INVALID') {
+      bot.sendMessage(
+        query.message.chat.id,
+        'Неверный формат номера телефона. Пожалуйста, проверьте номер и попробуйте снова.',
+      );
+    } else {
+      bot.sendMessage(
+        query.message.chat.id,
+        `Ошибка аутентификации: ${error.message}`,
+      );
+    }
+  }
+}
+
+async function handleWhatsAppAuth(bot, query, phoneNumber, authType) {
+  try {
+    const whatsappService = new WhatsAppSessionService();
+    
+    if (authType === 'qr') {
+      const { qr, client } = await whatsappService.generateQRCode(phoneNumber);
+      // Send QR code and wait for authentication
+    } else if (authType === 'phone') {
+      const client = await whatsappService.authenticateWithPhoneNumber(phoneNumber);
+      // Wait for authentication
+    }
+    await setPhoneAuthenticated(phoneNumber, 'whatsapp', true);
+    bot.sendMessage(
+      query.message.chat.id,
+      `Номер телефона ${phoneNumber} успешно аутентифицирован в WhatsApp.`,
+    );
+  } catch (error) {
+    bot.sendMessage(
+      query.message.chat.id,
+      `Ошибка аутентификации: ${error.message}`,
+    );
+  }
+}
+
+async function checkAndReauthorize(phoneNumber) {
+  const telegramService = new TelegramSessionService();
+  const client = await telegramService.getSession(phoneNumber);
+  if (!(await telegramService.checkAuthorization(client))) {
+    await telegramService.reauthorizeSession(phoneNumber, 3, 5000, client);
+  }
+}
+
 function createUserBot() {
   const bot = new TelegramBot(config.USER_BOT_TOKEN, { polling: false });
   let isRunning = false;
   let pollingError = null;
   let restartAttempts = 0;
   const maxRestartAttempts = 5;
+  const phoneNumberManager = new PhoneNumberManagerService();
+  const telegramService = new TelegramSessionService();
 
   function handlePollingError(error) {
     logger.error('User bot polling error:', error);
@@ -70,8 +145,6 @@ function createUserBot() {
       }
     }
   }
-
-  const phoneNumberManager = new PhoneNumberManagerService();
 
   phoneNumberManager.setNotificationCallback((telegramId, message) => {
     bot.sendMessage(telegramId, message);
@@ -234,76 +307,6 @@ function createUserBot() {
     await new Promise((resolve) => setTimeout(resolve, 1000));
     await launch();
     logger.info('User bot restarted successfully');
-  }
-
-  async function handleTelegramAuth(bot, query, phoneNumber, authType) {
-    try {
-      let client;
-      if (authType === 'code') {
-        client = await TelegramSessionService.authenticateSession(
-          phoneNumber,
-          bot,
-          query.message.chat.id,
-        );
-      } else if (authType === 'qr') {
-        client = await TelegramSessionService.generateQRCode(
-          phoneNumber,
-          bot,
-          query.message.chat.id,
-        );
-      }
-      
-      if (client) {
-        await setPhoneAuthenticated(phoneNumber, 'telegram', true);
-        bot.sendMessage(
-          query.message.chat.id,
-          `Номер телефона ${phoneNumber} успешно аутентифицирован в Telegram.`,
-        );
-      }
-    } catch (error) {
-      if (error.message === 'PHONE_NUMBER_INVALID') {
-        bot.sendMessage(
-          query.message.chat.id,
-          'Неверный формат номера телефона. Пожалуйста, проверьте номер и попробуйте снова.',
-        );
-      } else {
-        bot.sendMessage(
-          query.message.chat.id,
-          `Ошибка аутентификации: ${error.message}`,
-        );
-      }
-    }
-  }
-
-  async function handleWhatsAppAuth(bot, query, phoneNumber, authType) {
-    try {
-      if (authType === 'qr') {
-        const { qr, client } =
-          await WhatsAppSessionService.generateQRCode(phoneNumber);
-        // Send QR code and wait for authentication
-      } else if (authType === 'phone') {
-        const client =
-          await WhatsAppSessionService.authenticateWithPhoneNumber(phoneNumber);
-        // Wait for authentication
-      }
-      await setPhoneAuthenticated(phoneNumber, 'whatsapp', true);
-      bot.sendMessage(
-        query.message.chat.id,
-        `Номер телефона ${phoneNumber} успешно аутентифицирован в WhatsApp.`,
-      );
-    } catch (error) {
-      bot.sendMessage(
-        query.message.chat.id,
-        `Ошибка аутентификации: ${error.message}`,
-      );
-    }
-  }
-
-  async function checkAndReauthorize(phoneNumber) {
-    const client = await TelegramSessionService.getSession(phoneNumber);
-    if (!(await TelegramSessionService.checkAuthorization(client))) {
-      await TelegramSessionService.reauthorizeSession(phoneNumber, 3, 5000, client);
-    }
   }
 
   return {
